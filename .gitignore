@@ -1,0 +1,44 @@
+# 密钥与环境变量 — 绝不提交
+.env
+.env.*
+!.env.example
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存与构建
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# 数据目录（用户上传的小说、会话数据）
+data/sessions/
+data/uploads/
+data/*.db
+data/*.pkl
+
+# 数据库本地文件
+*.sqlite3
+*.sqlite
+chroma_db/
+qdrant_storage/
+neo4j/
+
+# 日志与临时文件
+logs/
+*.log
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+
+# 测试产物
+output/
+*.png
+*.html.tmp
