@@ -1,31 +1,60 @@
-# Core
+# ============================================
+# 核心运行必需（当前代码实际 import / 运行依赖）
+# ============================================
+
+# API 服务
+fastapi>=0.115.0
+uvicorn>=0.32.0
+
+# 数据模型与配置
+pydantic>=2.9.0
+python-dotenv>=1.0.1
+
+# LLM 调用（llm_client.py，DeepSeek 兼容 OpenAI SDK）
+openai>=1.50.0
+
+# TF-IDF 检索器（core/retriever.py）
+scikit-learn>=1.5.0
+numpy>=1.26.0
+
+# ============================================
+# 规划中（后续里程碑启用，当前代码未 import）
+# ============================================
+
+# Agent 编排 — 里程碑1将真正启用
+# （models/state.py 已建 TypedDict 状态骨架，但尚未 import langgraph）
 langgraph>=0.2.0
+
+# LangChain 生态（RAG 链路与工具集成，里程碑2+）
 langchain>=0.3.0
 langchain-openai>=0.2.0
 langchain-community>=0.3.0
 llama-index>=0.11.0
 
-# Vector DB
+# 向量数据库（语义检索升级，替代当前 TF-IDF）
 qdrant-client>=1.12.0
 
-# Graph DB
+# 图数据库（人物/世界观关系图谱）
 neo4j>=5.25.0
 
-# Storage
+# 持久化存储（章节/项目数据 + 缓存）
 sqlalchemy>=2.0.0
 asyncpg>=0.30.0
 redis>=5.0.0
 
-# API
-fastapi>=0.115.0
-uvicorn>=0.32.0
-python-multipart>=0.0.12
-
-# Utils
-pydantic>=2.9.0
-python-dotenv>=1.0.1
+# 工具库（token 计数）
 tiktoken>=0.8.0
 
-# Document parsing
+# 文档解析（用户导入 docx/pdf 素材）
 python-docx>=1.1.0
 pypdf>=5.0.0
+
+# 文件上传支持（启用素材上传接口时需要）
+python-multipart>=0.0.12
+
+# ============================================
+# 开发/测试
+# ============================================
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+httpx>=0.27.0
