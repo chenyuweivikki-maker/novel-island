@@ -5,6 +5,7 @@ DeepSeek LLM 客户端 — OpenAI 兼容格式
 1. 基于检索结果的问答生成
 2. 实体/人设抽取（Phase 2 预留）
 """
+import json
 from openai import OpenAI
 from .config import settings
 
@@ -63,6 +64,96 @@ def chat_stream(
     for chunk in resp:
         if chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
+
+
+def chat_with_tools(
+    system_prompt: str,
+    user_prompt: str,
+    tools: list[dict],
+    tool_executors: dict,
+    temperature: float = 0.3,
+    max_tokens: int = 1024,
+) -> str:
+    """带工具调用的对话 — 里程碑3核心
+
+    流程（tool calling 4步）：
+      1. 把问题 + 工具清单发给 LLM
+      2. LLM 决定：直接回答，还是调用工具（输出 tool_call）
+      3. 如果调用工具：代码执行 → 把结果作为新消息还给 LLM → LLM 继续
+      4. 直到 LLM 给出最终回答
+
+    tools:        工具说明书列表（给 LLM 看的 JSON Schema）
+    tool_executors: {工具名: 执行函数}，LLM 说调哪个，代码就调哪个
+    """
+    client = get_client()
+
+    # 初始消息：系统提示 + 用户问题
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    # 最多允许 LLM 连续调 3 次工具（防止它陷入工具循环）
+    for _ in range(3):
+        resp = client.chat.completions.create(
+            model=settings.DEEPSEEK_MODEL,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+        msg = resp.choices[0].message
+
+        # 情况A：LLM 决定调用工具
+        if msg.tool_calls:
+            # 把 LLM 的 tool_call 追加到消息历史（必须带上，OpenAI协议要求）
+            messages.append({
+                "role": "assistant",
+                "content": msg.content,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ],
+            })
+
+            # 逐个执行 LLM 要调的工具
+            for tc in msg.tool_calls:
+                tool_name = tc.function.name
+                args = json.loads(tc.function.arguments or "{}")
+
+                # 从映射表找执行函数（找不到就报错给 LLM，让它换路）
+                executor = tool_executors.get(tool_name)
+                if executor is None:
+                    result = f"错误：未知工具 {tool_name}"
+                else:
+                    try:
+                        result = executor(**args)
+                    except Exception as e:
+                        result = f"工具执行失败：{e}"
+
+                # 工具执行结果作为新消息还回给 LLM
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
+
+            # 继续循环：LLM 拿到工具结果，决定是继续调还是最终回答
+            continue
+
+        # 情况B：LLM 直接给出最终回答
+        return msg.content or ""
+
+    # 超过 3 次工具调用还没给回答（防御）
+    return "工具调用次数过多，已中止。"
 
 
 # ===== Prompt 模板 =====
