@@ -9,8 +9,9 @@
 from typing import Any, Dict
 
 from ..core.retriever import retriever
-from ..core.llm_client import chat, RAG_SYSTEM_PROMPT, build_rag_prompt
+from ..core.llm_client import chat, chat_with_tools, RAG_SYSTEM_PROMPT, build_rag_prompt
 from ..models.state import NovelIslandState
+from ..tools.kb_tools import AVAILABLE_TOOLS, TOOL_EXECUTORS
 
 
 class RetrieveNode:
@@ -106,6 +107,19 @@ class GenerateNode:
         }
 
 
+# AgentNode 的系统提示词：告诉 LLM 它有哪些工具可用、怎么用
+AGENT_SYSTEM_PROMPT = """你是「小说岛」的智能助手，帮助小说作者查询作品设定、拓展剧情。
+
+你有以下工具可用：
+- search_kb(query, top_k)：搜索小说知识库，找到与问题相关的原文片段。
+
+使用规则：
+1. 当用户询问小说中的人物、情节、设定等具体内容时，先调用 search_kb 检索原文。
+2. 基于工具返回的原文片段回答，不要编造原文没有的信息。
+3. 如果工具返回的片段不足以回答，如实说明。
+4. 回答要简洁、准确。"""
+
+
 # 灵感分支专用的系统提示词：同样基于原文，但语气是"创作建议"
 INSPIRE_SYSTEM_PROMPT = """你是「小说岛」的创作灵感助手，帮助小说作者拓展后续剧情。
 
@@ -136,6 +150,45 @@ class InspireNode:
         user_prompt = build_rag_prompt(query, results)
         answer = chat(INSPIRE_SYSTEM_PROMPT, user_prompt)
 
+        sources = [
+            {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
+            for r in results
+        ]
+
+        return {
+            "agent_response": answer,
+            "sources": sources,
+            "current_step": self.name,
+        }
+
+
+class AgentNode:
+    """Agent节点 — 里程碑3：让LLM自己决定是否调用工具
+
+    这是"agent"与"普通LLM应用"的分水岭：
+    - 普通应用：代码定死流程，LLM只当打字员
+    - 这里：LLM 看到工具清单 → 自己决定调不调 → 代码执行 → 结果回填 → 最终回答
+
+    为教学保留预检索结果（state['retrieved_chunks']）作为背景，
+    但 LLM 仍会再自主决定一次是否调用 search_kb —— 让你亲眼看到 tool_call。
+    """
+
+    name = "agent"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+
+        # 调 chat_with_tools：给 LLM 工具清单 + 执行函数映射表
+        # 内部完成：LLM决策 → 执行工具 → 结果回填 → 最终回答
+        answer = chat_with_tools(
+            AGENT_SYSTEM_PROMPT,
+            query,
+            tools=AVAILABLE_TOOLS,
+            tool_executors=TOOL_EXECUTORS,
+        )
+
+        # 预检索结果仍作为来源展示（供调试看召回情况）
+        results = state.get("retrieved_chunks", [])
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
             for r in results
