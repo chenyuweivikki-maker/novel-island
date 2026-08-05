@@ -20,6 +20,7 @@ from .core.config import settings
 from .core.chunker import clean_text, chunk_text
 from .core.retriever import retriever
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
+from .core.memory import memory
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 
@@ -134,6 +135,9 @@ def ask(req: AskRequest):
         "user_query": req.query,
         "top_k": req.top_k,
     })
+
+    # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
+    memory.add_turn(req.query, result["agent_response"])
 
     return {
         "answer": result["agent_response"],

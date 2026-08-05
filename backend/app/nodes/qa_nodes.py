@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from ..core.retriever import retriever
 from ..core.llm_client import chat, chat_with_tools, RAG_SYSTEM_PROMPT, build_rag_prompt
+from ..core.memory import memory
 from ..models.state import NovelIslandState
 from ..tools.kb_tools import AVAILABLE_TOOLS, TOOL_EXECUTORS
 
@@ -270,13 +271,23 @@ class AgentNode:
                 + "\n".join(f"- {i}" for i in state["critic_issues"])
             )
 
+        # 里程碑6：读取短期记忆（对话历史），拼进 prompt
+        # 如果历史超长，get_context 会自动做摘要压缩
+        history = memory.get_context()
+        # 里程碑6修复：messages 必须以 system 开头（OpenAI协议要求）
+        context_messages = [{'role': 'system', 'content': AGENT_SYSTEM_PROMPT}] + list(history)
+        # 把"新问题+质检反馈"作为最后一条 user 消息
+        context_messages.append({"role": "user", "content": query + critic_feedback})
+
         # 调 chat_with_tools：给 LLM 工具清单 + 执行函数映射表
+        # 注意：这里传入完整 messages（含历史），而不是单独的 user_prompt
         # 内部完成：LLM决策 → 执行工具 → 结果回填 → 最终回答
         answer = chat_with_tools(
             AGENT_SYSTEM_PROMPT,
-            query + critic_feedback,
+            context_messages,  # 里程碑6：传完整消息列表（含对话历史）
             tools=AVAILABLE_TOOLS,
             tool_executors=TOOL_EXECUTORS,
+            use_messages=True,  # 标记：第二个参数已是 messages 而非字符串
         )
 
         # 预检索结果仍作为来源展示（供调试看召回情况）
