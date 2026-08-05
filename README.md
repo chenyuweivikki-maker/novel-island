@@ -2,53 +2,50 @@
 
 > AI Agent平台，为中长篇网文创作者提供知识管理、一致性校验、灵感拓展和情感陪伴
 
+## 项目状态：8个里程碑全部完成 ✅
+
+基于 LangGraph 状态机的完整 Agent 系统，覆盖建库、问答、图谱、成本控制全链路。
+
 ## 项目结构
 
-```
 novel-island/
-├── backend/                 # Python后端
+├── backend/
 │   ├── app/
-│   │   ├── core/           # 核心配置（数据库连接、LLM客户端）
-│   │   ├── nodes/          # LangGraph节点定义
-│   │   ├── agents/         # 四大子Agent（FactQA/Logic/Inspiration/Companion）
-│   │   ├── tools/          # LangChain工具集（CRUD操作）
-│   │   ├── models/         # 数据模型（State Schema、ORM模型）
-│   │   └── routers/        # API路由
-│   └── tests/
-├── frontend/               # 前端
-│   └── public/            # 静态页面（原型阶段）
-├── config/                # 配置文件
-├── data/                  # 数据目录
-│   ├── sample/           # 示例小说文本
-│   └── sessions/         # 会话数据
-└── docs/                  # 文档
-```
+│   │   ├── core/           # 核心：配置/分块/检索/LLM客户端/记忆/模型路由/图谱
+│   │   ├── nodes/          # LangGraph节点（qa_nodes/build_nodes）
+│   │   ├── graphs/         # LangGraph状态机（qa_graph/build_graph）
+│   │   ├── tools/          # 工具集（search_kb）
+│   │   ├── models/         # 状态定义（NovelIslandState）
+│   │   └── main.py         # FastAPI入口
+│   ├── verify_memory.py    # 多轮记忆验证脚本
+│   └── requirements.txt    # 依赖清单
+├── frontend/public/        # 前端原型
+├── config/                 # 配置
+├── data/                   # 数据（示例/图谱持久化）
+└── docs/                   # 文档
 
 ## 技术栈
 
 | 层 | 技术 | 职责 |
 |----|------|------|
-| 编排层 | LangGraph | 状态机、节点编排、条件路由 |
-| 执行层 | LangChain | 工具定义、Agent调用 |
-| 数据层 | LlamaIndex | 文档解析、分块、向量化 |
-| 存储层 | Qdrant + Neo4j + PostgreSQL + Redis | 向量/图/关系/缓存 |
+| 编排层 | LangGraph | 状态机、节点编排、条件路由、并行 |
+| API | FastAPI | 后端接口 |
+| LLM | DeepSeek | 问答/抽取/质检/摘要 |
+| 检索 | TF-IDF (scikit-learn) | 知识库检索 |
+| 存储 | 内存 + JSON | 图谱持久化 |
 
-## 模型策略
+## 8个里程碑实现的能力
 
-| 级别 | 模型 | 用途 |
-|------|------|------|
-| 高阶 | Claude Opus / DeepSeek V4pro | 复杂推理、核心灵感拓展 |
-| 主力 | DeepSeek-V4-Flash / Qwen3-turbo | 日常对话、摘要、续写 |
-| 兜底 | DeepSeek-V4-Flash | 数据预处理、意图识别 |
-
-## 实施路线
-
-- [x] Phase 0: 项目骨架搭建
-- [ ] Phase 1: 数据管线 & 基础RAG（MVP）
-- [ ] Phase 2: 知识图谱构建
-- [ ] Phase 3: Agent编排 & 记忆系统
-- [ ] Phase 4: 前端 & 可视化
-- [ ] Phase 5: 商业化 & 运营
+| # | 能力 | 核心概念 |
+|---|------|---------|
+| 1 | 问答链路状态机 | State / Node / Graph |
+| 2 | 意图路由 | conditional edge（条件分支） |
+| 3 | 工具调用 | tool calling（LLM自主决定调工具） |
+| 4 | 防幻觉质检 | LLM-as-Judge + 循环回边（打回重试） |
+| 5 | 并行建库 | 并行分支 + 汇合（实体/事件/关系抽取） |
+| 6 | 三层记忆 | 短期对话历史 + 摘要压缩 |
+| 7 | 模型路由+成本 | 三级模型路由 + token成本记录 |
+| 8 | 知识图谱 | 实体/关系图谱 + 多跳查询 + 持久化 |
 
 ## 快速开始
 
@@ -56,9 +53,36 @@ novel-island/
 # 后端
 cd backend
 pip install -r requirements.txt
+cp .env.example .env  # 填入 DeepSeek API Key
 uvicorn app.main:app --reload
 
 # 前端原型
 cd frontend/public
 python3 -m http.server 8080
-```
+
+API 接口
+
+┌───────────────────────────┬─────────────────────────────────────┐
+│           接口            │                功能                 │
+├───────────────────────────┼─────────────────────────────────────┤
+│ POST /api/kb/build        │ 构建知识库（状态机+并行抽取）       │
+├───────────────────────────┼─────────────────────────────────────┤
+│ POST /api/kb/ask          │ 提问（意图路由→工具调用→质检→记忆） │
+├───────────────────────────┼─────────────────────────────────────┤
+│ GET /api/kb/status        │ 知识库状态                          │
+├───────────────────────────┼─────────────────────────────────────┤
+│ GET /api/graph            │ 图谱数据                            │
+├───────────────────────────┼─────────────────────────────────────┤
+│ POST /api/graph/neighbors │ 实体邻居查询                        │
+├───────────────────────────┼─────────────────────────────────────┤
+│ POST /api/graph/path      │ 实体路径查询（多跳推理）            │
+├───────────────────────────┼─────────────────────────────────────┤
+│ GET /api/cost             │ 成本记录汇总                        │
+├───────────────────────────┼─────────────────────────────────────┤
+│ GET /api/health           │ 健康检查                            │
+└───────────────────────────┴─────────────────────────────────────┘
+
+测试
+
+# 多轮记忆验证
+cd backend && ./.venv/bin/python verify_memory.py

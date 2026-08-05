@@ -23,6 +23,8 @@ from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_pro
 from .core.memory import memory
 from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph
+from .core.hybrid_retriever import precise_attribute_search
+from .core.vector_store import vector_store
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 
@@ -31,6 +33,8 @@ app = FastAPI(title="小说岛 API", version="0.1.0")
 # 启动时加载已持久化的图谱
 if len(graph) == 0:
     graph.load()
+# 里程碑9：启动时加载向量库
+vector_store.load()
 
 # CORS — 允许前端跨域
 app.add_middleware(
@@ -51,6 +55,7 @@ class BuildRequest(BaseModel):
     text: str
     chunk_size: int = 400
     overlap: int = 60
+    mode: str = "init"  # init=全量建库, update=增量更新（里程碑9）
 
 
 class AskRequest(BaseModel):
@@ -68,26 +73,50 @@ def health():
 
 @app.post("/api/kb/build")
 def build_kb(req: BuildRequest):
-    """构建知识库：走状态机（清洗分块 → 并行实体/事件抽取 → 汇总建索引）"""
+    """构建知识库：走状态机（清洗分块 → 并行实体/事件抽取 → 汇总建索引）
+
+    里程碑9：支持增量更新 —— mode=update 时只向量化新分块追加，不重建旧库。
+    """
     # 把输入放进 State（背包），交给建库状态机跑
     result = build_app.invoke({
         "raw_input_files": [req.text],
     })
 
     output = result["final_output"]
+    chunks = [
+        {"id": c["id"], "text": c["text"], "char_count": c["char_count"]}
+        for c in result["processed_chunks"]
+    ]
+
+    # 里程碑9：向量化 + 增量更新
+    if req.mode == "update":
+        # 增量：只把新分块向量化追加（vector_store 内部只处理新文本）
+        vector_store.add_chunks(
+            [c["text"] for c in chunks],
+            [{"chunk_id": c["id"]} for c in chunks],
+        )
+    else:
+        # 全量：清空重建
+        vector_store.texts.clear()
+        vector_store.vectors.clear()
+        vector_store.metadata.clear()
+        vector_store.add_chunks(
+            [c["text"] for c in chunks],
+            [{"chunk_id": c["id"]} for c in chunks],
+        )
+    vector_store.save()
+
     return {
         "success": True,
         "stats": {
             "chunks": output["chunks"],
             "total_chars": output["total_chars"],
             "indexed": True,
+            "vector_indexed": len(vector_store),
             "entities": output["entities"],
             "events": output["events"],
         },
-        "chunks": [
-            {"id": c["id"], "text": c["text"], "char_count": c["char_count"]}
-            for c in result["processed_chunks"]
-        ],
+        "chunks": chunks,
     }
 
 
@@ -105,8 +134,31 @@ def ask(req: AskRequest):
     if not retriever.is_ready:
         return {"error": "知识库未构建，请先调用 /api/kb/build"}
 
-    # 1. 检索
-    results = retriever.search(req.query, req.top_k)
+    # 1. 检索（里程碑9：先精确属性检索，再混合检索）
+    precise = precise_attribute_search(req.query)
+    if precise:
+        return {
+            "answer": precise["answer"],
+            "sources": [],
+            "retrieval": [],
+            "precise": precise,
+        }
+
+    # 混合检索（向量 + TF-IDF）
+    if vector_store.is_ready:
+        vector_hits = vector_store.search(req.query, req.top_k)
+        # 把向量结果转成和 retriever 兼容的格式（用 metadata 里的 chunk_id）
+        results = []
+        for hit in vector_hits:
+            chunk_id = hit["metadata"].get("chunk_id", hit["index"])
+            # 从 TF-IDF 库里找对应 chunk（保持原有 Chunk 结构）
+            if 0 <= chunk_id < len(retriever.chunks):
+                results.append({"chunk": retriever.chunks[chunk_id], "score": hit["score"], "index": chunk_id})
+        # 向量没结果就回退 TF-IDF
+        if not results:
+            results = retriever.search(req.query, req.top_k)
+    else:
+        results = retriever.search(req.query, req.top_k)
 
     if not results:
         return {
@@ -180,9 +232,16 @@ def retrieve(query: str, top_k: int = 5):
 
 @app.get('/api/graph')
 def graph_data():
-    """图谱查询接口（里程碑8）：返回全部实体和关系"""
+    """图谱查询接口（里程碑8+9）：返回全部实体（含人设属性）和关系"""
+    entities = []
+    for name in graph.all_entities():
+        node = graph.get_entity(name)
+        entities.append({
+            "name": name,
+            "persona": node.get("persona", {}) if node else {},
+        })
     return {
-        "entities": graph.all_entities(),
+        "entities": entities,
         "relations": graph.all_relations(),
         "total_entities": len(graph),
     }

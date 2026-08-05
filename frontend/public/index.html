@@ -497,7 +497,7 @@
 
 <script>
 // ===== CONFIG =====
-const API_BASE = '';  // 同源，无跨域
+const API_BASE = 'http://localhost:8000';  // 指向后端（跨域）
 
 // ===== STATE =====
 let KB = {
@@ -566,58 +566,37 @@ const SAMPLE_TEXT = `林晚在二十三岁那年失去了所有。
 走出考场的时候，阳光很好。他们去了一家小面馆。林晚点了一碗红烧牛肉面，许言点了一碗酸辣粉。吃着吃着，许言突然说："林晚，你知道吗？你笑起来的时候，特别好看。"林晚愣了一下，然后低下头，假装专心吃面。但她嘴角翘起来的弧度，许言看得一清二楚。`;
 
 // ===== ENTITY EXTRACTION (MOCK — Phase 2 will use LLM) =====
-function extractEntities(text) {
-  const entities = [];
-  const namePatterns = [
-    { name: '林晚', aliases: ['林小姐'], role: '主角', color: '#534ab7' },
-    { name: '沈屿', aliases: [], role: '心理医生', color: '#0f6e56' },
-    { name: '许言', aliases: [], role: '邻居/幼师', color: '#854f0b' }
-  ];
-
-  for (const p of namePatterns) {
-    if (text.includes(p.name)) {
-      const char = {
-        name: p.name,
-        aliases: p.aliases,
-        role: p.role,
-        color: p.color,
-        occupation: '',
-        personality: [],
-        trauma: '',
-        coreConflict: '',
-        relationships: []
-      };
-
-      if (p.name === '林晚') {
-        char.occupation = '建筑设计师 → 室内设计（自由职业）';
-        char.personality = ['直来直去', '走路带风', '自我要求高', '容易自责'];
-        char.trauma = '负责的商场项目坍塌，三人受伤，一人坐轮椅';
-        char.coreConflict = '专业责任感 vs 自我原谅';
-        char.relationships = [
-          { target: '沈屿', type: '网友→心灵导师', weight: 8 },
-          { target: '许言', type: '邻居→暧昧对象', weight: 9 }
-        ];
-      } else if (p.name === '沈屿') {
-        char.occupation = '心理医生';
-        char.personality = ['通透', '务实', '温柔但直接'];
-        char.trauma = '自己也经历过至暗时刻';
-        char.coreConflict = '帮助林晚走出阴影';
-        char.relationships = [
-          { target: '林晚', type: '心灵导师', weight: 8 }
-        ];
-      } else if (p.name === '许言') {
-        char.occupation = '幼儿园老师';
-        char.personality = ['阳光', '细心', '不追问过去', '体贴'];
-        char.trauma = '（无明显创伤）';
-        char.coreConflict = '用温暖治愈林晚';
-        char.relationships = [
-          { target: '林晚', type: '邻居→暧昧对象', weight: 9 }
-        ];
+async function fetchGraphData() {
+  // 里程碑8：从后端图谱接口拉真实实体和关系，转成前端KB.characters格式
+  try {
+    const resp = await fetch('http://localhost:8000/api/graph');
+    const data = await resp.json();
+    const colors = ['#534ab7', '#0f6e56', '#854f0b', '#993c1d', '#185fa5'];
+    // 实体 → character
+    const characters = data.entities.map((name, i) => ({
+      name,
+      aliases: [],
+      role: '角色',
+      color: colors[i % colors.length],
+      occupation: '',
+      personality: [],
+      trauma: '',
+      coreConflict: '',
+      relationships: []
+    }));
+    // 关系 → character.relationships
+    for (const r of data.relations || []) {
+      const src = characters.find(c => c.name === r.source);
+      const tgt = characters.find(c => c.name === r.target);
+      if (src && tgt) {
+        src.relationships.push({ target: tgt.name, type: r.relation, weight: r.weight || 5 });
       }
-      entities.push(char);
     }
+    return characters;
+  } catch (e) {
+    console.error('图谱接口失败:', e);
+    return [];
   }
-  return entities;
 }
 
 // ===== UI RENDERING =====
@@ -807,7 +786,7 @@ document.getElementById('btnBuild').addEventListener('click', async () => {
     pipelineStep(4); // 就绪
 
     // 提取人设（mock，Phase 2 用LLM替换）
-    KB.characters = extractEntities(text);
+    KB.characters = await fetchGraphData();
 
     updateStats(data.stats);
     renderChunks();

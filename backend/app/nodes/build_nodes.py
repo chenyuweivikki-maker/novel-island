@@ -22,14 +22,22 @@ from ..models.state import NovelIslandState
 
 # ===== 抽取用的系统提示词 =====
 
-ENTITY_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取所有人物实体。
+ENTITY_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取所有人物实体及属性。
 
 规则：
 1. 只抽取原文明确出现的人物，不要编造。
-2. 每个人物记录：名字、身份、性格（如原文有）、与主角关系（如原文有）。
+2. 每个人物记录：名字、身份、以及以下属性（原文有才写，没有留空）：
+   - 职业（做什么工作）
+   - 性格（性格特质）
+   - 外貌（身高/长相/穿着）
+   - 家庭（家人/家庭背景）
+   - 宠物（养的动物及名字）
+   - 物品（随身/拥有的重要物品）
+   - 事件（该人物经历的关键事件）
 3. 输出严格的 JSON 数组，格式：
-[{"name": "角色名", "identity": "身份", "traits": ["性格1","性格2"], "relation_to_main": "与主角关系"}]
-4. 只输出 JSON，不要其他文字。"""
+[{"name": "角色名", "identity": "身份", "attributes": {"职业": "...", "性格": "...", "外貌": "...", "家庭": "...", "宠物": "...", "物品": "...", "事件": "..."}}]
+4. attributes 里只放原文明确提到的，没有的键可以省略。
+5. 只输出 JSON，不要其他文字。"""
 
 RELATION_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取人物之间的关系。
 
@@ -174,6 +182,10 @@ class BuildOutputNode:
                     "identity": e.get("identity", ""),
                     "traits": e.get("traits", []),
                 })
+                # 里程碑9：挂人设属性（职业/性格/外貌/家庭/宠物等）
+                persona = e.get("attributes", {})
+                if persona:
+                    graph.add_persona(name, persona)
         for r in relations:
             source = r.get("source", "")
             target = r.get("target", "")
