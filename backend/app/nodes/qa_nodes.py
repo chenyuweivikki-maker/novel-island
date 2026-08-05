@@ -93,7 +93,7 @@ class GenerateNode:
         user_prompt = build_rag_prompt(query, results)
 
         # 调 LLM
-        answer = chat(RAG_SYSTEM_PROMPT, user_prompt)
+        answer = chat(RAG_SYSTEM_PROMPT, user_prompt, task="qa")
 
         # 整理来源，写回背包
         sources = [
@@ -149,7 +149,7 @@ class InspireNode:
 
         # 复用 build_rag_prompt 拼上下文（同一个函数，不同 system prompt）
         user_prompt = build_rag_prompt(query, results)
-        answer = chat(INSPIRE_SYSTEM_PROMPT, user_prompt)
+        answer = chat(INSPIRE_SYSTEM_PROMPT, user_prompt, task="inspire")
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
@@ -288,6 +288,7 @@ class AgentNode:
             tools=AVAILABLE_TOOLS,
             tool_executors=TOOL_EXECUTORS,
             use_messages=True,  # 标记：第二个参数已是 messages 而非字符串
+            task='qa',
         )
 
         # 预检索结果仍作为来源展示（供调试看召回情况）

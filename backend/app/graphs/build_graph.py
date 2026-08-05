@@ -26,6 +26,7 @@ from ..nodes.build_nodes import (
     BuildNode,
     EntityExtractNode,
     EventExtractNode,
+    RelationExtractNode,
     BuildOutputNode,
 )
 
@@ -38,6 +39,7 @@ def build_build_graph():
     graph.add_node("build", BuildNode())
     graph.add_node("extract_entities", EntityExtractNode())
     graph.add_node("extract_events", EventExtractNode())
+    graph.add_node("extract_relations", RelationExtractNode())
     graph.add_node("build_output", BuildOutputNode())
 
     # 2. 连边：入口 → 清洗分块
@@ -46,10 +48,12 @@ def build_build_graph():
     # 3. 并行分叉：build 后同时去两个抽取节点
     graph.add_edge("build", "extract_entities")
     graph.add_edge("build", "extract_events")
+    graph.add_edge("build", "extract_relations")
 
-    # 4. 汇合：两个抽取分支都完成后，才到 build_output
+    # 4. 汇合：三个抽取分支都完成后，才到 build_output
     graph.add_edge("extract_entities", "build_output")
     graph.add_edge("extract_events", "build_output")
+    graph.add_edge("extract_relations", "build_output")
 
     # 5. 结束
     graph.add_edge("build_output", END)

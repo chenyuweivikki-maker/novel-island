@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 from ..core.chunker import clean_text, chunk_text
 from ..core.retriever import retriever
 from ..core.llm_client import chat
+from ..core.graph_store import graph
 from ..models.state import NovelIslandState
 
 
@@ -29,6 +30,16 @@ ENTITY_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅�
 3. 输出严格的 JSON 数组，格式：
 [{"name": "角色名", "identity": "身份", "traits": ["性格1","性格2"], "relation_to_main": "与主角关系"}]
 4. 只输出 JSON，不要其他文字。"""
+
+RELATION_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取人物之间的关系。
+
+规则：
+1. 只抽取原文明确体现的人物关系，不要编造。
+2. 关系类型用简单词：朋友、恋人、房东租客、同事、家人、前任、邻居等。
+3. 输出严格的 JSON 数组，格式：
+[{"source": "人物A", "relation": "关系", "target": "人物B", "weight": 1到10的整数}]
+4. 只输出 JSON，不要其他文字。"""
+
 
 EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取关键事件。
 
@@ -120,6 +131,24 @@ class EventExtractNode:
         }
 
 
+class RelationExtractNode:
+    """关系抽取节点：LLM 从分块中抽人物关系（并行分支3）"""
+
+    name = "extract_relations"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        chunks = state.get("processed_chunks", [])
+
+        text_pool = "".join(c["text"] for c in chunks)[:6000]
+        llm_output = chat(RELATION_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
+        relations = _extract_json_array(llm_output)
+
+        # 并行分支：只写自己独占的字段
+        return {
+            "extracted_relationships": relations,
+        }
+
+
 class BuildOutputNode:
     """汇总节点：构建检索索引，汇总实体+事件结果（汇合点）"""
 
@@ -135,6 +164,24 @@ class BuildOutputNode:
 
         entities = state.get("extracted_entities", [])
         events = state.get("extracted_events", [])
+        relations = state.get("extracted_relationships", [])
+
+        # 里程碑8：写入知识图谱（实体→节点，关系→边）
+        for e in entities:
+            name = e.get("name", "")
+            if name:
+                graph.add_entity(name, {
+                    "identity": e.get("identity", ""),
+                    "traits": e.get("traits", []),
+                })
+        for r in relations:
+            source = r.get("source", "")
+            target = r.get("target", "")
+            if source and target:
+                graph.add_relation(source, r.get("relation", ""), target, r.get("weight", 1))
+
+        # 里程碑8：持久化图谱到文件
+        graph.save()
 
         return {
             "final_output": {

@@ -46,3 +46,4 @@ output/
 # AI 工具产生的临时目录
 .claude/
 .workbuddy/
+backend/data/

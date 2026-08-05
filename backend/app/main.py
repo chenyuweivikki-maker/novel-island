@@ -21,10 +21,16 @@ from .core.chunker import clean_text, chunk_text
 from .core.retriever import retriever
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
 from .core.memory import memory
+from .core.model_router import get_cost_summary, clear_cost_logs
+from .core.graph_store import graph
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
+
+# 启动时加载已持久化的图谱
+if len(graph) == 0:
+    graph.load()
 
 # CORS — 允许前端跨域
 app.add_middleware(
@@ -170,6 +176,41 @@ def retrieve(query: str, top_k: int = 5):
             for r in results
         ]
     }
+
+
+@app.get('/api/graph')
+def graph_data():
+    """图谱查询接口（里程碑8）：返回全部实体和关系"""
+    return {
+        "entities": graph.all_entities(),
+        "relations": graph.all_relations(),
+        "total_entities": len(graph),
+    }
+
+
+@app.post('/api/graph/neighbors')
+def graph_neighbors(entity: str):
+    """查询某实体的直接关系（邻居）"""
+    return {"entity": entity, "neighbors": graph.query_neighbors(entity)}
+
+
+@app.post('/api/graph/path')
+def graph_path(start: str, end: str):
+    """查询两实体间的路径（多跳推理）"""
+    return {"path": graph.query_path(start, end)}
+
+
+@app.get('/api/cost')
+def cost_summary():
+    """成本查询接口（里程碑7）"""
+    return get_cost_summary()
+
+
+@app.post('/api/cost/clear')
+def cost_clear():
+    """清空成本日志（测试用）"""
+    clear_cost_logs()
+    return {'success': True}
 
 
 # ===== 启动 =====

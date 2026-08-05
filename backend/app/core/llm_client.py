@@ -8,6 +8,7 @@ DeepSeek LLM 客户端 — OpenAI 兼容格式
 import json
 from openai import OpenAI
 from .config import settings
+from .model_router import get_model_for_task, record_llm_cost
 
 _client: OpenAI | None = None
 
@@ -27,11 +28,13 @@ def chat(
     user_prompt: str,
     temperature: float = 0.3,
     max_tokens: int = 1024,
+    task: str = 'qa',
 ) -> str:
-    """调用 DeepSeek 生成回答"""
+    """调用 DeepSeek 生成回答（里程碑7：按任务路由模型 + 记录成本）"""
     client = get_client()
+    model = get_model_for_task(task)
     resp = client.chat.completions.create(
-        model=settings.DEEPSEEK_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -40,6 +43,8 @@ def chat(
         max_tokens=max_tokens,
         stream=False,
     )
+    # 里程碑7：记录成本（token数来自API响应）
+    record_llm_cost(model, task, resp.usage.prompt_tokens, resp.usage.completion_tokens)
     return resp.choices[0].message.content
 
 
@@ -74,6 +79,7 @@ def chat_with_tools(
     temperature: float = 0.3,
     max_tokens: int = 1024,
     use_messages: bool = False,
+    task: str = 'qa',
 ) -> str:
     """带工具调用的对话 — 里程碑3+6
 
@@ -102,8 +108,9 @@ def chat_with_tools(
 
     # 最多允许 LLM 连续调 3 次工具（防止它陷入工具循环）
     for _ in range(3):
+        model = get_model_for_task(task)
         resp = client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
+            model=model,
             messages=messages,
             tools=tools,
             temperature=temperature,
