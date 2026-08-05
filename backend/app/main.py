@@ -20,6 +20,7 @@ from .core.config import settings
 from .core.chunker import clean_text, chunk_text
 from .core.retriever import retriever
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
+from .graphs.qa_graph import qa_app
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -123,15 +124,16 @@ def ask(req: AskRequest):
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
-    # 非流式
-    answer = chat(RAG_SYSTEM_PROMPT, user_prompt)
+    # 非流式 — 走状态机（里程碑1）
+    # 把请求参数放进 State（背包），让状态机跑完整个流程
+    result = qa_app.invoke({
+        "user_query": req.query,
+        "top_k": req.top_k,
+    })
 
     return {
-        "answer": answer,
-        "sources": [
-            {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
-            for r in results
-        ],
+        "answer": result["agent_response"],
+        "sources": result["sources"],
         "retrieval": [
             {
                 "chunk_id": r["chunk"].id,
@@ -139,7 +141,7 @@ def ask(req: AskRequest):
                 "text": r["chunk"].text,
                 "preview": r["chunk"].text[:150],
             }
-            for r in results
+            for r in result["retrieved_chunks"]
         ],
     }
 
