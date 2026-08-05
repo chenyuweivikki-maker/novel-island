@@ -73,8 +73,9 @@ def chat_with_tools(
     tool_executors: dict,
     temperature: float = 0.3,
     max_tokens: int = 1024,
+    use_messages: bool = False,
 ) -> str:
-    """带工具调用的对话 — 里程碑3核心
+    """带工具调用的对话 — 里程碑3+6
 
     流程（tool calling 4步）：
       1. 把问题 + 工具清单发给 LLM
@@ -82,16 +83,22 @@ def chat_with_tools(
       3. 如果调用工具：代码执行 → 把结果作为新消息还给 LLM → LLM 继续
       4. 直到 LLM 给出最终回答
 
+    里程碑6：use_messages=True 时，user_prompt 参数是完整的消息列表
+    （含对话历史），而不是单个用户问题。
+
     tools:        工具说明书列表（给 LLM 看的 JSON Schema）
     tool_executors: {工具名: 执行函数}，LLM 说调哪个，代码就调哪个
     """
     client = get_client()
 
-    # 初始消息：系统提示 + 用户问题
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
+    # 里程碑6：如果传的是完整消息列表，直接用它；否则构造系统+用户
+    if use_messages:
+        messages = list(user_prompt)
+    else:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
     # 最多允许 LLM 连续调 3 次工具（防止它陷入工具循环）
     for _ in range(3):
