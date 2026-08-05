@@ -162,12 +162,94 @@ class InspireNode:
         }
 
 
-class AgentNode:
-    """Agent节点 — 里程碑3：让LLM自己决定是否调用工具
+# 质检（LLM-as-Judge）的系统提示词：让 LLM 扮演"编辑"，检查回答是否有原文依据
+CRITIC_SYSTEM_PROMPT = """你是「小说岛」的质检编辑，负责检查AI的回答是否严格基于原文。
 
-    这是"agent"与"普通LLM应用"的分水岭：
-    - 普通应用：代码定死流程，LLM只当打字员
-    - 这里：LLM 看到工具清单 → 自己决定调不调 → 代码执行 → 结果回填 → 最终回答
+规则：
+1. 检查回答中的每一条事实，是否都能在「原文片段」中找到依据。
+2. 如果回答包含原文中没有的信息（编造、过度推断、不确定话术如"可能/也许/或许"），判为不通过。
+3. 回答简洁、不冗长、不重复也算合格。
+4. 只输出 JSON，格式：{"pass": true或false, "issues": ["具体问题1", "问题2"]}
+   - pass: true 表示通过，issues 为空数组
+   - pass: false 表示不通过，issues 列出所有问题"""
+
+
+def _build_critic_prompt(query: str, response: str, results: list) -> str:
+    """拼质检用的 prompt：原文片段 + AI回答 + 用户问题"""
+    context_parts = []
+    for r in results:
+        c = r["chunk"]
+        context_parts.append(f"【片段#{c.id + 1}】\n{c.text}")
+    context = "\n\n---\n\n".join(context_parts)
+
+    return f"""以下是检索到的原文片段：
+
+{context}
+
+---
+
+用户问题：{query}
+
+---
+
+AI 的回答：
+{response}
+
+---
+
+请检查AI回答是否严格基于原文。只输出JSON。"""
+
+
+class HallucinationCriticNode:
+    """防幻觉质检节点 — 里程碑4：LLM-as-Judge
+
+    agent 生成回答后，这里让 LLM 当"编辑"，检查回答的每一条事实
+    是否都能在原文片段里找到依据。返回 pass / issues。
+
+    如果 pass: false（回答有幻觉），图里的条件边会把它打回 agent 重新生成。
+    """
+
+    name = "hallucination_critic"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+        response = state.get("agent_response", "")
+        results = state.get("retrieved_chunks", [])
+
+        # 没检索到内容时的兜底回答，直接判通过（不是幻觉，是信息不足）
+        if not results:
+            return {
+                "critic_pass": True,
+                "critic_issues": [],
+                "current_step": self.name,
+            }
+
+        # LLM-as-Judge：让 LLM 检查回答是否有原文依据
+        judge_prompt = _build_critic_prompt(query, response, results)
+        judge_output = chat(CRITIC_SYSTEM_PROMPT, judge_prompt, temperature=0.0, max_tokens=512)
+
+        # 解析 LLM 输出的 JSON
+        import json
+        try:
+            verdict = json.loads(judge_output)
+            passed = bool(verdict.get("pass", False))
+            issues = verdict.get("issues", [])
+        except (json.JSONDecodeError, AttributeError):
+            # 解析失败 = 质检不可靠，宁可放行（避免因质检故障卡死流程）
+            passed, issues = True, ["质检输出解析失败，已放行"]
+
+        return {
+            "critic_pass": passed,
+            "critic_issues": issues,
+            "current_step": self.name,
+        }
+
+
+class AgentNode:
+    """Agent节点 — 里程碑3+4：让LLM自己决定是否调用工具
+
+    里程碑3：LLM 看到工具清单 → 自己决定调不调 → 代码执行 → 结果回填 → 最终回答。
+    里程碑4：被质检打回重试时，递增 retry_count 防止死循环。
 
     为教学保留预检索结果（state['retrieved_chunks']）作为背景，
     但 LLM 仍会再自主决定一次是否调用 search_kb —— 让你亲眼看到 tool_call。
@@ -177,12 +259,22 @@ class AgentNode:
 
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         query = state.get("user_query", "")
+        # 每次被调用都递增重试计数（包含质检打回的重新生成）
+        retry = state.get("retry_count", 0) + 1
+
+        # 如果是被质检打回的，带上质检意见重新生成（让它知道自己错在哪）
+        critic_feedback = ""
+        if retry > 1 and state.get("critic_issues"):
+            critic_feedback = (
+                "\n\n上一次回答被质检驳回，驳回原因如下，请修正后重新回答：\n"
+                + "\n".join(f"- {i}" for i in state["critic_issues"])
+            )
 
         # 调 chat_with_tools：给 LLM 工具清单 + 执行函数映射表
         # 内部完成：LLM决策 → 执行工具 → 结果回填 → 最终回答
         answer = chat_with_tools(
             AGENT_SYSTEM_PROMPT,
-            query,
+            query + critic_feedback,
             tools=AVAILABLE_TOOLS,
             tool_executors=TOOL_EXECUTORS,
         )
@@ -197,5 +289,6 @@ class AgentNode:
         return {
             "agent_response": answer,
             "sources": sources,
+            "retry_count": retry,
             "current_step": self.name,
         }

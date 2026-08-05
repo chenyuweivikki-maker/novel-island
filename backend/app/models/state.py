@@ -35,7 +35,12 @@ class NovelIslandState(TypedDict):
     agent_response: str
     sources: List[dict]                   # 检索来源（chunk_id + score）
 
-    # 6. 控制流与结果
+    # 6. 质检相关（里程碑4）
+    critic_pass: Optional[bool]           # 质检是否通过
+    critic_issues: List[str]              # 质检发现的问题
+    retry_count: int = 0                  # 打回重试次数
+
+    # 7. 控制流与结果
     current_step: str
     error_message: Optional[str]
     final_output: Optional[str]
