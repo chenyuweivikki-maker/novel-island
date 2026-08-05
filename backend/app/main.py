@@ -21,6 +21,7 @@ from .core.chunker import clean_text, chunk_text
 from .core.retriever import retriever
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
 from .graphs.qa_graph import qa_app
+from .graphs.build_graph import build_app
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -60,22 +61,25 @@ def health():
 
 @app.post("/api/kb/build")
 def build_kb(req: BuildRequest):
-    """构建知识库：清洗 → 分块 → 建TF-IDF索引"""
-    cleaned = clean_text(req.text)
-    chunks = chunk_text(cleaned, req.chunk_size, req.overlap)
-    retriever.build_index(chunks)
+    """构建知识库：走状态机（清洗分块 → 并行实体/事件抽取 → 汇总建索引）"""
+    # 把输入放进 State（背包），交给建库状态机跑
+    result = build_app.invoke({
+        "raw_input_files": [req.text],
+    })
 
-    total_chars = sum(c.char_count for c in chunks)
+    output = result["final_output"]
     return {
         "success": True,
         "stats": {
-            "chunks": len(chunks),
-            "total_chars": total_chars,
+            "chunks": output["chunks"],
+            "total_chars": output["total_chars"],
             "indexed": True,
+            "entities": output["entities"],
+            "events": output["events"],
         },
         "chunks": [
-            {"id": c.id, "text": c.text, "char_count": c.char_count}
-            for c in chunks
+            {"id": c["id"], "text": c["text"], "char_count": c["char_count"]}
+            for c in result["processed_chunks"]
         ],
     }
 
