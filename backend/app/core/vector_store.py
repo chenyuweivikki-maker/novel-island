@@ -25,17 +25,21 @@ class VectorStore:
         self.metadata: List[Dict] = []    # 每个文本块的元信息
         self.vectors: List[np.ndarray] = []  # 对应向量
 
-    def add_chunks(self, texts: List[str], metadata: List[Dict] | None = None):
+    def add_chunks(self, texts: List[str], metadata: List[Dict] | None = None, chapter_id: int | None = None):
         """增量添加：新文本块向量化后追加（不重建旧库）
 
         这是增量更新的核心 —— 只处理新内容，旧向量原样保留。
+        chapter_id 标记来源章节，用于按章删除（里程碑10）。
         """
         if not texts:
             return
         vectors = embed_texts(texts)  # 只对新文本向量化
         for i, text in enumerate(texts):
+            meta = dict(metadata[i]) if metadata and i < len(metadata) else {}
+            if chapter_id is not None:
+                meta["chapter_id"] = chapter_id
             self.texts.append(text)
-            self.metadata.append(metadata[i] if metadata else {})
+            self.metadata.append(meta)
             self.vectors.append(np.array(vectors[i]))
 
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -63,6 +67,17 @@ class VectorStore:
                     "metadata": self.metadata[i],
                 })
         return results
+
+    def remove_by_chapter(self, chapter_id: int):
+        """删除某章节贡献的所有向量块（里程碑10：改章节时先删旧）"""
+        keep_texts, keep_meta, keep_vecs = [], [], []
+        for i, meta in enumerate(self.metadata):
+            if meta.get("chapter_id") == chapter_id:
+                continue  # 跳过该章的
+            keep_texts.append(self.texts[i])
+            keep_meta.append(meta)
+            keep_vecs.append(self.vectors[i])
+        self.texts, self.metadata, self.vectors = keep_texts, keep_meta, keep_vecs
 
     def save(self):
         """持久化到磁盘（numpy .npz）"""

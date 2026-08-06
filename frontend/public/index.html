@@ -273,6 +273,7 @@
       <button class="nav-tab active" data-page="kb">知识库</button>
       <button class="nav-tab" data-page="chars">人设卡片</button>
       <button class="nav-tab" data-page="graph">人物关系图</button>
+      <button class="nav-tab" data-page="write">创作空间</button>
       <button class="nav-tab" data-page="arch">系统架构</button>
     </div>
   </div>
@@ -386,6 +387,44 @@
       <svg class="graph-svg" id="graphSvg" viewBox="0 0 1000 400">
         <text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">请先在「知识库」页面构建知识库</text>
       </svg>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 创作空间 ===== -->
+  <div class="page" id="page-write">
+    <div class="hero">
+      <h1>创作空间</h1>
+      <p>写新章节，保存后自动更新知识库（增量）。写完就能查。</p>
+    </div>
+    <div class="rag-layout">
+      <div>
+        <div class="card">
+          <div class="card-title">新建作品</div>
+          <div class="qa-input-row">
+            <input class="qa-input" id="novelTitle" placeholder="作品名，如：观南嘉措" />
+            <button class="btn btn-primary" id="btnCreateNovel">创建</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">作品列表</div>
+          <div id="novelList"><div class="empty-state">还没有作品，先创建一个</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-title">写新章节</div>
+          <div class="card-desc">保存后自动增量更新知识库，新内容可被问答检索</div>
+          <textarea class="text-input" id="chapterText" placeholder="在这里写新章节..."></textarea>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnSaveChapter">保存章节并更新知识库</button>
+          </div>
+          <div id="saveResult" style="margin-top:10px;font-size:12px;color:#6b6a65;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">章节列表</div>
+          <div id="chapterList"><div class="empty-state">保存章节后显示在此</div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -840,6 +879,75 @@ document.querySelectorAll('.q-chip').forEach(chip => {
     document.getElementById('btnAsk').click();
   });
 });
+
+// ===== 创作空间 =====
+let currentNovelId = null;
+
+// 创建作品
+document.getElementById('btnCreateNovel').addEventListener('click', async () => {
+  const title = document.getElementById('novelTitle').value.trim();
+  if (!title) { alert('请输入作品名'); return; }
+  const data = await apiCall('/api/novel', { title });
+  currentNovelId = data.novel_id;
+  document.getElementById('novelTitle').value = '';
+  loadNovels();
+  loadChapters();
+});
+
+// 保存章节 + 增量更新
+document.getElementById('btnSaveChapter').addEventListener('click', async () => {
+  const content = document.getElementById('chapterText').value.trim();
+  if (!content) { alert('请先写章节内容'); return; }
+  if (!currentNovelId) { alert('请先创建或选择一个作品'); return; }
+  const btn = document.getElementById('btnSaveChapter');
+  btn.disabled = true; btn.textContent = '保存并更新中...';
+  try {
+    const data = await apiCall('/api/chapter', { novel_id: currentNovelId, content });
+    document.getElementById('saveResult').textContent =
+      `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${data.stats.chunks}块`;
+    document.getElementById('chapterText').value = '';
+    loadChapters();
+  } catch (e) {
+    document.getElementById('saveResult').textContent = '保存失败: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '保存章节并更新知识库';
+  }
+});
+
+// 加载作品列表
+async function loadNovels() {
+  const resp = await fetch(API_BASE + '/api/novels');
+  const data = await resp.json();
+  const list = document.getElementById('novelList');
+  if (!data.novels || data.novels.length === 0) {
+    list.innerHTML = '<div class="empty-state">还没有作品，先创建一个</div>';
+    return;
+  }
+  list.innerHTML = data.novels.map(n =>
+    `<div class="chunk-item" style="cursor:pointer;" onclick="selectNovel(${n.id}, '${n.title}')">${n.title}</div>`
+  ).join('');
+}
+
+async function selectNovel(id, title) {
+  currentNovelId = id;
+  document.getElementById('novelTitle').value = title;
+  loadChapters();
+}
+
+// 加载章节列表
+async function loadChapters() {
+  if (!currentNovelId) return;
+  const resp = await fetch(API_BASE + '/api/novel/' + currentNovelId + '/chapters');
+  const data = await resp.json();
+  const list = document.getElementById('chapterList');
+  if (!data.chapters || data.chapters.length === 0) {
+    list.innerHTML = '<div class="empty-state">保存章节后显示在此</div>';
+    return;
+  }
+  list.innerHTML = data.chapters.map(c =>
+    `<div class="chunk-item">章节#${c.id} ${c.title || ''}</div>`
+  ).join('');
+}
 
 // Auto-load sample on first visit
 window.addEventListener('load', () => {

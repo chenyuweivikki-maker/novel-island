@@ -37,11 +37,42 @@ class KnowledgeGraph:
         elif attributes:
             self._nodes[name].setdefault("attributes", {}).update(attributes)
 
-    def add_persona(self, entity: str, persona: Dict[str, Any]):
-        """给实体挂人设属性（职业/性格/外貌/宠物等键值） — 里程碑9"""
+    def add_persona(self, entity: str, persona: Dict[str, Any], chapter_id: int | None = None):
+        """给实体挂人设属性（职业/性格/外貌/宠物等键值） — 里程碑9
+        chapter_id 标记来源章节，用于按章删除（里程碑10）。
+        """
         if entity not in self._nodes:
-            self._nodes[entity] = {"attributes": {}, "persona": {}}
-        self._nodes[entity].setdefault("persona", {}).update(persona)
+            self._nodes[entity] = {"attributes": {}, "persona": {}, "persona_chapters": {}}
+        node = self._nodes[entity]
+        node.setdefault("persona", {})
+        node.setdefault("persona_chapters", {})
+        for key, val in persona.items():
+            node["persona"][key] = val
+            if chapter_id is not None:
+                # 记录每个属性来自哪些章节（用于按章回滚）
+                node["persona_chapters"].setdefault(key, set())
+                node["persona_chapters"][key].add(chapter_id)
+
+    def remove_by_chapter(self, chapter_id: int):
+        """删除某章节贡献的图谱数据（里程碑10）
+        1. 删该章的关系边
+        2. 删该章贡献的人设属性（属性只被这一章提过才删）
+        """
+        # 1. 删边
+        self._edges = [e for e in self._edges if e.get("chapter_id") != chapter_id]
+
+        # 2. 删该章独占的人设属性
+        for entity, node in self._nodes.items():
+            p_chapters = node.get("persona_chapters", {})
+            to_remove = []
+            for key, chapters in p_chapters.items():
+                if chapter_id in chapters:
+                    chapters.discard(chapter_id)
+                    if not chapters:  # 没有其他章节引用该属性 → 删除
+                        to_remove.append(key)
+            for key in to_remove:
+                node.get("persona", {}).pop(key, None)
+                p_chapters.pop(key, None)
 
     def query_attribute(self, entity: str, attr: str) -> Optional[Any]:
         """精确查询实体的某个属性值（如 唐嘉措 → 宠物）"""
@@ -65,16 +96,23 @@ class KnowledgeGraph:
                     break
         return results
 
-    def add_relation(self, source: str, relation: str, target: str, weight: float = 1.0):
-        """添加边（source -[relation]-> target）"""
+    def add_relation(self, source: str, relation: str, target: str, weight: float = 1.0, chapter_id: int | None = None):
+        """添加边（source -[relation]-> target），可带章节标记（里程碑10）"""
         self.add_entity(source)
         self.add_entity(target)
-        self._edges.append({
+        edge = {
             "source": source,
             "target": target,
             "relation": relation,
             "weight": weight,
-        })
+        }
+        if chapter_id is not None:
+            edge["chapter_id"] = chapter_id
+        self._edges.append(edge)
+
+    def remove_by_chapter(self, chapter_id: int):
+        """删除某章节贡献的关系边（里程碑10：改章节时先删旧）"""
+        self._edges = [e for e in self._edges if e.get("chapter_id") != chapter_id]
 
     def query_neighbors(self, entity: str) -> List[Dict[str, Any]]:
         """查询某实体的所有直接关系（邻居）"""

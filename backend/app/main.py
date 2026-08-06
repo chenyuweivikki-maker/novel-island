@@ -23,6 +23,8 @@ from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_pro
 from .core.memory import memory
 from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph
+from .core.novel_store import novel_store
+from .core.hybrid_retriever import hybrid_search
 from .core.hybrid_retriever import precise_attribute_search
 from .core.vector_store import vector_store
 from .graphs.qa_graph import qa_app
@@ -62,6 +64,18 @@ class AskRequest(BaseModel):
     query: str
     top_k: int = 5
     stream: bool = False
+
+
+# ===== 创作空间请求模型（里程碑10）=====
+class NovelCreateRequest(BaseModel):
+    title: str
+
+
+class ChapterSaveRequest(BaseModel):
+    novel_id: int
+    content: str
+    title: str = ""
+    chapter_id: int | None = None  # 有则更新该章（先删旧），无则新增（里程碑10）
 
 
 # ===== 接口 =====
@@ -257,6 +271,84 @@ def graph_neighbors(entity: str):
 def graph_path(start: str, end: str):
     """查询两实体间的路径（多跳推理）"""
     return {"path": graph.query_path(start, end)}
+
+
+# ===== 创作空间 API（里程碑10）=====
+
+@app.post("/api/novel")
+def create_novel(req: NovelCreateRequest):
+    """创建作品"""
+    novel_id = novel_store.create_novel(req.title)
+    return {"novel_id": novel_id, "title": req.title}
+
+
+@app.get("/api/novels")
+def list_novels():
+    """列出所有作品"""
+    return {"novels": novel_store.list_novels()}
+
+
+@app.post("/api/chapter")
+def save_chapter(req: ChapterSaveRequest):
+    """保存章节 + 触发增量更新（写作→知识库闭环）
+
+    作者写完新章节保存后：
+      1. 章节持久化到 SQLite
+      2. 触发建库状态机（mode=update），只处理新章节增量更新
+      3. 知识库/图谱/向量库都更新，作者能查新章节内容
+    """
+    # 1. 保存章节（有 chapter_id 则更新，无则新增）
+    if req.chapter_id:
+        # 更新：先删旧数据（向量/图谱），再加新内容
+        vector_store.remove_by_chapter(req.chapter_id)
+        graph.remove_by_chapter(req.chapter_id)
+        novel_store.update_chapter(req.chapter_id, req.content, req.title)
+        chapter_id = req.chapter_id
+    else:
+        chapter_id = novel_store.add_chapter(req.novel_id, req.content, req.title)
+
+    # 2. 增量更新知识库（build 状态机 + 向量），新内容打上章节标记
+    try:
+        result = build_app.invoke({"raw_input_files": [req.content]})
+        chunks = [
+            {"id": c["id"], "text": c["text"], "char_count": c["char_count"]}
+            for c in result["processed_chunks"]
+        ]
+        vector_store.add_chunks(
+            [c["text"] for c in chunks],
+            [{"chunk_id": c["id"]} for c in chunks],
+            chapter_id=chapter_id,
+        )
+        graph.save()
+        vector_store.save()
+        updated = True
+    except Exception as e:
+        updated = False
+        print(f"增量更新失败: {e}")
+
+    return {
+        "chapter_id": chapter_id,
+        "knowledge_updated": updated,
+        "stats": {
+            "chunks": len(result["processed_chunks"]) if updated else 0,
+            "entities": result["final_output"]["entities"] if updated else [],
+        },
+    }
+
+
+@app.get("/api/novel/{novel_id}/chapters")
+def list_novel_chapters(novel_id: int):
+    """列出作品章节"""
+    return {"chapters": novel_store.list_chapters(novel_id)}
+
+
+@app.get("/api/chapter/{chapter_id}")
+def get_chapter(chapter_id: int):
+    """读取章节全文"""
+    chapter = novel_store.get_chapter(chapter_id)
+    if not chapter:
+        return {"error": "章节不存在"}
+    return chapter
 
 
 @app.get('/api/cost')
