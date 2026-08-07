@@ -108,3 +108,30 @@ class VectorStore:
 
 # 全局单例（向量库，路径在 data/ 下）
 vector_store = VectorStore(persist_path="data/vector_store.npz")
+
+
+class VectorStoreManager:
+    """按项目(novel_id)管理多个向量库 — 里程碑11：多租户隔离
+
+    每个项目一份独立向量库，数据互不污染。
+    路径：data/vector_{novel_id}.npz
+    """
+
+    def __init__(self):
+        self._stores: Dict[int, VectorStore] = {}
+
+    def get_store(self, novel_id: int) -> VectorStore:
+        """获取某项目的向量库（不存在则创建并加载）"""
+        if novel_id not in self._stores:
+            store = VectorStore(persist_path=f"data/vector_{novel_id}.npz")
+            store.load()
+            self._stores[novel_id] = store
+        return self._stores[novel_id]
+
+    def remove_store(self, novel_id: int):
+        """删除某项目向量库（内存）"""
+        self._stores.pop(novel_id, None)
+
+
+# 按项目管理的向量库（里程碑11）
+vector_store_manager = VectorStoreManager()
