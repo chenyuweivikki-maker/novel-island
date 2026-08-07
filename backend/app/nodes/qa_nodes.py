@@ -11,6 +11,7 @@ from typing import Any, Dict
 from ..core.retriever import retriever
 from ..core.llm_client import chat, chat_with_tools, RAG_SYSTEM_PROMPT, build_rag_prompt
 from ..core.memory import memory
+from ..core.graph_store import get_graph_for
 from ..models.state import NovelIslandState
 from ..tools.kb_tools import AVAILABLE_TOOLS, TOOL_EXECUTORS
 
@@ -39,6 +40,11 @@ class IntentRouterNode:
 
     里程碑2用规则（关键词）判断——便宜、可解释、零依赖。
     里程碑7升级为 LLM 意图分类时，只改这一个节点，不影响图结构。
+
+    里程碑13：四大意图 —— fact_qa（事实问答）/ inspiration（灵感）
+    / logic_critique（逻辑矛盾检查）/ character_critic（人设一致性检查）。
+    判断顺序：character_critic → logic_critique → inspiration → fact_qa
+    （越"具体"的意图越先判，避免关键词重叠误判）。
     """
 
     name = "intent_router"
@@ -49,13 +55,30 @@ class IntentRouterNode:
         "设计", "方案", "反转", "建议", "下一个情节", "后续",
     ]
 
+    # 逻辑矛盾检查关键词（里程碑13）：作者问"这段有没有矛盾/不合理"
+    LOGIC_CRITIQUE_KEYWORDS = [
+        "矛盾", "不合理", "逻辑", "对不上", "冲突", "bug", "硬伤",
+        "漏洞", "时间线", "因果", "前后", "连不上",
+    ]
+
+    # 人设一致性检查关键词（里程碑13）：作者问"XX人设崩了吗/是不是OOC"
+    CHARACTER_CRITIC_KEYWORDS = [
+        "人设", "崩", "ooc", "OOC", "不符合", "性格变", "像不像",
+        "身份", "设定一致", "跑偏", "变了",
+    ]
+
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         query = state.get("user_query", "")
 
-        # 规则判断：命中灵感关键词 → inspiration，否则 → fact_qa
-        intent = "inspiration" if any(
-            kw in query for kw in self.INSPIRATION_KEYWORDS
-        ) else "fact_qa"
+        # 规则判断（按优先级）：人设 → 逻辑 → 灵感 → 事实
+        if any(kw in query for kw in self.CHARACTER_CRITIC_KEYWORDS):
+            intent = "character_critic"
+        elif any(kw in query for kw in self.LOGIC_CRITIQUE_KEYWORDS):
+            intent = "logic_critique"
+        elif any(kw in query for kw in self.INSPIRATION_KEYWORDS):
+            intent = "inspiration"
+        else:
+            intent = "fact_qa"
 
         return {
             "current_intent": intent,
@@ -302,5 +325,157 @@ class AgentNode:
             "agent_response": answer,
             "sources": sources,
             "retry_count": retry,
+            "current_step": self.name,
+        }
+
+
+# ===== 里程碑13：四大功能节点补全 =====
+
+# 逻辑矛盾检查的系统提示词：检查情节的时间线/因果/设定矛盾
+LOGIC_CRITIQUE_SYSTEM_PROMPT = """你是「小说岛」的逻辑检查编辑，帮助作者检查小说情节中的逻辑矛盾。
+
+规则：
+1. 基于提供的「原文片段」检查逻辑问题，包括：时间线矛盾、事件因果矛盾、设定矛盾、人物行为不合逻辑。
+2. 只报告能明确指出的问题，拿不准的不报（避免误报）。
+3. 每个问题给出：问题描述 + 依据（片段里的具体说法）。
+4. 如果片段信息不足，明确说明"目前信息不足，无法判断"。
+5. 输出格式：先给结论，再逐条列出问题（有则列，无则说"未发现明显逻辑矛盾"）。"""
+
+
+def _build_logic_critique_prompt(query: str, results: list) -> str:
+    """拼逻辑检查 prompt：原文片段 + 用户问题"""
+    context_parts = []
+    for r in results:
+        c = r["chunk"]
+        context_parts.append(f"【片段#{c.id + 1}】\n{c.text}")
+    context = "\n\n---\n\n".join(context_parts)
+    return f"""以下是检索到的原文片段：
+
+{context}
+
+---
+
+作者的问题：{query}
+
+---
+
+请检查这些片段中是否存在逻辑矛盾，并回答作者的问题。"""
+
+
+class LogicCritiqueNode:
+    """逻辑矛盾检查节点 — 里程碑13
+
+    作者问"这段情节有没有矛盾/不合理"时，走这个分支。
+    复用检索结果（state['retrieved_chunks']），LLM 检查时间线/因果/设定矛盾。
+    """
+
+    name = "logic_critique"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+        results = state.get("retrieved_chunks", [])
+
+        if not results:
+            return {
+                "agent_response": "当前知识库信息不足，无法检查逻辑矛盾。建议先补充更多章节内容。",
+                "sources": [],
+                "current_step": self.name,
+            }
+
+        # 拼 prompt → 调 LLM（复用 chat，task=logic 走复杂级路由）
+        user_prompt = _build_logic_critique_prompt(query, results)
+        answer = chat(LOGIC_CRITIQUE_SYSTEM_PROMPT, user_prompt, task="logic")
+
+        sources = [
+            {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
+            for r in results
+        ]
+
+        return {
+            "agent_response": answer,
+            "sources": sources,
+            "current_step": self.name,
+        }
+
+
+# 人设一致性检查的系统提示词：结合图谱persona + 原文片段
+CHARACTER_CRITIC_SYSTEM_PROMPT = """你是「小说岛」的人设一致性检查编辑，帮助作者检查人物设定是否崩塌（OOC）。
+
+规则：
+1. 基于「设定信息」（知识图谱中的人物属性）和「原文片段」检查。
+2. 重点检查：人物性格、身份、职业、外貌、家庭、宠物、行为模式是否前后一致。
+3. 只报告能明确指出的不一致，拿不准的不报（避免误报）。
+4. 每个问题给出：不一致点 + 设定信息 vs 原文表现。
+5. 输出格式：先给结论，再逐条列出问题（有则列，无则说"未发现人设崩塌"）。"""
+
+
+def _build_character_critic_prompt(query: str, results: list, persona: dict, character: str) -> str:
+    """拼人设检查 prompt：图谱persona + 原文片段 + 用户问题"""
+    persona_lines = "\n".join(f"- {k}: {v}" for k, v in persona.items()) if persona else "（图谱中暂无该人物设定）"
+
+    context_parts = []
+    for r in results:
+        c = r["chunk"]
+        context_parts.append(f"【片段#{c.id + 1}】\n{c.text}")
+    context = "\n\n---\n\n".join(context_parts) if context_parts else "（未检索到相关片段）"
+
+    return f"""以下是知识图谱中「{character}」的设定信息：
+
+{persona_lines}
+
+---
+
+以下是检索到的原文片段：
+
+{context}
+
+---
+
+作者的问题：{query}
+
+---
+
+请检查「{character}」在原文中的表现是否与设定一致，并回答作者的问题。"""
+
+
+class CharacterCriticNode:
+    """人设一致性检查节点 — 里程碑13
+
+    作者问"XX人设崩了吗/是不是OOC"时，走这个分支。
+    查图谱 persona（novel_id 穿透）+ 检索原文片段 → LLM 对照检查。
+    """
+
+    name = "character_critic"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+        results = state.get("retrieved_chunks", [])
+        novel_id = state.get("novel_id")
+
+        # 从问题里提取人物名（图谱里存在的实体）
+        g = get_graph_for(novel_id)
+        entities = g.all_entities()
+        character = next((e for e in entities if e and e in query), None)
+        persona = g.get_entity(character).get("persona", {}) if character else {}
+
+        if not results:
+            return {
+                "agent_response": "当前知识库信息不足，无法检查人设一致性。建议先补充更多章节内容。",
+                "sources": [],
+                "current_step": self.name,
+            }
+
+        # 拼 prompt → 调 LLM（task=complex 走复杂级路由）
+        user_prompt = _build_character_critic_prompt(query, results, persona, character or "该角色")
+        answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative")
+
+        sources = [
+            {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
+            for r in results
+        ]
+
+        return {
+            "agent_response": answer,
+            "sources": sources,
             "current_step": self.name,
         }

@@ -41,6 +41,8 @@ from ..nodes.qa_nodes import (
     AgentNode,
     InspireNode,
     HallucinationCriticNode,
+    LogicCritiqueNode,
+    CharacterCriticNode,
     route_by_intent,
 )
 
@@ -73,6 +75,8 @@ def build_qa_graph():
     graph.add_node("agent", AgentNode())
     graph.add_node("inspire", InspireNode())
     graph.add_node("hallucination_critic", HallucinationCriticNode())
+    graph.add_node("logic_critique", LogicCritiqueNode())
+    graph.add_node("character_critic", CharacterCriticNode())
 
     # 2. 连边
     graph.set_entry_point("retrieve")
@@ -81,12 +85,15 @@ def build_qa_graph():
     # 3. 条件边：intent_router 之后，根据路由函数返回值分流
     #    route_by_intent 返回 "fact_qa" → 走 agent（里程碑3升级为工具调用）
     #    route_by_intent 返回 "inspiration" → 走 inspire
+    #    route_by_intent 返回 "logic_critique"/"character_critic" → 走对应检查节点（里程碑13）
     graph.add_conditional_edges(
         "intent_router",
         route_by_intent,
         {
             "fact_qa": "agent",
             "inspiration": "inspire",
+            "logic_critique": "logic_critique",
+            "character_critic": "character_critic",
         },
     )
 
@@ -108,7 +115,11 @@ def build_qa_graph():
     # 6. 灵感分支直接结束（不质检）
     graph.add_edge("inspire", END)
 
-    # 7. 编译
+    # 7. 里程碑13：逻辑/人设检查分支直接结束（质检类节点，输出即结论）
+    graph.add_edge("logic_critique", END)
+    graph.add_edge("character_critic", END)
+
+    # 8. 编译
     return graph.compile()
 
 
