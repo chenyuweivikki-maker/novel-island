@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Optional
 
 from .retriever import retriever
 from .vector_store import vector_store
-from .graph_store import graph
+from .graph_store import get_graph_for
 
 # 属性关键词表：用户问"职业/工作/做什么"→ 查职业属性（里程碑9）
 ATTRIBUTE_KEYWORDS = {
@@ -27,9 +27,10 @@ ATTRIBUTE_KEYWORDS = {
 }
 
 
-def extract_entities_from_query(query: str) -> List[str]:
+def extract_entities_from_query(query: str, novel_id: int | None = None) -> List[str]:
     """从用户问题里提取实体名（图谱里存在的）"""
-    entities = graph.all_entities()
+    g = get_graph_for(novel_id)
+    entities = g.all_entities()
     found = []
     for e in entities:
         if e and e in query:
@@ -45,14 +46,14 @@ def extract_attribute_from_query(query: str) -> Optional[str]:
     return None
 
 
-def precise_attribute_search(query: str) -> Optional[Dict[str, Any]]:
+def precise_attribute_search(query: str, novel_id: int | None = None) -> Optional[Dict[str, Any]]:
     """精确属性检索：实体 + 属性 → 查图谱，命中直接返回答案
 
     里程碑9：这是"精准命中"的核心层。
     命中格式：{"answer": "汪！...", "entity": "唐嘉措", "attribute": "宠物", "value": "..."}
     """
     # 1. 提取实体（图谱里存在的人名）
-    entities = extract_entities_from_query(query)
+    entities = extract_entities_from_query(query, novel_id)
     if not entities:
         return None
 
@@ -61,9 +62,10 @@ def precise_attribute_search(query: str) -> Optional[Dict[str, Any]]:
     if not attr:
         return None
 
-    # 3. 精确查图谱属性
+    # 3. 精确查图谱属性（按项目取图）
+    g = get_graph_for(novel_id)
     for entity in entities:
-        value = graph.query_attribute(entity, attr)
+        value = g.query_attribute(entity, attr)
         if value:
             return {
                 "answer": f"根据设定，{entity}的{attr}是：{value}",
