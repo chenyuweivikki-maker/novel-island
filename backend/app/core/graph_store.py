@@ -23,6 +23,8 @@ class KnowledgeGraph:
     def __init__(self, persist_path: str = "data/graph.json"):
         self._nodes: Dict[str, Dict[str, Any]] = {}  # 实体名 → 属性
         self._edges: List[Dict[str, Any]] = []       # 关系列表
+        self._events: List[Dict[str, Any]] = []      # 里程碑15：情节大事年表
+        self._event_seq: int = 0                     # 年表全局递增序号（保证入库顺序）
         self.persist_path = persist_path
 
     def add_entity(self, name: str, attributes: Optional[Dict[str, Any]] = None):
@@ -57,6 +59,7 @@ class KnowledgeGraph:
         """删除某章节贡献的图谱数据（里程碑10）
         1. 删该章的关系边
         2. 删该章贡献的人设属性（属性只被这一章提过才删）
+        3. 删该章的年表摘要（里程碑15）
         """
         # 1. 删边
         self._edges = [e for e in self._edges if e.get("chapter_id") != chapter_id]
@@ -73,6 +76,9 @@ class KnowledgeGraph:
             for key in to_remove:
                 node.get("persona", {}).pop(key, None)
                 p_chapters.pop(key, None)
+
+        # 3. 删该章的年表摘要（里程碑15：改章节时先删旧摘要）
+        self._events = [e for e in self._events if e.get("chapter_id") != chapter_id]
 
     def query_attribute(self, entity: str, attr: str) -> Optional[Any]:
         """精确查询实体的某个属性值（如 唐嘉措 → 宠物）"""
@@ -109,6 +115,24 @@ class KnowledgeGraph:
         if chapter_id is not None:
             edge["chapter_id"] = chapter_id
         self._edges.append(edge)
+
+    def add_chapter_summary(self, summary: str, chapter_id: int | None = None) -> int:
+        """追加一条年表摘要，返回其序号（里程碑15：情节大事年表）
+
+        seq 全局递增，天然按入库顺序排列（无需外部排序）。
+        chapter_id 标记来源章节，用于按章更新/删除（save_chapter 改旧章节）。
+        """
+        self._events.append({
+            "seq": self._event_seq,
+            "summary": summary,
+            "chapter_id": chapter_id,
+        })
+        self._event_seq += 1
+        return self._event_seq - 1
+
+    def get_timeline(self) -> List[Dict[str, Any]]:
+        """按入库顺序返回情节大事年表（seq 升序）"""
+        return sorted(self._events, key=lambda e: e.get("seq", 0))
 
     def query_neighbors(self, entity: str) -> List[Dict[str, Any]]:
         """查询某实体的所有直接关系（邻居）"""
@@ -167,7 +191,12 @@ class KnowledgeGraph:
             for key, chapters in pc.items():
                 node["persona_chapters"][key] = list(chapters)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"nodes": nodes, "edges": self._edges}, f, ensure_ascii=False, indent=2)
+            json.dump({
+                "nodes": nodes,
+                "edges": self._edges,
+                "events": self._events,      # 里程碑15：情节大事年表
+                "event_seq": self._event_seq,
+            }, f, ensure_ascii=False, indent=2)
 
     def load(self, path: str | None = None):
         """从 JSON 文件加载图谱（默认读本实例的 persist_path）"""
@@ -177,6 +206,8 @@ class KnowledgeGraph:
                 data = json.load(f)
             self._nodes = data.get("nodes", {})
             self._edges = data.get("edges", [])
+            self._events = data.get("events", [])          # 里程碑15（老数据无此字段→空）
+            self._event_seq = data.get("event_seq", len(self._events))
             # 老数据里的 persona_chapters 可能是 list，转回 set（remove_by_chapter 用 discard）
             for node in self._nodes.values():
                 pc = node.get("persona_chapters", {})

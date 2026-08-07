@@ -11,6 +11,7 @@ class NovelIslandState(TypedDict):
     book_id: str
     mode: Literal["init", "update"]  # 初始化 或 增量更新
     novel_id: Optional[int]  # 里程碑11：项目隔离标识，未声明会被LangGraph丢弃（并行节点汇合时尤其明显）
+    chapter_id: Optional[int]  # 里程碑15：章节标记（save_chapter 穿透，用于年表按章更新）
 
     # 2. 原始文本数据
     raw_input_files: List[str]           # 初次：上传的文件列表
@@ -20,7 +21,8 @@ class NovelIslandState(TypedDict):
     processed_chunks: List[dict]          # 预处理后的文本块
     extracted_entities: List[dict]        # 抽取的实体（人物、地点、物品）
     extracted_relationships: List[dict]   # 抽取的实体间关系
-    extracted_events: List[dict]          # 抽取的事件/情节
+    extracted_events: List[dict]          # 抽取的事件/情节（细粒度，伏笔追踪）
+    chapter_summaries: List[dict]         # 里程碑15：整章情节摘要（大事年表）
 
     # 4. 结构化图谱数据（最终产物）
     character_graph: dict                 # 人物关系图数据
