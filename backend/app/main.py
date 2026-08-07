@@ -27,6 +27,7 @@ from .core.novel_store import novel_store
 from .core.hybrid_retriever import hybrid_search
 from .core.hybrid_retriever import precise_attribute_search
 from .core.vector_store import vector_store, vector_store_manager
+from .tools.consistency_tools import check_plot_consistency
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 
@@ -308,13 +309,22 @@ def save_chapter(req: ChapterSaveRequest):
     """保存章节 + 触发增量更新（写作→知识库闭环）
 
     作者写完新章节保存后：
-      1. 章节持久化到 SQLite
-      2. 触发建库状态机（mode=update），只处理新章节增量更新
-      3. 知识库/图谱/向量库都更新，作者能查新章节内容
+      1. 冲突检测（里程碑12）：先查旧内容，新章节有没有和前面矛盾
+      2. 章节持久化到 SQLite
+      3. 触发建库状态机（mode=update），只处理新章节增量更新
+      4. 知识库/图谱/向量库都更新，作者能查新章节内容
     """
     # 里程碑11：按项目取图谱/向量库（novel_id 已由请求携带）
     g = get_graph_for(req.novel_id)
     vs = vector_store_manager.get_store(req.novel_id)
+
+    # 里程碑12：入库前做冲突检测（此时新章节还没进库，检到的全是旧内容）
+    # 注意：这是"提示"不是"拦截"——作者可以无视冲突继续保存
+    try:
+        conflicts = check_plot_consistency(req.content, novel_id=req.novel_id)
+    except Exception as e:
+        conflicts = []
+        print(f"冲突检测失败: {e}")
 
     # 1. 保存章节（有 chapter_id 则更新，无则新增）
     if req.chapter_id:
@@ -348,6 +358,7 @@ def save_chapter(req: ChapterSaveRequest):
     return {
         "chapter_id": chapter_id,
         "knowledge_updated": updated,
+        "conflicts": conflicts,  # 里程碑12：情节冲突检测结果（空数组=无冲突）
         "stats": {
             "chunks": len(result["processed_chunks"]) if updated else 0,
             "entities": result["final_output"]["entities"] if updated else [],
