@@ -11,6 +11,7 @@
   query_neighbors(entity)  — 找某实体的所有直接关系
   query_path(from, to)     — 找两实体间的路径（多跳推理）
 """
+import copy
 import json
 import os
 from typing import Dict, List, Optional, Any
@@ -19,9 +20,10 @@ from typing import Dict, List, Optional, Any
 class KnowledgeGraph:
     """内存知识图谱（邻接表实现）"""
 
-    def __init__(self):
+    def __init__(self, persist_path: str = "data/graph.json"):
         self._nodes: Dict[str, Dict[str, Any]] = {}  # 实体名 → 属性
         self._edges: List[Dict[str, Any]] = []       # 关系列表
+        self.persist_path = persist_path
 
     def add_entity(self, name: str, attributes: Optional[Dict[str, Any]] = None):
         """添加节点（实体已存在则合并属性）
@@ -41,9 +43,7 @@ class KnowledgeGraph:
         """给实体挂人设属性（职业/性格/外貌/宠物等键值） — 里程碑9
         chapter_id 标记来源章节，用于按章删除（里程碑10）。
         """
-        if entity not in self._nodes:
-            self._nodes[entity] = {"attributes": {}, "persona": {}, "persona_chapters": {}}
-        node = self._nodes[entity]
+        node = self._nodes.setdefault(entity, {"attributes": {}, "persona": {}, "persona_chapters": {}})
         node.setdefault("persona", {})
         node.setdefault("persona_chapters", {})
         for key, val in persona.items():
@@ -110,10 +110,6 @@ class KnowledgeGraph:
             edge["chapter_id"] = chapter_id
         self._edges.append(edge)
 
-    def remove_by_chapter(self, chapter_id: int):
-        """删除某章节贡献的关系边（里程碑10：改章节时先删旧）"""
-        self._edges = [e for e in self._edges if e.get("chapter_id") != chapter_id]
-
     def query_neighbors(self, entity: str) -> List[Dict[str, Any]]:
         """查询某实体的所有直接关系（邻居）"""
         neighbors = []
@@ -157,20 +153,71 @@ class KnowledgeGraph:
     def __len__(self):
         return len(self._nodes)
 
-    def save(self, path: str = "data/graph.json"):
-        """持久化图谱到 JSON 文件"""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"nodes": self._nodes, "edges": self._edges}, f, ensure_ascii=False, indent=2)  # persona 已在 _nodes 里
+    def save(self, path: str | None = None):
+        """持久化图谱到 JSON 文件（默认存到本实例的 persist_path）
 
-    def load(self, path: str = "data/graph.json"):
-        """从 JSON 文件加载图谱"""
+        注意：persona_chapters 里是 set，JSON 存不了，存前转 list、加载后转回 set。
+        """
+        path = path or self.persist_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # 深拷贝一份再序列化，避免污染内存里的数据
+        nodes = copy.deepcopy(self._nodes)
+        for node in nodes.values():
+            pc = node.get("persona_chapters", {})
+            for key, chapters in pc.items():
+                node["persona_chapters"][key] = list(chapters)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"nodes": nodes, "edges": self._edges}, f, ensure_ascii=False, indent=2)
+
+    def load(self, path: str | None = None):
+        """从 JSON 文件加载图谱（默认读本实例的 persist_path）"""
+        path = path or self.persist_path
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             self._nodes = data.get("nodes", {})
             self._edges = data.get("edges", [])
+            # 老数据里的 persona_chapters 可能是 list，转回 set（remove_by_chapter 用 discard）
+            for node in self._nodes.values():
+                pc = node.get("persona_chapters", {})
+                for key, chapters in pc.items():
+                    if isinstance(chapters, list):
+                        node["persona_chapters"][key] = set(chapters)
+
+
+class GraphManager:
+    """按项目(novel_id)管理多个知识图谱 — 里程碑11：多租户隔离
+
+    每个项目一份独立图谱，数据互不污染。
+    路径：data/graph_{novel_id}.json
+    """
+
+    def __init__(self):
+        self._graphs: Dict[int, KnowledgeGraph] = {}
+
+    def get_graph(self, novel_id: int) -> KnowledgeGraph:
+        """获取某项目的图谱（不存在则创建并加载）"""
+        if novel_id not in self._graphs:
+            g = KnowledgeGraph(persist_path=f"data/graph_{novel_id}.json")
+            g.load()
+            self._graphs[novel_id] = g
+        return self._graphs[novel_id]
+
+    def remove_graph(self, novel_id: int):
+        """删除某项目图谱（内存）"""
+        self._graphs.pop(novel_id, None)
 
 
 # 全局单例
 graph = KnowledgeGraph()
+graph_manager = GraphManager()
+
+
+def get_graph_for(novel_id: int | None) -> KnowledgeGraph:
+    """取某项目(或默认)的知识图谱 — 里程碑11
+
+    novel_id 为 None 时回退到全局单例 graph（兼容老接口/未分项目场景）。
+    """
+    if novel_id is None:
+        return graph
+    return graph_manager.get_graph(novel_id)

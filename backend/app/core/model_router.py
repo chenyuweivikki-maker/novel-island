@@ -29,6 +29,7 @@ TASK_LEVELS = {
     "qa": "main",
     "summary": "main",
     "inspire": "main",
+    "logic": "complex",      # 情节一致性检查：推理任务，走复杂级
     "creative": "complex",
 }
 

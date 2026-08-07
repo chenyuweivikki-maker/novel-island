@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 from ..core.chunker import clean_text, chunk_text
 from ..core.retriever import retriever
 from ..core.llm_client import chat
-from ..core.graph_store import graph
+from ..core.graph_store import get_graph_for
 from ..models.state import NovelIslandState
 
 
@@ -174,26 +174,29 @@ class BuildOutputNode:
         events = state.get("extracted_events", [])
         relations = state.get("extracted_relationships", [])
 
+        # 里程碑11：按项目写图谱（novel_id 在 state 里，None 时回退默认图）
+        g = get_graph_for(state.get("novel_id"))
+
         # 里程碑8：写入知识图谱（实体→节点，关系→边）
         for e in entities:
             name = e.get("name", "")
             if name:
-                graph.add_entity(name, {
+                g.add_entity(name, {
                     "identity": e.get("identity", ""),
                     "traits": e.get("traits", []),
                 })
                 # 里程碑9：挂人设属性（职业/性格/外貌/家庭/宠物等）
                 persona = e.get("attributes", {})
                 if persona:
-                    graph.add_persona(name, persona)
+                    g.add_persona(name, persona)
         for r in relations:
             source = r.get("source", "")
             target = r.get("target", "")
             if source and target:
-                graph.add_relation(source, r.get("relation", ""), target, r.get("weight", 1))
+                g.add_relation(source, r.get("relation", ""), target, r.get("weight", 1))
 
         # 里程碑8：持久化图谱到文件
-        graph.save()
+        g.save()
 
         return {
             "final_output": {
