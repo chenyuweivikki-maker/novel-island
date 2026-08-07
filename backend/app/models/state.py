@@ -10,6 +10,7 @@ class NovelIslandState(TypedDict):
     user_id: str
     book_id: str
     mode: Literal["init", "update"]  # 初始化 或 增量更新
+    novel_id: Optional[int]  # 里程碑11：项目隔离标识，未声明会被LangGraph丢弃（并行节点汇合时尤其明显）
 
     # 2. 原始文本数据
     raw_input_files: List[str]           # 初次：上传的文件列表
