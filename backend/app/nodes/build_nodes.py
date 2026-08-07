@@ -59,6 +59,19 @@ EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读
 4. 只输出 JSON，不要其他文字。"""
 
 
+# 里程碑15：整章情节摘要 prompt —— 情节大事年表的抽取源
+CHAPTER_SUMMARY_EXTRACT_PROMPT = """你是「小说岛」的编辑，负责把小说片段浓缩成"情节大事年表"条目。
+
+规则：
+1. 把片段按时间顺序拆成 1-5 个情节单元（一个情节单元 = 一个完整的推进事件，如"初次相遇""矛盾爆发"）。
+2. 每个情节单元用一句话概括（20-60字），按原文先后顺序排列。
+3. 只概括原文明确发生的事，不要编造、不要推测、不要评论。
+4. 输出严格的 JSON 数组，格式：
+[{"summary": "情节单元的一句话概括", "order": 0}, {"summary": "...", "order": 1}]
+5. order 从 0 开始递增，必须与数组顺序一致。
+6. 只输出 JSON，不要其他文字。"""
+
+
 def _extract_json_array(llm_output: str) -> List[dict]:
     """从 LLM 输出中提取 JSON 数组（容错：去掉可能的 markdown 代码块围栏）"""
     text = llm_output.strip()
@@ -157,6 +170,37 @@ class RelationExtractNode:
         }
 
 
+class ChapterSummaryExtractNode:
+    """整章情节摘要抽取节点 — 里程碑15：情节大事年表（并行分支4）
+
+    把输入文本浓缩成 1-5 条按顺序的情节摘要，供 BuildOutputNode 写入年表。
+    与 EventExtractNode（细粒度伏笔）两档并存：
+      - events  → 细粒度事件（伏笔追踪）
+      - summaries → 整章摘要（大事年表）
+    """
+
+    name = "extract_chapter_summaries"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        chunks = state.get("processed_chunks", [])
+
+        text_pool = "\n".join(c["text"] for c in chunks)[:6000]
+        llm_output = chat(CHAPTER_SUMMARY_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
+        summaries = _extract_json_array(llm_output)
+
+        # 只保留合法的 summary 字段，保证写入年表的数据干净
+        cleaned = [
+            {"summary": s.get("summary", ""), "order": s.get("order", i)}
+            for i, s in enumerate(summaries)
+            if isinstance(s, dict) and s.get("summary")
+        ]
+
+        # 并行分支：只写自己独占的字段
+        return {
+            "chapter_summaries": cleaned,
+        }
+
+
 class BuildOutputNode:
     """汇总节点：构建检索索引，汇总实体+事件结果（汇合点）"""
 
@@ -173,6 +217,8 @@ class BuildOutputNode:
         entities = state.get("extracted_entities", [])
         events = state.get("extracted_events", [])
         relations = state.get("extracted_relationships", [])
+        summaries = state.get("chapter_summaries", [])  # 里程碑15
+        chapter_id = state.get("chapter_id")  # 里程碑15：save_chapter 穿透的章节标记
 
         # 里程碑11：按项目写图谱（novel_id 在 state 里，None 时回退默认图）
         g = get_graph_for(state.get("novel_id"))
@@ -194,6 +240,10 @@ class BuildOutputNode:
             target = r.get("target", "")
             if source and target:
                 g.add_relation(source, r.get("relation", ""), target, r.get("weight", 1))
+
+        # 里程碑15：整章摘要写入情节大事年表（带章节标记，用于按章更新）
+        for s in summaries:
+            g.add_chapter_summary(s.get("summary", ""), chapter_id=chapter_id)
 
         # 里程碑8：持久化图谱到文件
         g.save()

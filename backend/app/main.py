@@ -289,6 +289,17 @@ def graph_path(start: str, end: str, novel_id: int | None = None):
     return {"path": g.query_path(start, end)}
 
 
+@app.get('/api/timeline')
+def timeline(novel_id: int | None = None):
+    """情节大事年表接口（里程碑15）：按入库顺序返回每章情节摘要，可按项目"""
+    g = get_graph_for(novel_id)
+    timeline_data = g.get_timeline()
+    return {
+        "timeline": timeline_data,
+        "total": len(timeline_data),
+    }
+
+
 # ===== 创作空间 API（里程碑10）=====
 
 @app.post("/api/novel")
@@ -338,7 +349,11 @@ def save_chapter(req: ChapterSaveRequest):
 
     # 2. 增量更新知识库（build 状态机 + 向量），新内容打上章节标记
     try:
-        result = build_app.invoke({"raw_input_files": [req.content], "novel_id": req.novel_id})
+        result = build_app.invoke({
+            "raw_input_files": [req.content],
+            "novel_id": req.novel_id,
+            "chapter_id": chapter_id,  # 里程碑15：年表摘要打上章节标记
+        })
         chunks = [
             {"id": c["id"], "text": c["text"], "char_count": c["char_count"]}
             for c in result["processed_chunks"]
