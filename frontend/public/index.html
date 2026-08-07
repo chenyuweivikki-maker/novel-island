@@ -65,6 +65,16 @@
   }
   .nav-tab:hover { background: var(--surface-2); color: var(--text); }
   .nav-tab.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 500; }
+  /* 里程碑14：全局项目选择器 */
+  .nav-project { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+  .nav-project-label { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .nav-select {
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    max-width: 160px; cursor: pointer;
+  }
+  .nav-select:focus { outline: none; border-color: var(--primary); }
 
   /* ===== LAYOUT ===== */
   .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
@@ -275,6 +285,13 @@
       <button class="nav-tab" data-page="graph">人物关系图</button>
       <button class="nav-tab" data-page="write">创作空间</button>
       <button class="nav-tab" data-page="arch">系统架构</button>
+    </div>
+    <!-- 里程碑14：全局项目选择器（obsidian式）— 选项目后，对话/图谱/人设都基于该项目 -->
+    <div class="nav-project">
+      <label class="nav-project-label" for="projectSelect">当前项目</label>
+      <select id="projectSelect" class="nav-select">
+        <option value="">默认知识库</option>
+      </select>
     </div>
   </div>
 </nav>
@@ -607,22 +624,28 @@ const SAMPLE_TEXT = `林晚在二十三岁那年失去了所有。
 // ===== ENTITY EXTRACTION (MOCK — Phase 2 will use LLM) =====
 async function fetchGraphData() {
   // 里程碑8：从后端图谱接口拉真实实体和关系，转成前端KB.characters格式
+  // 里程碑14：按当前项目拉图谱（novel_id）
   try {
-    const resp = await fetch('http://localhost:8000/api/graph');
+    const params = currentNovelId ? `?novel_id=${currentNovelId}` : '';
+    const resp = await fetch('http://localhost:8000/api/graph' + params);
     const data = await resp.json();
     const colors = ['#534ab7', '#0f6e56', '#854f0b', '#993c1d', '#185fa5'];
-    // 实体 → character
-    const characters = data.entities.map((name, i) => ({
-      name,
-      aliases: [],
-      role: '角色',
-      color: colors[i % colors.length],
-      occupation: '',
-      personality: [],
-      trauma: '',
-      coreConflict: '',
-      relationships: []
-    }));
+    // 实体 → character（里程碑9后端返回 {name, persona} 对象数组，修复前端没同步的bug）
+    const characters = (data.entities || []).map((ent, i) => {
+      const name = typeof ent === 'string' ? ent : (ent.name || '');
+      const persona = (typeof ent === 'object' && ent.persona) ? ent.persona : {};
+      return {
+        name,
+        aliases: [],
+        role: persona['身份'] || '角色',
+        color: colors[i % colors.length],
+        occupation: persona['职业'] || '',
+        personality: persona['性格'] ? [persona['性格']] : [],
+        trauma: '',
+        coreConflict: '',
+        relationships: []
+      };
+    });
     // 关系 → character.relationships
     for (const r of data.relations || []) {
       const src = characters.find(c => c.name === r.source);
@@ -815,8 +838,10 @@ document.getElementById('btnBuild').addEventListener('click', async () => {
     pipelineStep(2); // 分块
     await new Promise(r => setTimeout(r, 100));
 
-    // 调后端构建
-    const data = await apiCall('/api/kb/build', { text });
+    // 调后端构建（里程碑14：带 novel_id，文本入库到指定项目）
+    const body = { text };
+    if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
+    const data = await apiCall('/api/kb/build', body);
     KB.chunks = data.chunks;
     KB.ready = true;
 
@@ -857,7 +882,10 @@ document.getElementById('btnAsk').addEventListener('click', async () => {
   document.getElementById('answerSource').textContent = '';
 
   try {
-    const data = await apiCall('/api/kb/ask', { query, top_k: 5 });
+    // 里程碑14：按当前项目提问（novel_id）
+    const body = { query, top_k: 5 };
+    if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
+    const data = await apiCall('/api/kb/ask', body);
     renderAnswer(data.answer, data.sources);
     renderRetrievalDetail(data.retrieval);
     renderChunks(data.retrieval.map(r => r.chunk_id));
@@ -883,6 +911,45 @@ document.querySelectorAll('.q-chip').forEach(chip => {
 // ===== 创作空间 =====
 let currentNovelId = null;
 
+// ===== 里程碑14：全局项目选择器 =====
+// currentNovelId 复用为"当前项目"——问答/建库/图谱/人设都基于它
+function currentNovelIdNum() {
+  return currentNovelId || null;
+}
+
+// 加载项目列表 → 填充顶部下拉（obsidian式：对话可选项目）
+async function loadProjects() {
+  try {
+    const resp = await fetch(API_BASE + '/api/novels');
+    const data = await resp.json();
+    const sel = document.getElementById('projectSelect');
+    const current = currentNovelIdNum();
+    sel.innerHTML = '<option value="">默认知识库</option>' +
+      (data.novels || []).map(n =>
+        `<option value="${n.id}" ${n.id === current ? 'selected' : ''}>${n.title}</option>`
+      ).join('');
+  } catch (e) {
+    console.error('加载项目列表失败:', e);
+  }
+}
+
+// 下拉切换项目 → 刷新图谱/人设/问答状态
+document.getElementById('projectSelect').addEventListener('change', (e) => {
+  currentNovelId = e.target.value ? Number(e.target.value) : null;
+  // 同步创作空间的作品输入框
+  document.getElementById('novelTitle').value = currentNovelId ? '' : '';
+  refreshKBViews();
+  loadChapters();
+});
+
+// 切换项目后刷新所有依赖项目数据的视图
+async function refreshKBViews() {
+  KB.characters = await fetchGraphData();
+  renderCharacterCards();
+  renderRelationshipGraph();
+  updateStats();
+}
+
 // 创建作品
 document.getElementById('btnCreateNovel').addEventListener('click', async () => {
   const title = document.getElementById('novelTitle').value.trim();
@@ -903,8 +970,16 @@ document.getElementById('btnSaveChapter').addEventListener('click', async () => 
   btn.disabled = true; btn.textContent = '保存并更新中...';
   try {
     const data = await apiCall('/api/chapter', { novel_id: currentNovelId, content });
-    document.getElementById('saveResult').textContent =
+    // 里程碑12+14：展示冲突检测结果
+    let resultText =
       `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${data.stats.chunks}块`;
+    const conflicts = data.conflicts || [];
+    if (conflicts.length > 0) {
+      const sev = {'high': '🔴', 'medium': '🟠', 'low': '🟡'};
+      resultText += `\n⚠️ 检测到 ${conflicts.length} 处情节冲突：\n` +
+        conflicts.map(c => `${sev[c.severity] || '⚠️'} ${c.conflict}`).join('\n');
+    }
+    document.getElementById('saveResult').textContent = resultText;
     document.getElementById('chapterText').value = '';
     loadChapters();
   } catch (e) {
@@ -932,6 +1007,8 @@ async function selectNovel(id, title) {
   currentNovelId = id;
   document.getElementById('novelTitle').value = title;
   loadChapters();
+  loadProjects(); // 同步顶部下拉选中态
+  refreshKBViews();
 }
 
 // 加载章节列表
@@ -952,6 +1029,7 @@ async function loadChapters() {
 // Auto-load sample on first visit
 window.addEventListener('load', () => {
   document.getElementById('novelText').value = SAMPLE_TEXT;
+  loadProjects(); // 里程碑14：加载项目列表填充顶部下拉
 });
 </script>
 
