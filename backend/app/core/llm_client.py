@@ -80,6 +80,7 @@ def chat_with_tools(
     max_tokens: int = 1024,
     use_messages: bool = False,
     task: str = 'qa',
+    tool_context: dict | None = None,
 ) -> str:
     """带工具调用的对话 — 里程碑3+6
 
@@ -92,7 +93,10 @@ def chat_with_tools(
     里程碑6：use_messages=True 时，user_prompt 参数是完整的消息列表
     （含对话历史），而不是单个用户问题。
 
-    tools:        工具说明书列表（给 LLM 看的 JSON Schema）
+    里程碑17：tool_context 是在执行工具时注入的上下文（如 novel_id），
+    与 LLM 生成的 args 合并后传给执行函数——让工具知道当前在哪个项目。
+
+    tools:          工具说明书列表（给 LLM 看的 JSON Schema）
     tool_executors: {工具名: 执行函数}，LLM 说调哪个，代码就调哪个
     """
     client = get_client()
@@ -142,6 +146,10 @@ def chat_with_tools(
             for tc in msg.tool_calls:
                 tool_name = tc.function.name
                 args = json.loads(tc.function.arguments or "{}")
+
+                # 里程碑17：注入工具上下文（如 novel_id），工具才知道当前项目
+                if tool_context:
+                    args = {**args, **tool_context}
 
                 # 从映射表找执行函数（找不到就报错给 LLM，让它换路）
                 executor = tool_executors.get(tool_name)

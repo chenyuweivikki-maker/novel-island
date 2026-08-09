@@ -11,8 +11,8 @@ PRD 设计：双路检索（向量RAG + 图谱/关键词）。
 """
 from typing import List, Dict, Any, Optional
 
-from .retriever import retriever
-from .vector_store import vector_store
+from .retriever import get_retriever_for
+from .vector_store import vector_store, vector_store_manager
 from .graph_store import get_graph_for
 
 # 属性关键词表：用户问"职业/工作/做什么"→ 查职业属性（里程碑9）
@@ -76,28 +76,32 @@ def precise_attribute_search(query: str, novel_id: int | None = None) -> Optiona
     return None
 
 
-def hybrid_search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+def hybrid_search(query: str, top_k: int = 5, novel_id: int | None = None) -> List[Dict[str, Any]]:
     """混合检索：向量召回 + TF-IDF 召回 → 合并去重 → 排序
 
+    里程碑17：按项目取向量库和 TF-IDF 检索器（None 回退全局单例）。
     返回: [{"chunk": Chunk, "score": float, "index": int}, ...]
     """
+    r = get_retriever_for(novel_id)
+    vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
+
     merged: Dict[int, Dict[str, Any]] = {}  # chunk index → 结果（去重）
 
     # 1. 向量召回（语义）
-    if vector_store.is_ready:
-        vector_hits = vector_store.search(query, top_k)
+    if vs.is_ready:
+        vector_hits = vs.search(query, top_k)
         for hit in vector_hits:
             chunk_id = hit["metadata"].get("chunk_id", hit["index"])
-            if 0 <= chunk_id < len(retriever.chunks):
+            if 0 <= chunk_id < len(r.chunks):
                 # 保留最高分（可能两路都命中）
                 merged[chunk_id] = {
-                    "chunk": retriever.chunks[chunk_id],
+                    "chunk": r.chunks[chunk_id],
                     "score": max(merged[chunk_id]["score"], hit["score"]) if chunk_id in merged else hit["score"],
                     "index": chunk_id,
                 }
 
     # 2. TF-IDF 召回（字面）
-    tfidf_hits = retriever.search(query, top_k)
+    tfidf_hits = r.search(query, top_k)
     for hit in tfidf_hits:
         idx = hit["index"]
         if idx in merged:

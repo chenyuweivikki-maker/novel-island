@@ -67,3 +67,29 @@ class TFIDFRetriever:
 
 # 全局单例
 retriever = TFIDFRetriever()
+
+
+class RetrieverManager:
+    """按项目(novel_id)管理多个 TF-IDF 检索器 — 里程碑17：多租户隔离
+
+    每个项目一份独立索引，避免建库时互相覆盖（此前建库到项目A再建库到
+    项目B会覆盖全局共享索引，导致混合检索的TF-IDF一路召回错项目内容）。
+    """
+
+    def __init__(self):
+        self._retrievers: dict[int, TFIDFRetriever] = {}
+
+    def get_retriever(self, novel_id: int) -> TFIDFRetriever:
+        if novel_id not in self._retrievers:
+            self._retrievers[novel_id] = TFIDFRetriever()
+        return self._retrievers[novel_id]
+
+
+retriever_manager = RetrieverManager()
+
+
+def get_retriever_for(novel_id: int | None) -> TFIDFRetriever:
+    """取某项目(或默认)的检索器。novel_id 为 None 时回退全局单例。"""
+    if novel_id is None:
+        return retriever
+    return retriever_manager.get_retriever(novel_id)

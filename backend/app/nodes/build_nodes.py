@@ -14,7 +14,7 @@ import json
 from typing import Any, Dict, List
 
 from ..core.chunker import clean_text, chunk_text
-from ..core.retriever import retriever
+from ..core.retriever import get_retriever_for
 from ..core.llm_client import chat
 from ..core.graph_store import get_graph_for
 from ..models.state import NovelIslandState
@@ -209,10 +209,10 @@ class BuildOutputNode:
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         chunk_dicts = state.get("processed_chunks", [])
 
-        # 重建 Chunk 对象并建 TF-IDF 索引
+        # 重建 Chunk 对象并建 TF-IDF 索引（里程碑17：按项目建，不再全局共享覆盖）
         from ..core.chunker import Chunk
         chunks = [Chunk(id=c["id"], text=c["text"], char_count=c["char_count"]) for c in chunk_dicts]
-        retriever.build_index(chunks)
+        get_retriever_for(state.get("novel_id")).build_index(chunks)
 
         entities = state.get("extracted_entities", [])
         events = state.get("extracted_events", [])

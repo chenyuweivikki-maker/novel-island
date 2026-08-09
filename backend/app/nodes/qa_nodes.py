@@ -8,9 +8,9 @@
 """
 from typing import Any, Dict
 
-from ..core.retriever import retriever
+from ..core.retriever import get_retriever_for
 from ..core.llm_client import chat, chat_with_tools, RAG_SYSTEM_PROMPT, build_rag_prompt
-from ..core.memory import memory
+from ..core.memory import memory_manager
 from ..core.graph_store import get_graph_for
 from ..models.state import NovelIslandState
 from ..tools.kb_tools import AVAILABLE_TOOLS, TOOL_EXECUTORS
@@ -25,8 +25,8 @@ class RetrieveNode:
         query = state.get("user_query", "")
         top_k = state.get("top_k", 5)
 
-        # 检索（核心检索逻辑还是复用 retriever，状态机只是把它包成节点）
-        results = retriever.search(query, top_k)
+        # 检索（里程碑17：按项目取检索器，避免跨项目污染）
+        results = get_retriever_for(state.get("novel_id")).search(query, top_k)
 
         # 把检索结果写回背包 —— 这就是 Node 的"返回值=要改写的字段"
         return {
@@ -295,8 +295,9 @@ class AgentNode:
             )
 
         # 里程碑6：读取短期记忆（对话历史），拼进 prompt
+        # 里程碑17：按 novel_id 取记忆（切换项目历史不串）
         # 如果历史超长，get_context 会自动做摘要压缩
-        history = memory.get_context()
+        history = memory_manager.get_memory(state.get("novel_id")).get_context()
         # 里程碑6修复：messages 必须以 system 开头（OpenAI协议要求）
         context_messages = [{'role': 'system', 'content': AGENT_SYSTEM_PROMPT}] + list(history)
         # 把"新问题+质检反馈"作为最后一条 user 消息
@@ -312,6 +313,7 @@ class AgentNode:
             tool_executors=TOOL_EXECUTORS,
             use_messages=True,  # 标记：第二个参数已是 messages 而非字符串
             task='qa',
+            tool_context={"novel_id": state.get("novel_id")},  # 里程碑17：工具知道当前项目
         )
 
         # 预检索结果仍作为来源展示（供调试看召回情况）

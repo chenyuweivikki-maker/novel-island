@@ -8,7 +8,7 @@
 """
 from typing import List, Dict, Any
 
-from ..core.retriever import retriever
+from ..core.retriever import get_retriever_for
 
 
 # ===== 工具定义（JSON Schema，发给 LLM 的"说明书"）=====
@@ -40,22 +40,25 @@ AVAILABLE_TOOLS = [SEARCH_KB_TOOL]
 
 
 # ===== 工具执行函数（LLM 决定调用后，代码跑这个）=====
-def execute_search_kb(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+def execute_search_kb(query: str, top_k: int = 5, novel_id: int | None = None) -> List[Dict[str, Any]]:
     """执行 search_kb：检索知识库，返回格式化后的片段列表
 
     注意：这个函数是"给代码跑"的，不是给 LLM 的。
     它把检索结果转成可读文本，方便塞回 LLM 上下文。
+    里程碑17：novel_id 由工具上下文注入（不在 LLM 可见的工具参数里），
+    确保 Agent 检索的是当前项目的内容。
     """
-    results = retriever.search(query, top_k)
+    r = get_retriever_for(novel_id)
+    results = r.search(query, top_k)
 
     # 把结果整理成 LLM 能看懂的格式
     return [
         {
-            "chunk_id": r["chunk"].id,
-            "score": round(r["score"], 4),
-            "text": r["chunk"].text,
+            "chunk_id": r2["chunk"].id,
+            "score": round(r2["score"], 4),
+            "text": r2["chunk"].text,
         }
-        for r in results
+        for r2 in results
     ]
 
 
