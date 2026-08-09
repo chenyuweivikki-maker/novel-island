@@ -73,5 +73,25 @@ class ConversationMemory:
         return len(self._conversation)
 
 
-# 全局单例（类似 retriever，所有请求共享一份短期记忆）
+# 全局单例（兼容老调用，未按项目区分场景）
 memory = ConversationMemory()
+
+
+class MemoryManager:
+    """按项目(novel_id)管理多个对话记忆 — 里程碑17：多租户对话隔离
+
+    每个项目一份独立的短期记忆，切换项目时历史不串。
+    None 表示"默认对话"（不选项目），也有自己独立的一份。
+    """
+
+    def __init__(self):
+        self._memories: Dict[int | None, ConversationMemory] = {}
+
+    def get_memory(self, novel_id: int | None) -> ConversationMemory:
+        """获取某项目(或默认)的对话记忆（不存在则创建）"""
+        if novel_id not in self._memories:
+            self._memories[novel_id] = ConversationMemory()
+        return self._memories[novel_id]
+
+
+memory_manager = MemoryManager()

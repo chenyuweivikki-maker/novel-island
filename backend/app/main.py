@@ -18,9 +18,9 @@ from pydantic import BaseModel
 
 from .core.config import settings
 from .core.chunker import clean_text, chunk_text
-from .core.retriever import retriever
+from .core.retriever import get_retriever_for
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
-from .core.memory import memory
+from .core.memory import memory_manager
 from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph, graph_manager, get_graph_for
 from .core.novel_store import novel_store
@@ -72,6 +72,14 @@ class AskRequest(BaseModel):
 # ===== 创作空间请求模型（里程碑10）=====
 class NovelCreateRequest(BaseModel):
     title: str
+
+
+class NovelRenameRequest(BaseModel):
+    title: str
+
+
+class NovelReorderRequest(BaseModel):
+    ordered_ids: list[int]  # 拖拽后的新顺序（里程碑17）
 
 
 class ChapterSaveRequest(BaseModel):
@@ -144,17 +152,21 @@ def build_kb(req: BuildRequest):
 
 
 @app.get("/api/kb/status")
-def kb_status():
+def kb_status(novel_id: int | None = None):
+    """知识库状态（里程碑17：可按项目查）"""
+    r = get_retriever_for(novel_id)
     return {
-        "ready": retriever.is_ready,
-        "chunks": len(retriever.chunks),
+        "ready": r.is_ready,
+        "chunks": len(r.chunks),
     }
 
 
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答"""
-    if not retriever.is_ready:
+    # 里程碑17：按项目取 TF-IDF 检索器（不选项目时用全局单例）
+    r = get_retriever_for(req.novel_id)
+    if not r.is_ready:
         return {"error": "知识库未构建，请先调用 /api/kb/build"}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
@@ -178,13 +190,13 @@ def ask(req: AskRequest):
         for hit in vector_hits:
             chunk_id = hit["metadata"].get("chunk_id", hit["index"])
             # 从 TF-IDF 库里找对应 chunk（保持原有 Chunk 结构）
-            if 0 <= chunk_id < len(retriever.chunks):
-                results.append({"chunk": retriever.chunks[chunk_id], "score": hit["score"], "index": chunk_id})
+            if 0 <= chunk_id < len(r.chunks):
+                results.append({"chunk": r.chunks[chunk_id], "score": hit["score"], "index": chunk_id})
         # 向量没结果就回退 TF-IDF
         if not results:
-            results = retriever.search(req.query, req.top_k)
+            results = r.search(req.query, req.top_k)
     else:
-        results = retriever.search(req.query, req.top_k)
+        results = r.search(req.query, req.top_k)
 
     if not results:
         return {
@@ -222,7 +234,8 @@ def ask(req: AskRequest):
     })
 
     # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
-    memory.add_turn(req.query, result["agent_response"])
+    # 里程碑17：按 novel_id 存（切换项目历史不串）
+    memory_manager.get_memory(req.novel_id).add_turn(req.query, result["agent_response"])
 
     return {
         "answer": result["agent_response"],
@@ -240,11 +253,12 @@ def ask(req: AskRequest):
 
 
 @app.post("/api/kb/retrieve")
-def retrieve(query: str, top_k: int = 5):
-    """纯检索接口，不调用LLM"""
-    if not retriever.is_ready:
+def retrieve(query: str, top_k: int = 5, novel_id: int | None = None):
+    """纯检索接口，不调用LLM（里程碑17：可按项目）"""
+    r = get_retriever_for(novel_id)
+    if not r.is_ready:
         return {"error": "知识库未构建"}
-    results = retriever.search(query, top_k)
+    results = r.search(query, top_k)
     return {
         "results": [
             {
@@ -311,8 +325,22 @@ def create_novel(req: NovelCreateRequest):
 
 @app.get("/api/novels")
 def list_novels():
-    """列出所有作品"""
+    """列出所有作品（按 sort_order 排序）"""
     return {"novels": novel_store.list_novels()}
+
+
+@app.post("/api/novel/{novel_id}/rename")
+def rename_novel(novel_id: int, req: NovelRenameRequest):
+    """重命名作品（里程碑17）"""
+    novel_store.update_novel_title(novel_id, req.title)
+    return {"novel_id": novel_id, "title": req.title}
+
+
+@app.post("/api/novels/reorder")
+def reorder_novels(req: NovelReorderRequest):
+    """拖拽排序：按新顺序重新分配 sort_order（里程碑17）"""
+    novel_store.reorder_novels(req.ordered_ids)
+    return {"success": True}
 
 
 @app.post("/api/chapter")

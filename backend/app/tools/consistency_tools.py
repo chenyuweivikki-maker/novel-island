@@ -15,7 +15,7 @@ import json
 from typing import Dict, Any, List, Optional
 
 from ..core.llm_client import chat
-from ..core.retriever import retriever
+from ..core.retriever import get_retriever_for
 from ..core.vector_store import vector_store, vector_store_manager
 from ..core.graph_store import get_graph_for
 
@@ -76,17 +76,18 @@ def check_plot_consistency(
 
     返回：[{"conflict": "...", "old": "...", "new": "...", "severity": "high|medium|low"}, ...]
     """
-    # 1. 检索旧片段（按项目取向量库；项目没有向量库时回退 TF-IDF）
+    # 1. 检索旧片段（里程碑17：按项目取向量库和 TF-IDF 检索器）
+    r = get_retriever_for(novel_id)
     vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
     if vs.is_ready:
         vector_hits = vs.search(new_content, top_k)
         old_chunks = []
         for hit in vector_hits:
             chunk_id = hit["metadata"].get("chunk_id", hit["index"])
-            if 0 <= chunk_id < len(retriever.chunks):
-                old_chunks.append({"chunk": retriever.chunks[chunk_id], "score": hit["score"]})
+            if 0 <= chunk_id < len(r.chunks):
+                old_chunks.append({"chunk": r.chunks[chunk_id], "score": hit["score"]})
     else:
-        old_chunks = retriever.search(new_content, top_k)
+        old_chunks = r.search(new_content, top_k)
 
     if not old_chunks:
         return []

@@ -48,19 +48,45 @@ class NovelStore:
         );
         """)
         conn.commit()
+        # 里程碑17：给老库补 sort_order 列（拖拽排序），新库建表时不会带这列，用迁移方式加
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(novels)").fetchall()]
+        if "sort_order" not in cols:
+            conn.execute("ALTER TABLE novels ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # 按现有创建顺序回填 sort_order，保证老数据也有稳定排序
+            rows = conn.execute("SELECT id FROM novels ORDER BY id").fetchall()
+            for i, row in enumerate(rows):
+                conn.execute("UPDATE novels SET sort_order = ? WHERE id = ?", (i, row["id"]))
+            conn.commit()
         conn.close()
 
     def create_novel(self, title: str) -> int:
-        """创建作品，返回 novel_id"""
+        """创建作品，返回 novel_id（sort_order 排在当前最后）"""
         conn = self._get_conn()
+        max_order = conn.execute("SELECT MAX(sort_order) AS m FROM novels").fetchone()["m"]
+        next_order = (max_order or 0) + 1
         cur = conn.execute(
-            "INSERT INTO novels (title, created_at) VALUES (?, ?)",
-            (title, time.time()),
+            "INSERT INTO novels (title, created_at, sort_order) VALUES (?, ?, ?)",
+            (title, time.time(), next_order),
         )
         conn.commit()
         novel_id = cur.lastrowid
         conn.close()
         return novel_id
+
+    def update_novel_title(self, novel_id: int, title: str):
+        """重命名作品（里程碑17）"""
+        conn = self._get_conn()
+        conn.execute("UPDATE novels SET title = ? WHERE id = ?", (title, novel_id))
+        conn.commit()
+        conn.close()
+
+    def reorder_novels(self, ordered_ids: List[int]):
+        """按给定的 id 顺序重新分配 sort_order（里程碑17：拖拽排序落库）"""
+        conn = self._get_conn()
+        for i, novel_id in enumerate(ordered_ids):
+            conn.execute("UPDATE novels SET sort_order = ? WHERE id = ?", (i, novel_id))
+        conn.commit()
+        conn.close()
 
     def add_chapter(self, novel_id: int, content: str, title: str = "") -> int:
         """保存章节，返回 chapter_id"""
@@ -104,9 +130,11 @@ class NovelStore:
         return dict(row) if row else None
 
     def list_novels(self) -> List[Dict[str, Any]]:
-        """列出所有作品"""
+        """列出所有作品（按 sort_order 排序，里程碑17支持拖拽排序）"""
         conn = self._get_conn()
-        rows = conn.execute("SELECT id, title, created_at FROM novels ORDER BY id").fetchall()
+        rows = conn.execute(
+            "SELECT id, title, created_at, sort_order FROM novels ORDER BY sort_order, id"
+        ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
 

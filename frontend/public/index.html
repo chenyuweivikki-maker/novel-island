@@ -6,27 +6,28 @@
 <title>小说岛 — 创作者的第二大脑</title>
 <style>
   :root {
-    --bg: #faf9f6;
+    /* 里程碑17：黑白极简（参考"灵感收件箱"美学：白底黑字+灰线+黑底白字选中态） */
+    --bg: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f5f3ee;
-    --border: #e8e4db;
-    --border-strong: #d3d1c7;
-    --text: #2c2c2a;
-    --text-2: #6b6a65;
-    --text-3: #9c9a92;
-    --primary: #534ab7;
-    --primary-light: #eeedfe;
-    --primary-dark: #3c3489;
-    --teal: #0f6e56;
-    --teal-light: #e1f5ee;
-    --coral: #993c1d;
-    --coral-light: #faece7;
-    --amber: #854f0b;
-    --amber-light: #faeeda;
-    --radius: 12px;
-    --radius-sm: 8px;
-    --shadow: 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+    --surface-2: #f7f7f7;
+    --border: #e5e5e5;
+    --border-strong: #d0d0d0;
+    --text: #111111;
+    --text-2: #6b6b6b;
+    --text-3: #9c9c9c;
+    --primary: #111111;
+    --primary-light: #f0f0f0;
+    --primary-dark: #000000;
+    --teal: #000000;
+    --teal-light: #f0f0f0;
+    --coral: #111111;
+    --coral-light: #f7f7f7;
+    --amber: #111111;
+    --amber-light: #f7f7f7;
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -37,47 +38,75 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* ===== NAV ===== */
-  .nav {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(250,249,246,0.92);
-    backdrop-filter: blur(12px);
-    border-bottom: 0.5px solid var(--border);
-    padding: 12px 0;
+  /* ===== LAYOUT：侧栏 + 主区（里程碑17：agent辅助写作平台骨架） ===== */
+  body { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; flex-shrink: 0;
+    border-right: 0.5px solid var(--border);
+    display: flex; flex-direction: column;
+    background: var(--surface);
   }
-  .nav-inner {
-    max-width: 1100px; margin: 0 auto; padding: 0 24px;
-    display: flex; align-items: center; justify-content: space-between;
+  .sidebar-logo {
+    display: flex; align-items: center; gap: 8px;
+    padding: 16px 16px 12px; font-weight: 600; font-size: 15px;
   }
-  .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; }
   .logo-icon {
-    width: 28px; height: 28px; border-radius: 7px;
-    background: linear-gradient(135deg, #534ab7, #7f77dd);
+    width: 24px; height: 24px; border-radius: 5px;
+    background: var(--primary); color: #fff;
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 14px;
+    font-size: 13px;
   }
-  .nav-tabs { display: flex; gap: 2px; }
-  .nav-tab {
-    padding: 6px 14px; border-radius: var(--radius-sm);
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 0 8px; }
+  .sidebar-group {
+    font-size: 11px; color: var(--text-3); letter-spacing: 0.3px;
+    padding: 14px 8px 6px;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px; border-radius: var(--radius-sm);
     font-size: 13px; color: var(--text-2); cursor: pointer;
-    transition: all 0.15s; border: none; background: none;
-    font-family: inherit;
+    transition: all 0.12s; user-select: none;
   }
-  .nav-tab:hover { background: var(--surface-2); color: var(--text); }
-  .nav-tab.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 500; }
-  /* 里程碑14：全局项目选择器 */
-  .nav-project { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
-  .nav-project-label { font-size: 12px; color: var(--text-2); white-space: nowrap; }
-  .nav-select {
-    padding: 5px 10px; border-radius: var(--radius-sm);
-    border: 1px solid var(--border); background: var(--surface-2);
-    color: var(--text); font-size: 13px; font-family: inherit;
-    max-width: 160px; cursor: pointer;
+  .side-item:hover { background: var(--surface-2); color: var(--text); }
+  .side-item.active { background: var(--primary); color: #fff; font-weight: 500; }
+  .side-item.dragging { opacity: 0.5; }
+  .side-item .side-icon { width: 18px; text-align: center; font-size: 13px; }
+  .side-item .side-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-item .side-edit {
+    font-size: 12px; opacity: 0; transition: opacity 0.12s;
+    padding: 0 4px; cursor: pointer;
   }
-  .nav-select:focus { outline: none; border-color: var(--primary); }
-
-  /* ===== LAYOUT ===== */
-  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .side-item:hover .side-edit { opacity: 0.6; }
+  .side-item:hover .side-edit:hover { opacity: 1; }
+  .side-item .side-rename-input {
+    flex: 1; border: none; border-bottom: 1px solid var(--border-strong);
+    background: transparent; color: var(--text); font-size: 13px;
+    font-family: inherit; padding: 1px 2px; outline: none;
+  }
+  .sidebar-footer {
+    padding: 12px 8px; border-top: 0.5px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .main {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+  }
+  .sub-tabs {
+    display: flex; gap: 2px; padding: 12px 24px 0;
+    border-bottom: 0.5px solid var(--border);
+    display: none;  /* 默认隐藏，选中项目后显示 */
+  }
+  .sub-tabs.visible { display: flex; }
+  .sub-tab {
+    padding: 6px 14px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    font-size: 13px; color: var(--text-2); cursor: pointer;
+    border: none; background: none; font-family: inherit;
+    transition: all 0.12s;
+  }
+  .sub-tab:hover { background: var(--surface-2); color: var(--text); }
+  .sub-tab.active { background: var(--surface-2); color: var(--text); font-weight: 500; }
+  .main-content { flex: 1; padding: 24px; overflow-y: auto; }
+  .container { max-width: 1000px; margin: 0 auto; }
   .page { display: none; }
   .page.active { display: block; }
 
@@ -291,146 +320,103 @@
 </head>
 <body>
 
-<nav class="nav">
-  <div class="nav-inner">
-    <div class="logo">
-      <div class="logo-icon">N</div>
-      <span>小说岛</span>
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">N</div>
+    <span>小说岛</span>
+  </div>
+  <div class="sidebar-nav">
+    <!-- 默认对话入口：不选项目，直接聊天 -->
+    <div class="side-item" id="navDefaultChat" data-novel-id="">
+      <span class="side-icon">💬</span>
+      <span class="side-title">默认对话</span>
     </div>
-    <div class="nav-tabs">
-      <button class="nav-tab active" data-page="kb">知识库</button>
-      <button class="nav-tab" data-page="chars">人设卡片</button>
-      <button class="nav-tab" data-page="graph">人物关系图</button>
-      <button class="nav-tab" data-page="timeline">情节时间线</button>
-      <button class="nav-tab" data-page="write">创作空间</button>
-      <button class="nav-tab" data-page="arch">系统架构</button>
-    </div>
-    <!-- 里程碑14：全局项目选择器（obsidian式）— 选项目后，对话/图谱/人设都基于该项目 -->
-    <div class="nav-project">
-      <label class="nav-project-label" for="projectSelect">当前项目</label>
-      <select id="projectSelect" class="nav-select">
-        <option value="">默认知识库</option>
-      </select>
+    <div class="sidebar-group">我的项目</div>
+    <div id="projectList"></div>
+    <!-- 新建项目（里程碑17：创建项目时直接带初始文本建库） -->
+    <div class="side-item" id="btnNewProject" style="color:var(--text-3);">
+      <span class="side-icon">＋</span>
+      <span class="side-title">新建项目</span>
     </div>
   </div>
-</nav>
-
-<div class="container">
-
-  <!-- ===== PAGE: KNOWLEDGE BASE (RAG DEMO) ===== -->
-  <div class="page active" id="page-kb">
-    <div class="hero">
-      <h1>小说内容库</h1>
-      <p>上传小说文本，系统自动分块、向量化、构建检索索引。提问时基于原文精准召回，不臆测、不幻觉。</p>
-      <div class="hero-tags">
-        <span class="tag">400字 分块</span>
-        <span class="tag">字符级 n-gram</span>
-        <span class="tag">DeepSeek LLM</span>
-        <span class="tag">Top-K 召回</span>
-      </div>
+  <div class="sidebar-footer">
+    <div class="side-item" id="navCost" data-page="cost">
+      <span class="side-icon">₿</span>
+      <span class="side-title">成本监控</span>
     </div>
-
-    <div class="stats-row" id="statsRow">
-      <div class="stat-box"><div class="stat-num" id="statChunks">0</div><div class="stat-label">文本块</div></div>
-      <div class="stat-box"><div class="stat-num" id="statWords">0</div><div class="stat-label">总字数</div></div>
-      <div class="stat-box"><div class="stat-num" id="statEntities">0</div><div class="stat-label">识别实体</div></div>
-      <div class="stat-box"><div class="stat-num" id="statIndexed">—</div><div class="stat-label">索引状态</div></div>
+    <div class="side-item" id="navArch" data-page="arch">
+      <span class="side-icon">⚙️</span>
+      <span class="side-title">关于 / 系统架构</span>
     </div>
+  </div>
+</div>
 
-    <div class="rag-layout">
-      <!-- LEFT: INPUT -->
-      <div>
-        <div class="card">
-          <div class="card-title">小说文本</div>
-          <div class="card-desc">粘贴小说内容，或加载示例文本</div>
-          <textarea class="text-input" id="novelText" placeholder="在此粘贴小说正文..."></textarea>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btnBuild">构建知识库</button>
-            <button class="btn btn-ghost" id="btnSample">加载示例</button>
-            <button class="btn btn-ghost" id="btnClear">清空</button>
-          </div>
-        </div>
+<div class="main">
+  <!-- 二级tab：选中项目后显示（里程碑17） -->
+  <div class="sub-tabs" id="subTabs">
+    <button class="sub-tab active" data-subpage="chat">对话</button>
+    <button class="sub-tab" data-subpage="chars">人设</button>
+    <button class="sub-tab" data-subpage="outline">大纲</button>
+    <button class="sub-tab" data-subpage="timeline">时间线</button>
+    <button class="sub-tab" data-subpage="graph">关系图</button>
+    <button class="sub-tab" data-subpage="write">写作</button>
+  </div>
+  <div class="main-content">
+    <div class="container">
 
-        <div class="card">
-          <div class="card-title">分块预览</div>
-          <div class="card-desc">按段落分块，每块约300-400字</div>
-          <div class="pipeline" id="pipeline">
-            <span class="pipeline-step" id="pl-1">1.清洗</span>
-            <span class="pipeline-arrow">→</span>
-            <span class="pipeline-step" id="pl-2">2.分块</span>
-            <span class="pipeline-arrow">→</span>
-            <span class="pipeline-step" id="pl-3">3.TF-IDF索引</span>
-            <span class="pipeline-arrow">→</span>
-            <span class="pipeline-step" id="pl-4">4.就绪</span>
-          </div>
-          <div class="chunks-list" id="chunksList">
-            <div class="empty-state">构建知识库后，文本块将显示在此</div>
-          </div>
-        </div>
+  <!-- ===== PAGE: 对话（默认主区 = Agent对话入口） ===== -->
+  <div class="page active" id="page-chat">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1 id="chatTitle">默认对话</h1>
+      <p>问任何问题，或选一个项目进入基于其知识库的对话。</p>
+    </div>
+    <div class="card">
+      <div class="qa-input-row">
+        <input class="qa-input" id="qaInput" placeholder="问点什么... 例如：唐嘉措的宠物叫什么？" />
+        <button class="btn btn-primary" id="btnAsk">提问</button>
       </div>
-
-      <!-- RIGHT: Q&A -->
-      <div>
-        <div class="card">
-          <div class="card-title">前情回顾 &amp; 事实问答</div>
-          <div class="card-desc">基于知识库检索原文，精准回答</div>
-          <div class="qa-input-row">
-            <input class="qa-input" id="qaInput" placeholder="问点什么... 例如：林晚是做什么工作的？" />
-            <button class="btn btn-primary" id="btnAsk">提问</button>
-          </div>
-          <div class="suggested-q" id="suggestedQ">
-            <span class="q-chip" data-q="林晚是做什么工作的？">林晚是做什么工作的？</span>
-            <span class="q-chip" data-q="林晚为什么辞职？">林晚为什么辞职？</span>
-            <span class="q-chip" data-q="许言是谁？">许言是谁？</span>
-            <span class="q-chip" data-q="沈屿说了什么让林晚印象深刻的话？">沈屿说了什么？</span>
-            <span class="q-chip" data-q="林晚最后去做了什么？">林晚最后做了什么？</span>
-          </div>
-          <div class="answer-box" id="answerBox">
-            <div id="answerText"></div>
-            <div class="answer-source" id="answerSource"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">检索详情</div>
-          <div class="card-desc">Top-K 召回的文本块及相似度评分</div>
-          <div id="retrievalDetail">
-            <div class="empty-state">提问后显示检索到的原文片段</div>
-          </div>
-        </div>
+      <div class="suggested-q" id="suggestedQ" style="margin-top:10px;">
+        <span class="q-chip" data-q="唐嘉措的宠物叫什么？">唐嘉措的宠物叫什么？</span>
+        <span class="q-chip" data-q="江观南是做什么的？">江观南是做什么的？</span>
+        <span class="q-chip" data-q="这段剧情有没有逻辑矛盾？">检查逻辑矛盾</span>
+        <span class="q-chip" data-q="唐嘉措的人设崩了吗？">检查人设</span>
+        <span class="q-chip" data-q="后面剧情怎么发展？">找灵感</span>
+      </div>
+      <div class="answer-box" id="answerBox">
+        <div id="answerText"></div>
+        <div class="answer-source" id="answerSource"></div>
       </div>
     </div>
   </div>
 
-  <!-- ===== PAGE: CHARACTER CARDS ===== -->
+  <!-- ===== PAGE: 人设卡片 ===== -->
   <div class="page" id="page-chars">
-    <div class="hero">
+    <div class="hero" style="padding: 32px 0 24px;">
       <h1>人设卡片</h1>
-      <p>从小说文本中自动抽取人物信息，结构化为标准化人设卡片。包含基本信息、性格特质、核心矛盾、社会关系等维度。</p>
+      <p>从小说文本中自动抽取人物信息，结构化为标准化人设卡片。</p>
     </div>
     <div class="char-grid" id="charGrid">
-      <div class="empty-state">请先在「知识库」页面构建知识库</div>
+      <div class="empty-state">该项目还没有人设，先建库或保存章节</div>
     </div>
   </div>
 
-  <!-- ===== PAGE: RELATIONSHIP GRAPH ===== -->
-  <div class="page" id="page-graph">
-    <div class="hero">
-      <h1>人物关系图</h1>
-      <p>以主角为核心展开，展示人物间的关系网络。支持关系强度评分与关系类型标注。</p>
+  <!-- ===== PAGE: 大纲（里程碑17：占位，后续实现） ===== -->
+  <div class="page" id="page-outline">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>大纲</h1>
+      <p>基于情节大事年表自动生成的故事大纲（开发中）。</p>
     </div>
-    <div class="graph-container">
-      <svg class="graph-svg" id="graphSvg" viewBox="0 0 1000 400">
-        <text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">请先在「知识库」页面构建知识库</text>
-      </svg>
+    <div class="card">
+      <div class="card-desc">从"时间线"tab 查看逐章情节摘要，大纲功能将在后续版本生成结构化章节大纲。</div>
+      <div class="empty-state">大纲功能开发中</div>
     </div>
   </div>
 
-  <!-- ===== PAGE: 情节时间线（里程碑15：情节大事年表） ===== -->
+  <!-- ===== PAGE: 情节时间线 ===== -->
   <div class="page" id="page-timeline">
-    <div class="hero">
+    <div class="hero" style="padding: 32px 0 24px;">
       <h1>情节时间线</h1>
-      <p>按章节顺序记录每章情节摘要（大事年表）。上传文本或保存新章节后自动追加。</p>
+      <p>按章节顺序记录每章情节摘要（大事年表）。保存新章节后自动追加。</p>
     </div>
     <div class="card">
       <div class="card-title">大事年表</div>
@@ -441,47 +427,60 @@
     </div>
   </div>
 
-  <!-- ===== PAGE: 创作空间 ===== -->
-  <div class="page" id="page-write">
-    <div class="hero">
-      <h1>创作空间</h1>
-      <p>写新章节，保存后自动更新知识库（增量）。写完就能查。</p>
+  <!-- ===== PAGE: 人物关系图 ===== -->
+  <div class="page" id="page-graph">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>人物关系图</h1>
+      <p>以主角为核心展开，展示人物间的关系网络。</p>
     </div>
-    <div class="rag-layout">
-      <div>
-        <div class="card">
-          <div class="card-title">新建作品</div>
-          <div class="qa-input-row">
-            <input class="qa-input" id="novelTitle" placeholder="作品名，如：观南嘉措" />
-            <button class="btn btn-primary" id="btnCreateNovel">创建</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">作品列表</div>
-          <div id="novelList"><div class="empty-state">还没有作品，先创建一个</div></div>
-        </div>
+    <div class="graph-container">
+      <svg class="graph-svg" id="graphSvg" viewBox="0 0 1000 400">
+        <text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">该项目还没有人物关系，先建库</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 写作（创作空间） ===== -->
+  <div class="page" id="page-write">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>写作</h1>
+      <p>写新章节，保存后自动增量更新知识库（写完就能查、能检、能进时间线）。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">写新章节</div>
+      <div class="card-desc">保存后自动增量更新知识库，新内容可被问答检索</div>
+      <textarea class="text-input" id="chapterText" placeholder="在这里写新章节..."></textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnSaveChapter">保存章节并更新知识库</button>
       </div>
-      <div>
-        <div class="card">
-          <div class="card-title">写新章节</div>
-          <div class="card-desc">保存后自动增量更新知识库，新内容可被问答检索</div>
-          <textarea class="text-input" id="chapterText" placeholder="在这里写新章节..."></textarea>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btnSaveChapter">保存章节并更新知识库</button>
-          </div>
-          <div id="saveResult" style="margin-top:10px;font-size:12px;color:#6b6a65;"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">章节列表</div>
-          <div id="chapterList"><div class="empty-state">保存章节后显示在此</div></div>
-        </div>
-      </div>
+      <div id="saveResult" style="margin-top:10px;font-size:12px;color:#6b6a65;"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">章节列表</div>
+      <div id="chapterList"><div class="empty-state">保存章节后显示在此</div></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 成本监控（里程碑17） ===== -->
+  <div class="page" id="page-cost">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>成本监控</h1>
+      <p>每次 LLM 调用的 token 与估算成本（里程碑7的 /api/cost 落地到前端）。</p>
+    </div>
+    <div class="stats-row" id="costStatsRow">
+      <div class="stat-box"><div class="stat-num" id="costCalls">—</div><div class="stat-label">调用次数</div></div>
+      <div class="stat-box"><div class="stat-num" id="costTokens">—</div><div class="stat-label">总Token</div></div>
+      <div class="stat-box"><div class="stat-num" id="costTotal">—</div><div class="stat-label">总成本(元)</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">按任务分布</div>
+      <div id="costByTask"><div class="empty-state">暂无调用记录</div></div>
     </div>
   </div>
 
   <!-- ===== PAGE: ARCHITECTURE ===== -->
   <div class="page" id="page-arch">
-    <div class="hero">
+    <div class="hero" style="padding: 32px 0 24px;">
       <h1>系统架构</h1>
       <p>LangGraph 状态机编排 · LangChain 工具执行 · LlamaIndex 数据处理 · 四层存储</p>
     </div>
@@ -612,14 +611,38 @@ async function apiCall(path, body) {
   return resp.json();
 }
 
-// ===== TAB SWITCHING =====
-document.querySelectorAll('.nav-tab').forEach(tab => {
+// ===== 二级tab切换（选中项目后：对话/人设/大纲/时间线/关系图/写作）=====
+document.querySelectorAll('.sub-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('page-' + tab.dataset.page).classList.add('active');
+    switchSubPage(tab.dataset.subpage);
   });
+});
+
+function switchSubPage(subpage) {
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const tab = document.querySelector(`.sub-tab[data-subpage="${subpage}"]`);
+  if (tab) tab.classList.add('active');
+  const page = document.getElementById('page-' + subpage);
+  if (page) page.classList.add('active');
+  // 切换到需要拉数据的页面时刷新
+  if (subpage === 'chars' || subpage === 'graph') refreshKBViews();
+  if (subpage === 'timeline') renderTimeline();
+  if (subpage === 'write') loadChapters();
+  if (subpage === 'cost') loadCost();
+}
+
+// 侧栏底部固定页（成本/架构）：不依赖项目，直接切页面
+document.getElementById('navCost').addEventListener('click', () => {
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-cost').classList.add('active');
+  loadCost();
+});
+document.getElementById('navArch').addEventListener('click', () => {
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-arch').classList.add('active');
 });
 
 // ===== SAMPLE TEXT =====
@@ -696,28 +719,6 @@ async function fetchGraphData() {
 }
 
 // ===== UI RENDERING =====
-function updateStats(stats) {
-  document.getElementById('statChunks').textContent = stats ? stats.chunks : 0;
-  document.getElementById('statWords').textContent = stats ? stats.total_chars : 0;
-  document.getElementById('statEntities').textContent = KB.characters.length;
-  document.getElementById('statIndexed').textContent = KB.ready ? '已就绪' : '—';
-}
-
-function renderChunks(highlightIds = []) {
-  const container = document.getElementById('chunksList');
-  if (KB.chunks.length === 0) {
-    container.innerHTML = '<div class="empty-state">构建知识库后，文本块将显示在此</div>';
-    return;
-  }
-  container.innerHTML = KB.chunks.map(c => {
-    const isMatch = highlightIds.includes(c.id);
-    return `<div class="chunk-item ${isMatch ? 'match' : ''} fade-in">
-      <div class="chunk-meta">Chunk #${c.id + 1} · ${c.char_count}字</div>
-      ${c.text.substring(0, 120)}${c.text.length > 120 ? '...' : ''}
-    </div>`;
-  }).join('');
-}
-
 function renderAnswer(answer, sources) {
   const box = document.getElementById('answerBox');
   document.getElementById('answerText').textContent = answer;
@@ -728,22 +729,6 @@ function renderAnswer(answer, sources) {
     : '无参考来源';
   document.getElementById('answerSource').innerHTML = sourceHtml;
   box.classList.add('show');
-}
-
-function renderRetrievalDetail(results) {
-  const container = document.getElementById('retrievalDetail');
-  if (!results || results.length === 0) {
-    container.innerHTML = '<div class="empty-state">未检索到相关内容</div>';
-    return;
-  }
-  container.innerHTML = results.map(r => {
-    const pct = (r.score * 100).toFixed(1);
-    const cls = r.score > 0.3 ? 'score-high' : r.score > 0.1 ? 'score-mid' : 'score-low';
-    return `<div class="chunk-item match fade-in">
-      <div class="chunk-meta">Chunk #${r.chunk_id + 1} <span class="score-badge ${cls}">${pct}%</span></div>
-      ${r.preview || r.text.substring(0, 150)}${(r.preview || r.text).length > 150 ? '...' : ''}
-    </div>`;
-  }).join('');
 }
 
 function renderCharacterCards() {
@@ -859,79 +844,13 @@ async function renderTimeline() {
   }
 }
 
-// ===== PIPELINE =====
-function pipelineStep(step) {
-  for (let i = 1; i <= 4; i++) {
-    document.getElementById('pl-' + i).classList.toggle('done', i <= step);
-  }
-}
-
 // ===== EVENT HANDLERS =====
 
-// 加载示例
-document.getElementById('btnSample').addEventListener('click', () => {
-  document.getElementById('novelText').value = SAMPLE_TEXT;
-});
-
-// 清空
-document.getElementById('btnClear').addEventListener('click', () => {
-  document.getElementById('novelText').value = '';
-  KB = { chunks: [], entities: [], characters: [], relationships: [], ready: false };
-  updateStats(null);
-  renderChunks();
-  document.getElementById('answerBox').classList.remove('show');
-  document.getElementById('retrievalDetail').innerHTML = '<div class="empty-state">提问后显示检索到的原文片段</div>';
-  pipelineStep(0);
-});
-
-// 构建知识库 — 调后端API
-document.getElementById('btnBuild').addEventListener('click', async () => {
-  const text = document.getElementById('novelText').value.trim();
-  if (!text) { alert('请先输入或加载小说文本'); return; }
-
-  const btn = document.getElementById('btnBuild');
-  btn.disabled = true;
-  btn.textContent = '构建中...';
-
-  try {
-    pipelineStep(1); // 清洗
-    await new Promise(r => setTimeout(r, 100));
-    pipelineStep(2); // 分块
-    await new Promise(r => setTimeout(r, 100));
-
-    // 调后端构建（里程碑14：带 novel_id，文本入库到指定项目）
-    const body = { text };
-    if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
-    const data = await apiCall('/api/kb/build', body);
-    KB.chunks = data.chunks;
-    KB.ready = true;
-
-    pipelineStep(3); // 索引
-    await new Promise(r => setTimeout(r, 100));
-    pipelineStep(4); // 就绪
-
-    // 提取人设（mock，Phase 2 用LLM替换）
-    KB.characters = await fetchGraphData();
-
-    updateStats(data.stats);
-    renderChunks();
-    renderCharacterCards();
-    renderRelationshipGraph();
-    renderTimeline(); // 里程碑15：建库后刷新时间线
-  } catch (e) {
-    alert('构建失败: ' + e.message);
-    pipelineStep(0);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '构建知识库';
-  }
-});
-
 // 提问 — 调后端API（DeepSeek生成回答）
+// 里程碑17：不再要求 KB.ready（建库已并入新建项目流程，没库也能对话，Agent如实回答）
 document.getElementById('btnAsk').addEventListener('click', async () => {
   const query = document.getElementById('qaInput').value.trim();
   if (!query) return;
-  if (!KB.ready) { alert('请先构建知识库'); return; }
 
   const btn = document.getElementById('btnAsk');
   btn.disabled = true;
@@ -949,8 +868,6 @@ document.getElementById('btnAsk').addEventListener('click', async () => {
     if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
     const data = await apiCall('/api/kb/ask', body);
     renderAnswer(data.answer, data.sources);
-    renderRetrievalDetail(data.retrieval);
-    renderChunks(data.retrieval.map(r => r.chunk_id));
   } catch (e) {
     document.getElementById('answerText').textContent = '出错了: ' + e.message;
   } finally {
@@ -970,39 +887,13 @@ document.querySelectorAll('.q-chip').forEach(chip => {
   });
 });
 
-// ===== 创作空间 =====
+// ===== 侧栏项目导航（里程碑17） =====
 let currentNovelId = null;
+let currentSubPage = 'chat';
 
-// ===== 里程碑14：全局项目选择器 =====
-// currentNovelId 复用为"当前项目"——问答/建库/图谱/人设都基于它
 function currentNovelIdNum() {
   return currentNovelId || null;
 }
-
-// 加载项目列表 → 填充顶部下拉（obsidian式：对话可选项目）
-async function loadProjects() {
-  try {
-    const resp = await fetch(API_BASE + '/api/novels');
-    const data = await resp.json();
-    const sel = document.getElementById('projectSelect');
-    const current = currentNovelIdNum();
-    sel.innerHTML = '<option value="">默认知识库</option>' +
-      (data.novels || []).map(n =>
-        `<option value="${n.id}" ${n.id === current ? 'selected' : ''}>${n.title}</option>`
-      ).join('');
-  } catch (e) {
-    console.error('加载项目列表失败:', e);
-  }
-}
-
-// 下拉切换项目 → 刷新图谱/人设/问答状态
-document.getElementById('projectSelect').addEventListener('change', (e) => {
-  currentNovelId = e.target.value ? Number(e.target.value) : null;
-  // 同步创作空间的作品输入框
-  document.getElementById('novelTitle').value = currentNovelId ? '' : '';
-  refreshKBViews();
-  loadChapters();
-});
 
 // 切换项目后刷新所有依赖项目数据的视图
 async function refreshKBViews() {
@@ -1010,19 +901,174 @@ async function refreshKBViews() {
   renderCharacterCards();
   renderRelationshipGraph();
   renderTimeline(); // 里程碑15
-  updateStats();
 }
 
-// 创建作品
-document.getElementById('btnCreateNovel').addEventListener('click', async () => {
-  const title = document.getElementById('novelTitle').value.trim();
-  if (!title) { alert('请输入作品名'); return; }
-  const data = await apiCall('/api/novel', { title });
-  currentNovelId = data.novel_id;
-  document.getElementById('novelTitle').value = '';
-  loadNovels();
+// 加载项目列表 → 渲染侧栏（支持重命名✎、拖拽排序）
+async function loadNovels() {
+  try {
+    const resp = await fetch(API_BASE + '/api/novels');
+    const data = await resp.json();
+    const list = document.getElementById('projectList');
+    const novels = data.novels || [];
+    if (novels.length === 0) {
+      list.innerHTML = '<div style="padding:6px 8px;font-size:12px;color:var(--text-3);">还没有项目，点上方＋新建</div>';
+      return;
+    }
+    list.innerHTML = novels.map(n => `
+      <div class="side-item ${n.id === currentNovelId ? 'active' : ''}" data-novel-id="${n.id}" draggable="true">
+        <span class="side-icon">📘</span>
+        <span class="side-title">${n.title}</span>
+        <span class="side-edit" title="重命名">✎</span>
+      </div>
+    `).join('');
+
+    // 项目点击 → 选中并进入该项目
+    list.querySelectorAll('.side-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('side-edit')) return;
+        selectNovel(Number(item.dataset.novelId), item.querySelector('.side-title').textContent);
+      });
+      // 重命名：点✎ → 变成输入框
+      const editBtn = item.querySelector('.side-edit');
+      editBtn.addEventListener('click', () => startRename(item));
+      // 拖拽排序
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', item.dataset.novelId);
+        item.classList.add('dragging');
+      });
+      item.addEventListener('dragend', () => item.classList.remove('dragging'));
+      item.addEventListener('dragover', (e) => e.preventDefault());
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const draggedId = Number(e.dataTransfer.getData('text/plain'));
+        if (!draggedId) return;
+        reorderProjects(draggedId, Number(item.dataset.novelId));
+      });
+    });
+  } catch (e) {
+    console.error('加载项目列表失败:', e);
+  }
+}
+
+// 选中项目：进入该项目上下文，二级tab出现
+async function selectNovel(id, title) {
+  currentNovelId = id;
+  currentSubPage = 'chat';
+  document.getElementById('subTabs').classList.add('visible');
+  document.getElementById('chatTitle').textContent = title;
+  // 更新侧栏选中态
+  document.querySelectorAll('#projectList .side-item').forEach(item => {
+    item.classList.toggle('active', Number(item.dataset.novelId) === id);
+  });
+  document.getElementById('navDefaultChat').classList.remove('active');
+  // 切到对话页，刷新所有项目数据
+  switchSubPage('chat');
+  refreshKBViews();
   loadChapters();
+}
+
+// 默认对话：不选任何项目
+function selectDefaultChat() {
+  currentNovelId = null;
+  currentSubPage = 'chat';
+  document.getElementById('subTabs').classList.remove('visible');
+  document.getElementById('chatTitle').textContent = '默认对话';
+  document.querySelectorAll('#projectList .side-item').forEach(item => item.classList.remove('active'));
+  document.getElementById('navDefaultChat').classList.add('active');
+  switchSubPage('chat');
+  renderTimeline();
+}
+document.getElementById('navDefaultChat').addEventListener('click', selectDefaultChat);
+
+// 重命名项目
+async function startRename(item) {
+  const titleEl = item.querySelector('.side-title');
+  const oldTitle = titleEl.textContent;
+  const input = document.createElement('input');
+  input.className = 'side-rename-input';
+  input.value = oldTitle;
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;  // Enter/Escape/blur 可能竞争触发，只处理第一次
+    done = true;
+    const newTitle = input.value.trim();
+    input.replaceWith(titleEl);
+    if (save && newTitle && newTitle !== oldTitle) {
+      try {
+        await apiCall(`/api/novel/${item.dataset.novelId}/rename`, { title: newTitle });
+        titleEl.textContent = newTitle;
+        if (Number(item.dataset.novelId) === currentNovelId) document.getElementById('chatTitle').textContent = newTitle;
+      } catch (e) { alert('重命名失败: ' + e.message); }
+    }
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') finish(true);
+    if (e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+// 拖拽排序
+async function reorderProjects(draggedId, targetId) {
+  const resp = await fetch(API_BASE + '/api/novels');
+  const data = await resp.json();
+  const ids = (data.novels || []).map(n => n.id);
+  const from = ids.indexOf(draggedId);
+  const to = ids.indexOf(targetId);
+  if (from < 0 || to < 0) return;
+  ids.splice(to, 0, ids.splice(from, 1)[0]);
+  try {
+    await apiCall('/api/novels/reorder', { ordered_ids: ids });
+    loadNovels(); // 重新渲染侧栏
+  } catch (e) { alert('排序失败: ' + e.message); }
+}
+
+// 新建项目（里程碑17：起名 + 粘贴初始文本一次建库）
+document.getElementById('btnNewProject').addEventListener('click', async () => {
+  const title = prompt('作品名：', '');
+  if (!title) return;
+  const text = prompt('初始内容（可选，粘贴开头几章，之后可在"写作"里继续加）：', '');
+  try {
+    const data = await apiCall('/api/novel', { title });
+    const novelId = data.novel_id;
+    if (text && text.trim()) {
+      await apiCall('/api/kb/build', { text, novel_id: novelId });
+    }
+    await loadNovels();
+    selectNovel(novelId, title);
+  } catch (e) {
+    alert('创建失败: ' + e.message);
+  }
 });
+
+// 成本监控（里程碑17：/api/cost 落地前端）
+async function loadCost() {
+  try {
+    const resp = await fetch(API_BASE + '/api/cost');
+    const data = await resp.json();
+    document.getElementById('costCalls').textContent = data.total_calls || 0;
+    document.getElementById('costTokens').textContent = (data.total_input_tokens || 0) + (data.total_output_tokens || 0);
+    document.getElementById('costTotal').textContent = (data.total_cost || 0).toFixed(4);
+    const byTask = data.by_task || {};
+    const keys = Object.keys(byTask);
+    const container = document.getElementById('costByTask');
+    if (keys.length === 0) {
+      container.innerHTML = '<div class="empty-state">暂无调用记录</div>';
+      return;
+    }
+    container.innerHTML = keys.map(k => `
+      <div class="chunk-item">
+        <div class="chunk-meta">${k} · ${byTask[k].calls}次</div>
+        成本: ¥${byTask[k].cost.toFixed(4)}
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('costByTask').innerHTML = '<div class="empty-state">加载失败</div>';
+  }
+}
 
 // 保存章节 + 增量更新
 document.getElementById('btnSaveChapter').addEventListener('click', async () => {
@@ -1053,28 +1099,6 @@ document.getElementById('btnSaveChapter').addEventListener('click', async () => 
   }
 });
 
-// 加载作品列表
-async function loadNovels() {
-  const resp = await fetch(API_BASE + '/api/novels');
-  const data = await resp.json();
-  const list = document.getElementById('novelList');
-  if (!data.novels || data.novels.length === 0) {
-    list.innerHTML = '<div class="empty-state">还没有作品，先创建一个</div>';
-    return;
-  }
-  list.innerHTML = data.novels.map(n =>
-    `<div class="chunk-item" style="cursor:pointer;" onclick="selectNovel(${n.id}, '${n.title}')">${n.title}</div>`
-  ).join('');
-}
-
-async function selectNovel(id, title) {
-  currentNovelId = id;
-  document.getElementById('novelTitle').value = title;
-  loadChapters();
-  loadProjects(); // 同步顶部下拉选中态
-  refreshKBViews();
-}
-
 // 加载章节列表
 async function loadChapters() {
   if (!currentNovelId) return;
@@ -1090,10 +1114,9 @@ async function loadChapters() {
   ).join('');
 }
 
-// Auto-load sample on first visit
+// 初始化（里程碑17：加载侧栏项目列表，默认停在默认对话）
 window.addEventListener('load', () => {
-  document.getElementById('novelText').value = SAMPLE_TEXT;
-  loadProjects(); // 里程碑14：加载项目列表填充顶部下拉
+  loadNovels();
 });
 </script>
 
