@@ -58,8 +58,8 @@
   }
   .sidebar-nav { flex: 1; overflow-y: auto; padding: 0 8px; }
   .sidebar-group {
-    font-size: 11px; color: var(--text-3); letter-spacing: 0.3px;
-    padding: 14px 8px 6px;
+    font-size: 13px; color: var(--text); font-weight: 600; letter-spacing: 0.3px;
+    padding: 16px 8px 8px;
   }
   .side-item {
     display: flex; align-items: center; gap: 8px;
@@ -170,18 +170,6 @@
   }
   .chunk-meta { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
   /* 里程碑15：情节时间线（大事年表） */
-  .timeline-list { max-height: 500px; overflow-y: auto; }
-  .timeline-item {
-    position: relative; padding: 10px 12px 10px 28px;
-    background: var(--surface-2); border-radius: var(--radius-sm);
-    margin-bottom: 8px; font-size: 13px; line-height: 1.7; color: var(--text);
-  }
-  .timeline-item::before {
-    content: ''; position: absolute; left: 10px; top: 16px;
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--primary); opacity: 0.7;
-  }
-  .timeline-meta { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
   .timeline-badge {
     display: inline-block; padding: 1px 6px; border-radius: 4px;
     font-size: 10px; font-weight: 600; margin-left: 6px;
@@ -316,6 +304,102 @@
   /* ===== ANIMATION ===== */
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .fade-in { animation: fadeIn 0.3s ease; }
+
+  /* ===== 里程碑18：思维导图式时间线/章纲（中间竖线+左右交错） ===== */
+  .mindmap { position: relative; padding: 16px 0 8px; }
+  .mindmap::before {
+    content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+    width: 2px; background: var(--border); transform: translateX(-50%);
+  }
+  .mm-item { position: relative; width: 50%; padding: 0 32px 24px; }
+  .mm-item.left { left: 0; text-align: right; }
+  .mm-item.right { left: 50%; text-align: left; }
+  .mm-item::before {
+    content: ''; position: absolute; top: 20px;
+    width: 16px; height: 2px; background: var(--border);
+  }
+  .mm-item.left::before { right: 0; }
+  .mm-item.right::before { left: 0; }
+  .mm-item::after {
+    content: ''; position: absolute; top: 16px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--text); border: 2px solid var(--surface);
+  }
+  .mm-item.left::after { right: -5px; }
+  .mm-item.right::after { left: -5px; }
+  .mm-card {
+    display: inline-block; text-align: left; background: var(--surface);
+    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px; max-width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .mm-title { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
+  .mm-text { font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+  .mm-empty { text-align: center; color: var(--text-3); padding: 48px 0; font-size: 13px; }
+
+  /* ===== 里程碑18：手写字SVG动画 ===== */
+  .writing-stage {
+    display: flex; justify-content: center; padding: 8px 0 16px;
+  }
+  .writing-stage svg { width: 480px; max-width: 100%; height: auto; }
+  .ink-line {
+    stroke: var(--text); stroke-width: 1.6; fill: none; stroke-linecap: round;
+    stroke-dasharray: 800; stroke-dashoffset: 800;
+    animation: inkDraw 6s ease-in-out infinite;
+  }
+  .ink-line.delay-1 { animation-delay: 0.8s; }
+  .ink-line.delay-2 { animation-delay: 1.6s; }
+  .ink-line.delay-3 { animation-delay: 2.4s; }
+  @keyframes inkDraw {
+    0% { stroke-dashoffset: 800; }
+    60% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 0; opacity: 0.35; }
+  }
+  .pen-tip { animation: penSwing 6s ease-in-out infinite; }
+  @keyframes penSwing {
+    0%, 100% { transform: translate(0, 0); }
+    30% { transform: translate(8px, 4px); }
+    60% { transform: translate(-4px, 2px); }
+  }
+
+  /* ===== 里程碑18：弹窗 ===== */
+  .modal-mask {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.35); align-items: center; justify-content: center;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 24px; width: 400px; max-width: 92vw;
+    box-shadow: var(--shadow-lg);
+  }
+  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+  .modal-field input, .modal-field textarea {
+    width: 100%; padding: 8px 10px; border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
+    background: var(--surface); color: var(--text);
+  }
+  .modal-field textarea { min-height: 80px; resize: vertical; }
+  .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--text); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  /* ===== 里程碑18：背景资料 ===== */
+  .bg-category { margin-bottom: 20px; }
+  .bg-category-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 0.5px solid var(--border); }
+  .bg-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
+    position: relative;
+  }
+  .bg-card-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .bg-card-content { font-size: 12px; line-height: 1.7; color: var(--text-2); white-space: pre-wrap; }
+  .bg-card-del {
+    position: absolute; top: 8px; right: 10px; font-size: 12px;
+    color: var(--text-3); cursor: pointer; border: none; background: none;
+    font-family: inherit;
+  }
+  .bg-card-del:hover { color: var(--text); }
 </style>
 </head>
 <body>
@@ -326,24 +410,25 @@
     <span>小说岛</span>
   </div>
   <div class="sidebar-nav">
-    <!-- 默认对话入口：不选项目，直接聊天 -->
+    <!-- 写作Agent入口：不选小说也能用（里程碑18改名） -->
     <div class="side-item" id="navDefaultChat" data-novel-id="">
-      <span class="side-icon">💬</span>
-      <span class="side-title">默认对话</span>
+      <span class="side-icon">✒️</span>
+      <span class="side-title">写作Agent</span>
     </div>
-    <div class="sidebar-group">我的项目</div>
-    <div id="projectList"></div>
-    <!-- 新建项目（里程碑17：创建项目时直接带初始文本建库） -->
-    <div class="side-item" id="btnNewProject" style="color:var(--text-3);">
-      <span class="side-icon">＋</span>
-      <span class="side-title">新建项目</span>
-    </div>
-  </div>
-  <div class="sidebar-footer">
+    <!-- 成本监控：与"我的小说"同级（里程碑18上移） -->
     <div class="side-item" id="navCost" data-page="cost">
       <span class="side-icon">₿</span>
       <span class="side-title">成本监控</span>
     </div>
+    <div class="sidebar-group">我的小说</div>
+    <div id="projectList"></div>
+    <!-- 新建小说（里程碑18：弹窗填名称/字数） -->
+    <div class="side-item" id="btnNewProject" style="color:var(--text-3);">
+      <span class="side-icon">＋</span>
+      <span class="side-title">新建小说</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">
     <div class="side-item" id="navArch" data-page="arch">
       <span class="side-icon">⚙️</span>
       <span class="side-title">关于 / 系统架构</span>
@@ -352,37 +437,58 @@
 </div>
 
 <div class="main">
-  <!-- 二级tab：选中项目后显示（里程碑17） -->
+  <!-- 二级tab：选中小说后显示（里程碑18顺序：Agent/写作/人设/关系图/时间线/大纲/章纲/背景资料） -->
   <div class="sub-tabs" id="subTabs">
-    <button class="sub-tab active" data-subpage="chat">对话</button>
-    <button class="sub-tab" data-subpage="chars">人设</button>
-    <button class="sub-tab" data-subpage="outline">大纲</button>
-    <button class="sub-tab" data-subpage="timeline">时间线</button>
-    <button class="sub-tab" data-subpage="graph">关系图</button>
+    <button class="sub-tab active" data-subpage="chat">Agent</button>
     <button class="sub-tab" data-subpage="write">写作</button>
+    <button class="sub-tab" data-subpage="chars">人设卡片</button>
+    <button class="sub-tab" data-subpage="graph">人物关系图</button>
+    <button class="sub-tab" data-subpage="timeline">时间线</button>
+    <button class="sub-tab" data-subpage="outline">大纲</button>
+    <button class="sub-tab" data-subpage="chapter_outline">章纲</button>
+    <button class="sub-tab" data-subpage="backgrounds">背景资料</button>
   </div>
   <div class="main-content">
     <div class="container">
 
-  <!-- ===== PAGE: 对话（默认主区 = Agent对话入口） ===== -->
+  <!-- ===== PAGE: Agent（写作Agent首页：动画+输入框，里程碑18） ===== -->
   <div class="page active" id="page-chat">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1 id="chatTitle">默认对话</h1>
-      <p>问任何问题，或选一个项目进入基于其知识库的对话。</p>
-    </div>
-    <div class="card">
-      <div class="qa-input-row">
-        <input class="qa-input" id="qaInput" placeholder="问点什么... 例如：唐嘉措的宠物叫什么？" />
-        <button class="btn btn-primary" id="btnAsk">提问</button>
+    <div style="max-width:600px; margin:0 auto; text-align:center;">
+      <h1 id="chatTitle" style="font-size:26px; font-weight:600; margin:12px 0 4px;">写作Agent</h1>
+      <p style="font-size:13px; color:var(--text-2); margin-bottom:8px;">你的小说创作第二大脑 —— 写不下去时，它记得所有情节与人物。</p>
+      <!-- 手写字SVG动画：纸 + 手执笔，从左往右写 -->
+      <div class="writing-stage">
+        <svg viewBox="0 0 480 220" xmlns="http://www.w3.org/2000/svg">
+          <!-- 纸张 -->
+          <rect x="90" y="40" width="300" height="130" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+          <!-- 手写线（从左往右依次画） -->
+          <path class="ink-line" d="M 120 90 Q 180 70 240 90 T 360 90"/>
+          <path class="ink-line delay-1" d="M 120 115 Q 200 100 280 115 T 360 110"/>
+          <path class="ink-line delay-2" d="M 120 140 Q 180 155 240 140 T 360 150"/>
+          <path class="ink-line delay-3" d="M 130 165 Q 200 150 260 165"/>
+          <!-- 手+笔 -->
+          <g class="pen-tip">
+            <path d="M 380 90 Q 400 80 410 70" stroke="var(--text)" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M 408 72 L 395 88" stroke="var(--text)" stroke-width="1.4" stroke-linecap="round"/>
+          </g>
+        </svg>
       </div>
-      <div class="suggested-q" id="suggestedQ" style="margin-top:10px;">
+      <!-- 对话输入框：引导创建新小说 -->
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input class="qa-input" id="qaInput" style="padding:12px 16px; font-size:14px;" placeholder="输入你想写的故事，或问我任何关于小说的问题…" />
+        <button class="btn btn-primary" id="btnAsk" style="padding:12px 20px;">发送</button>
+      </div>
+      <div id="agentHint" style="margin-top:10px; font-size:12px; color:var(--text-3);">
+        还没有小说？点左侧"＋新建小说"，几秒钟就能创建你的第一部作品。
+      </div>
+      <div class="suggested-q" id="suggestedQ" style="margin-top:14px; justify-content:center;">
         <span class="q-chip" data-q="唐嘉措的宠物叫什么？">唐嘉措的宠物叫什么？</span>
         <span class="q-chip" data-q="江观南是做什么的？">江观南是做什么的？</span>
         <span class="q-chip" data-q="这段剧情有没有逻辑矛盾？">检查逻辑矛盾</span>
         <span class="q-chip" data-q="唐嘉措的人设崩了吗？">检查人设</span>
         <span class="q-chip" data-q="后面剧情怎么发展？">找灵感</span>
       </div>
-      <div class="answer-box" id="answerBox">
+      <div class="answer-box" id="answerBox" style="text-align:left;">
         <div id="answerText"></div>
         <div class="answer-source" id="answerSource"></div>
       </div>
@@ -400,15 +506,19 @@
     </div>
   </div>
 
-  <!-- ===== PAGE: 大纲（里程碑17：占位，后续实现） ===== -->
+  <!-- ===== PAGE: 大纲（里程碑18：作者自写单文本块） ===== -->
   <div class="page" id="page-outline">
     <div class="hero" style="padding: 32px 0 24px;">
       <h1>大纲</h1>
-      <p>基于情节大事年表自动生成的故事大纲（开发中）。</p>
+      <p>写下你自己的故事大纲（人物线/情节线/伏笔…），Agent 会记住它。</p>
     </div>
     <div class="card">
-      <div class="card-desc">从"时间线"tab 查看逐章情节摘要，大纲功能将在后续版本生成结构化章节大纲。</div>
-      <div class="empty-state">大纲功能开发中</div>
+      <div class="card-title">我的大纲</div>
+      <textarea class="text-input" id="outlineText" style="min-height:260px;" placeholder="在这里写下你小说的整体大纲：主线、人物弧光、关键情节、伏笔安排…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnSaveOutline">保存大纲</button>
+        <span id="outlineSaveResult" style="font-size:12px; color:var(--text-3); align-self:center;"></span>
+      </div>
     </div>
   </div>
 
@@ -416,14 +526,10 @@
   <div class="page" id="page-timeline">
     <div class="hero" style="padding: 32px 0 24px;">
       <h1>情节时间线</h1>
-      <p>按章节顺序记录每章情节摘要（大事年表）。保存新章节后自动追加。</p>
+      <p id="timelineDesc">按章节顺序记录情节摘要，思维导图式交错排布。</p>
     </div>
-    <div class="card">
-      <div class="card-title">大事年表</div>
-      <div class="card-desc" id="timelineDesc">保存章节或构建知识库后，情节摘要将按顺序显示在此</div>
-      <div id="timelineList" class="timeline-list">
-        <div class="empty-state">暂无情节记录，先构建知识库或保存章节</div>
-      </div>
+    <div class="mindmap" id="timelineList">
+      <div class="mm-empty">暂无情节记录，先构建知识库或保存章节</div>
     </div>
   </div>
 
@@ -438,6 +544,29 @@
         <text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">该项目还没有人物关系，先建库</text>
       </svg>
     </div>
+  </div>
+
+  <!-- ===== PAGE: 章纲（里程碑18：每章300字总结，思维导图式） ===== -->
+  <div class="page" id="page-chapter_outline">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>章纲</h1>
+      <p>每保存一章，自动生成约300字的章纲总结，按时间顺序交错排布。</p>
+    </div>
+    <div class="mindmap" id="chapterOutlineMap">
+      <div class="mm-empty">保存章节后，章纲将自动生成并显示在此</div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 背景资料（里程碑18：作者自分类上传） ===== -->
+  <div class="page" id="page-backgrounds">
+    <div class="hero" style="padding: 32px 0 24px;">
+      <h1>背景资料</h1>
+      <p>把收集到的资料按分类存进来（世界观/人物原型/历史考据…），Agent 帮你排版整理。</p>
+    </div>
+    <div class="btn-row" style="margin-bottom:16px;">
+      <button class="btn btn-primary" id="btnAddBackground">＋ 添加背景资料</button>
+    </div>
+    <div id="backgroundList"><div class="empty-state">还没有背景资料，点上方按钮添加</div></div>
   </div>
 
   <!-- ===== PAGE: 写作（创作空间） ===== -->
@@ -584,6 +713,52 @@
 
 </div>
 
+<!-- ===== 新建小说弹窗（里程碑18） ===== -->
+<div class="modal-mask" id="newNovelModal">
+  <div class="modal">
+    <div class="modal-title">新建小说</div>
+    <div class="modal-field">
+      <label>小说名称</label>
+      <input id="newNovelTitle" placeholder="如：观南嘉措" />
+    </div>
+    <div class="modal-field">
+      <label>预计总字数</label>
+      <input id="newNovelExpectedWords" type="number" placeholder="如：300000" />
+    </div>
+    <div class="modal-field">
+      <label>每章字数</label>
+      <input id="newNovelChapterWords" type="number" placeholder="如：3000" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnCancelNewNovel">取消</button>
+      <button class="btn btn-primary" id="btnConfirmNewNovel">确认创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 添加背景资料弹窗（里程碑18） ===== -->
+<div class="modal-mask" id="bgModal">
+  <div class="modal">
+    <div class="modal-title">添加背景资料</div>
+    <div class="modal-field">
+      <label>分类（如：世界观 / 人物原型 / 历史考据）</label>
+      <input id="bgCategory" placeholder="世界观" />
+    </div>
+    <div class="modal-field">
+      <label>标题</label>
+      <input id="bgTitle" placeholder="如：望岛的地理设定" />
+    </div>
+    <div class="modal-field">
+      <label>内容</label>
+      <textarea id="bgContent" placeholder="粘贴或写下这段背景资料…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnCancelBg">取消</button>
+      <button class="btn btn-primary" id="btnConfirmBg">添加</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== CONFIG =====
 const API_BASE = 'http://localhost:8000';  // 指向后端（跨域）
@@ -625,9 +800,12 @@ function switchSubPage(subpage) {
   if (tab) tab.classList.add('active');
   const page = document.getElementById('page-' + subpage);
   if (page) page.classList.add('active');
-  // 切换到需要拉数据的页面时刷新
+  // 切换到需要拉数据的页面时刷新（里程碑18：新增章纲/大纲/背景资料）
   if (subpage === 'chars' || subpage === 'graph') refreshKBViews();
   if (subpage === 'timeline') renderTimeline();
+  if (subpage === 'chapter_outline') renderChapterOutlines();
+  if (subpage === 'outline') loadOutline();
+  if (subpage === 'backgrounds') loadBackgrounds();
   if (subpage === 'write') loadChapters();
   if (subpage === 'cost') loadCost();
 }
@@ -818,6 +996,24 @@ function renderRelationshipGraph() {
 }
 
 // 里程碑15：情节时间线（大事年表）— 拉取并渲染
+// 里程碑18：思维导图式渲染（中间竖线，条目左右交错：第1条左、第2条右…）
+function renderMindMap(container, items, labelFn) {
+  if (!container) return;
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div class="mm-empty">暂无内容</div>';
+    return;
+  }
+  container.innerHTML = items.map((item, i) => {
+    const side = i % 2 === 0 ? 'left' : 'right';
+    return `<div class="mm-item ${side} fade-in">
+      <div class="mm-card">
+        <div class="mm-title">${labelFn(item, i)}</div>
+        <div class="mm-text">${item.content || item.summary || item.outline || ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function renderTimeline() {
   const container = document.getElementById('timelineList');
   const desc = document.getElementById('timelineDesc');
@@ -827,20 +1023,98 @@ async function renderTimeline() {
     const resp = await fetch(API_BASE + '/api/timeline' + params);
     const data = await resp.json();
     const items = data.timeline || [];
-    desc.textContent = `共 ${data.total || 0} 条情节记录` + (currentNovelIdNum() ? '（当前项目）' : '（默认知识库）');
+    if (desc) desc.textContent = `共 ${data.total || 0} 条情节记录` + (currentNovelIdNum() ? '（当前小说）' : '（默认）');
     if (items.length === 0) {
-      container.innerHTML = '<div class="empty-state">暂无情节记录，先构建知识库或保存章节</div>';
+      container.innerHTML = '<div class="mm-empty">暂无情节记录，先构建知识库或保存章节</div>';
       return;
     }
-    container.innerHTML = items.map((item, i) => {
+    renderMindMap(container, items, (item, i) => {
       const badge = item.chapter_id != null ? `<span class="timeline-badge">第${item.chapter_id}章</span>` : '';
-      return `<div class="timeline-item">
-        <div class="timeline-meta">#${i + 1}${badge}</div>
-        ${item.summary || ''}
-      </div>`;
-    }).join('');
+      return `#${i + 1}${badge}`;
+    });
   } catch (e) {
-    container.innerHTML = '<div class="empty-state">时间线加载失败: ' + e.message + '</div>';
+    container.innerHTML = '<div class="mm-empty">时间线加载失败: ' + e.message + '</div>';
+  }
+}
+
+// 里程碑18：章纲（每章300字总结，思维导图式）
+async function renderChapterOutlines() {
+  const container = document.getElementById('chapterOutlineMap');
+  if (!container) return;
+  if (!currentNovelId) {
+    container.innerHTML = '<div class="mm-empty">请先选择一本小说</div>';
+    return;
+  }
+  try {
+    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/chapter_outlines`);
+    const data = await resp.json();
+    const outlines = data.outlines || [];
+    if (outlines.length === 0) {
+      container.innerHTML = '<div class="mm-empty">保存章节后，章纲将自动生成并显示在此</div>';
+      return;
+    }
+    renderMindMap(container, outlines, (item, i) => {
+      const t = item.title ? ` · ${item.title}` : '';
+      return `第${i + 1}章${t}`;
+    });
+  } catch (e) {
+    container.innerHTML = '<div class="mm-empty">章纲加载失败: ' + e.message + '</div>';
+  }
+}
+
+// 里程碑18：大纲（作者自写单文本块）
+async function loadOutline() {
+  const textarea = document.getElementById('outlineText');
+  if (!textarea || !currentNovelId) return;
+  try {
+    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/outline`);
+    const data = await resp.json();
+    textarea.value = data.content || '';
+  } catch (e) {
+    console.error('大纲加载失败:', e);
+  }
+}
+
+// 里程碑18：背景资料（按分类分组展示）
+async function loadBackgrounds() {
+  const container = document.getElementById('backgroundList');
+  if (!container || !currentNovelId) {
+    if (container) container.innerHTML = '<div class="empty-state">请先选择一本小说</div>';
+    return;
+  }
+  try {
+    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/backgrounds`);
+    const data = await resp.json();
+    const grouped = data.backgrounds || {};
+    const keys = Object.keys(grouped);
+    if (keys.length === 0) {
+      container.innerHTML = '<div class="empty-state">还没有背景资料，点上方按钮添加</div>';
+      return;
+    }
+    container.innerHTML = keys.map(cat => `
+      <div class="bg-category">
+        <div class="bg-category-title">${cat}</div>
+        ${grouped[cat].map(bg => `
+          <div class="bg-card">
+            ${bg.title ? `<div class="bg-card-title">${bg.title}</div>` : ''}
+            <div class="bg-card-content">${bg.content}</div>
+            <button class="bg-card-del" onclick="deleteBackground(${bg.id})">删除</button>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state">背景资料加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function deleteBackground(id) {
+  if (!confirm('删除这条背景资料？')) return;
+  try {
+    await fetch(API_BASE + `/api/background/${id}`, { method: 'DELETE' });
+    loadBackgrounds();
+  } catch (e) {
+    alert('删除失败: ' + e.message);
   }
 }
 
@@ -955,7 +1229,9 @@ async function selectNovel(id, title) {
   currentNovelId = id;
   currentSubPage = 'chat';
   document.getElementById('subTabs').classList.add('visible');
-  document.getElementById('chatTitle').textContent = title;
+  document.getElementById('chatTitle').textContent = '写作Agent';
+  document.getElementById('agentHint').textContent =
+    `正在基于《${title}》的知识库工作。可以问我关于设定/逻辑/灵感的问题，或在下方tab查看人设、时间线、章纲。`;
   // 更新侧栏选中态
   document.querySelectorAll('#projectList .side-item').forEach(item => {
     item.classList.toggle('active', Number(item.dataset.novelId) === id);
@@ -967,12 +1243,14 @@ async function selectNovel(id, title) {
   loadChapters();
 }
 
-// 默认对话：不选任何项目
+// 默认对话：不选任何项目（里程碑18：改名写作Agent）
 function selectDefaultChat() {
   currentNovelId = null;
   currentSubPage = 'chat';
   document.getElementById('subTabs').classList.remove('visible');
-  document.getElementById('chatTitle').textContent = '默认对话';
+  document.getElementById('chatTitle').textContent = '写作Agent';
+  document.getElementById('agentHint').textContent =
+    '还没有小说？点左侧"＋新建小说"，几秒钟就能创建你的第一部作品。';
   document.querySelectorAll('#projectList .side-item').forEach(item => item.classList.remove('active'));
   document.getElementById('navDefaultChat').classList.add('active');
   switchSubPage('chat');
@@ -1026,23 +1304,87 @@ async function reorderProjects(draggedId, targetId) {
   } catch (e) { alert('排序失败: ' + e.message); }
 }
 
-// 新建项目（里程碑17：起名 + 粘贴初始文本一次建库）
-document.getElementById('btnNewProject').addEventListener('click', async () => {
-  const title = prompt('作品名：', '');
-  if (!title) return;
-  const text = prompt('初始内容（可选，粘贴开头几章，之后可在"写作"里继续加）：', '');
+// 新建小说（里程碑18：弹窗填名称/预计总字数/每章字数）
+document.getElementById('btnNewProject').addEventListener('click', () => {
+  document.getElementById('newNovelModal').classList.add('show');
+  document.getElementById('newNovelTitle').value = '';
+  document.getElementById('newNovelExpectedWords').value = '';
+  document.getElementById('newNovelChapterWords').value = '';
+  document.getElementById('newNovelTitle').focus();
+});
+document.getElementById('btnCancelNewNovel').addEventListener('click', () => {
+  document.getElementById('newNovelModal').classList.remove('show');
+});
+document.getElementById('btnConfirmNewNovel').addEventListener('click', async () => {
+  const title = document.getElementById('newNovelTitle').value.trim();
+  if (!title) { alert('请输入小说名称'); return; }
+  const expectedWords = parseInt(document.getElementById('newNovelExpectedWords').value) || 0;
+  const chapterWords = parseInt(document.getElementById('newNovelChapterWords').value) || 0;
   try {
-    const data = await apiCall('/api/novel', { title });
-    const novelId = data.novel_id;
-    if (text && text.trim()) {
-      await apiCall('/api/kb/build', { text, novel_id: novelId });
-    }
+    const data = await apiCall('/api/novel', { title, expected_words: expectedWords, chapter_words: chapterWords });
+    document.getElementById('newNovelModal').classList.remove('show');
     await loadNovels();
-    selectNovel(novelId, title);
+    selectNovel(data.novel_id, title);
+    // 里程碑18：新建后引导消息
+    showAgentWelcome(title);
   } catch (e) {
     alert('创建失败: ' + e.message);
   }
 });
+// Enter 提交
+document.getElementById('newNovelTitle').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btnConfirmNewNovel').click();
+});
+
+// 里程碑18：添加背景资料弹窗
+document.getElementById('btnAddBackground').addEventListener('click', () => {
+  if (!currentNovelId) { alert('请先选择一本小说'); return; }
+  document.getElementById('bgModal').classList.add('show');
+  document.getElementById('bgCategory').value = '';
+  document.getElementById('bgTitle').value = '';
+  document.getElementById('bgContent').value = '';
+  document.getElementById('bgCategory').focus();
+});
+document.getElementById('btnCancelBg').addEventListener('click', () => {
+  document.getElementById('bgModal').classList.remove('show');
+});
+document.getElementById('btnConfirmBg').addEventListener('click', async () => {
+  const category = document.getElementById('bgCategory').value.trim();
+  const content = document.getElementById('bgContent').value.trim();
+  if (!category) { alert('请填写分类'); return; }
+  if (!content) { alert('请填写内容'); return; }
+  const title = document.getElementById('bgTitle').value.trim();
+  try {
+    await apiCall(`/api/novel/${currentNovelId}/backgrounds`, { category, title, content });
+    document.getElementById('bgModal').classList.remove('show');
+    loadBackgrounds();
+  } catch (e) {
+    alert('添加失败: ' + e.message);
+  }
+});
+
+// 里程碑18：保存大纲
+document.getElementById('btnSaveOutline').addEventListener('click', async () => {
+  if (!currentNovelId) { alert('请先选择一本小说'); return; }
+  const content = document.getElementById('outlineText').value.trim();
+  try {
+    await apiCall(`/api/novel/${currentNovelId}/outline`, { content });
+    document.getElementById('outlineSaveResult').textContent = '✓ 已保存';
+    setTimeout(() => { document.getElementById('outlineSaveResult').textContent = ''; }, 2000);
+  } catch (e) {
+    document.getElementById('outlineSaveResult').textContent = '保存失败: ' + e.message;
+  }
+});
+
+// 里程碑18：新建小说后的静态引导消息（渲染在对话区）
+function showAgentWelcome(title) {
+  const box = document.getElementById('answerBox');
+  const text = document.getElementById('answerText');
+  const src = document.getElementById('answerSource');
+  box.classList.add('show');
+  text.textContent = `恭喜创建《${title}》！\n\n接下来可以按这个顺序开始：\n① 在"写作"tab 保存第一章（保存后会自动生成章纲、更新知识库）\n② 在"人设卡片"tab 看 Agent 从正文抽出的角色\n③ 在"大纲"tab 写下你的故事大纲\n④ 在"背景资料"tab 分门别类收藏资料\n⑤ 随时回到这里（Agent），问我任何关于小说的设定、逻辑、灵感问题`;
+  src.textContent = '';
+}
 
 // 成本监控（里程碑17：/api/cost 落地前端）
 async function loadCost() {
@@ -1092,6 +1434,11 @@ document.getElementById('btnSaveChapter').addEventListener('click', async () => 
     document.getElementById('chapterText').value = '';
     loadChapters();
     renderTimeline(); // 里程碑15：保存章节后刷新时间线
+    renderChapterOutlines(); // 里程碑18：保存章节后刷新章纲
+    // 展示生成的章纲（如果有）
+    if (data.outline) {
+      document.getElementById('saveResult').textContent += `\n\n📝 章纲已生成：\n${data.outline}`;
+    }
   } catch (e) {
     document.getElementById('saveResult').textContent = '保存失败: ' + e.message;
   } finally {

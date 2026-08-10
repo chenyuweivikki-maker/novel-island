@@ -30,6 +30,7 @@ from .core.vector_store import vector_store, vector_store_manager
 from .tools.consistency_tools import check_plot_consistency
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
+from .nodes.build_nodes import CHAPTER_OUTLINE_PROMPT
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -72,6 +73,8 @@ class AskRequest(BaseModel):
 # ===== 创作空间请求模型（里程碑10）=====
 class NovelCreateRequest(BaseModel):
     title: str
+    expected_words: int = 0  # 里程碑18：预计总字数
+    chapter_words: int = 0   # 里程碑18：每章字数
 
 
 class NovelRenameRequest(BaseModel):
@@ -80,6 +83,16 @@ class NovelRenameRequest(BaseModel):
 
 class NovelReorderRequest(BaseModel):
     ordered_ids: list[int]  # 拖拽后的新顺序（里程碑17）
+
+
+class OutlineSaveRequest(BaseModel):
+    content: str  # 大纲内容（里程碑18）
+
+
+class BackgroundAddRequest(BaseModel):
+    category: str  # 分类（如"世界观"/"人物原型"）
+    title: str = ""
+    content: str
 
 
 class ChapterSaveRequest(BaseModel):
@@ -318,8 +331,8 @@ def timeline(novel_id: int | None = None):
 
 @app.post("/api/novel")
 def create_novel(req: NovelCreateRequest):
-    """创建作品"""
-    novel_id = novel_store.create_novel(req.title)
+    """创建作品（里程碑18：支持预计总字数/每章字数）"""
+    novel_id = novel_store.create_novel(req.title, req.expected_words, req.chapter_words)
     return {"novel_id": novel_id, "title": req.title}
 
 
@@ -365,15 +378,23 @@ def save_chapter(req: ChapterSaveRequest):
         conflicts = []
         print(f"冲突检测失败: {e}")
 
-    # 1. 保存章节（有 chapter_id 则更新，无则新增）
+    # 里程碑18：生成章纲（300字章节总结），与冲突检测并行，用户无感
+    try:
+        outline = chat(CHAPTER_OUTLINE_PROMPT, req.content, temperature=0.0, max_tokens=600, task="creative")
+        outline = outline.strip()
+    except Exception as e:
+        outline = ""
+        print(f"章纲生成失败: {e}")
+
+    # 1. 保存章节（有 chapter_id 则更新，无则新增）；更新时章纲也重新生成覆盖
     if req.chapter_id:
         # 更新：先删旧数据（向量/图谱），再加新内容
         vs.remove_by_chapter(req.chapter_id)
         g.remove_by_chapter(req.chapter_id)
-        novel_store.update_chapter(req.chapter_id, req.content, req.title)
+        novel_store.update_chapter(req.chapter_id, req.content, req.title, outline)
         chapter_id = req.chapter_id
     else:
-        chapter_id = novel_store.add_chapter(req.novel_id, req.content, req.title)
+        chapter_id = novel_store.add_chapter(req.novel_id, req.content, req.title, outline)
 
     # 2. 增量更新知识库（build 状态机 + 向量），新内容打上章节标记
     try:
@@ -406,13 +427,62 @@ def save_chapter(req: ChapterSaveRequest):
             "chunks": len(result["processed_chunks"]) if updated else 0,
             "entities": result["final_output"]["entities"] if updated else [],
         },
+        "outline": outline,  # 里程碑18：章纲
     }
 
 
 @app.get("/api/novel/{novel_id}/chapters")
 def list_novel_chapters(novel_id: int):
-    """列出作品章节"""
+    """列出作品章节（含章纲 outline）"""
     return {"chapters": novel_store.list_chapters(novel_id)}
+
+
+@app.get("/api/novel/{novel_id}/chapter_outlines")
+def list_chapter_outlines(novel_id: int):
+    """章纲列表（里程碑18：每章300字总结，按时间序）"""
+    chapters = novel_store.list_chapters(novel_id)
+    outlines = [
+        {"chapter_id": c["id"], "title": c.get("title", ""), "outline": c.get("outline", "")}
+        for c in chapters if c.get("outline")
+    ]
+    return {"outlines": outlines, "total": len(outlines)}
+
+
+@app.get("/api/novel/{novel_id}/outline")
+def get_outline(novel_id: int):
+    """读取大纲（里程碑18：作者自写单文本块）"""
+    return {"content": novel_store.get_novel_outline(novel_id)}
+
+
+@app.post("/api/novel/{novel_id}/outline")
+def save_outline(novel_id: int, req: OutlineSaveRequest):
+    """保存大纲（里程碑18）"""
+    novel_store.update_novel_outline(novel_id, req.content)
+    return {"success": True}
+
+
+@app.get("/api/novel/{novel_id}/backgrounds")
+def list_backgrounds(novel_id: int):
+    """背景资料列表（里程碑18：按分类分组返回）"""
+    bgs = novel_store.list_backgrounds(novel_id)
+    grouped: dict[str, list] = {}
+    for bg in bgs:
+        grouped.setdefault(bg["category"], []).append(bg)
+    return {"backgrounds": grouped, "total": len(bgs)}
+
+
+@app.post("/api/novel/{novel_id}/backgrounds")
+def add_background(novel_id: int, req: BackgroundAddRequest):
+    """添加背景资料（里程碑18）"""
+    bg_id = novel_store.add_background(novel_id, req.category, req.title, req.content)
+    return {"id": bg_id}
+
+
+@app.delete("/api/background/{bg_id}")
+def delete_background(bg_id: int):
+    """删除背景资料（里程碑18）"""
+    novel_store.delete_background(bg_id)
+    return {"success": True}
 
 
 @app.get("/api/chapter/{chapter_id}")
