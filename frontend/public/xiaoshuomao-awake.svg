@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" fill="none">
+  <!-- 小说猫 · 醒（简笔画 · 抬头睁眼）-->
+  <path d="M24,200 Q180,195 336,200" stroke="#111" stroke-width="3" stroke-linecap="round"/>
+  <path d="M140,176 C140,158 168,152 200,152 C232,152 260,158 260,176 C260,194 232,200 200,200 C168,200 140,194 140,176 Z" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M256,178 C286,180 300,160 286,145 C278,137 268,141 269,150" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+  <path d="M88,193 a9,9 0 0 0 18,0" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M118,193 a9,9 0 0 0 18,0" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+  <g transform="rotate(-6 134 180)">
+    <circle cx="116" cy="166" r="34" stroke="#111" stroke-width="4"/>
+    <path d="M92,147 L83,109 L115,131 Z" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M141,146 L149,111 L119,129 Z" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M100,172 L78,166 M100,178 L75,178 M100,184 L78,190" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="99" cy="167" r="3.5" fill="#111"/>
+    <circle cx="125" cy="167" r="3.5" fill="#111"/>
+    <path d="M114,174 h8 l-4,5 Z" fill="#111"/>
+    <path d="M112,181 Q115,185 118,181 Q121,185 124,181" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+</svg>

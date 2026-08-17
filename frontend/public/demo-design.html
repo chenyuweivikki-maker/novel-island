@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小说岛 · 设计参考 Demo</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   小说岛 · 设计系统（黑白极简 · 大气 · 陪伴感 · 可爱）
+   这是给 Figma 设计参考用的可运行 Demo：
+     视图1 首页      —— 对话入口 + 小说猫（动态吉祥物）
+     视图2 对话页    —— 侧边栏骨架 + 气泡 + 陪伴模式 + 来源角标
+     视图3 设计系统  —— 色彩/字体/组件，照着这套变量画 Figma
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ---- 设计变量（Figma Variables 一一对应） ---- */
+:root {
+  --bg: #ffffff;            /* 页面底色 */
+  --surface: #ffffff;       /* 卡片/面板 */
+  --surface-2: #f7f7f7;     /* 次级底（输入框内、陪伴气泡） */
+  --border: #e5e5e5;        /* 细线 */
+  --border-strong: #d0d0d0; /* 强调线 */
+  --text: #111111;          /* 主文字 */
+  --text-2: #6b6b6b;        /* 次级文字 */
+  --text-3: #9c9c9c;        /* 弱化文字/占位 */
+  --primary: #111111;       /* 主色=黑（选中态/主按钮） */
+  --on-primary: #ffffff;
+  --radius: 12px;           /* 卡片/输入框 */
+  --radius-sm: 8px;         /* 小控件 */
+  --radius-pill: 999px;     /* chip/标签 */
+  --shadow: 0 1px 3px rgba(0,0,0,0.05);
+  --space: 8px;             /* 8px 网格 */
+  --font: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+
+/* ---- 视图切换条（仅 Demo 用，正式版没有） ---- */
+.viewbar {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 99; display: flex; gap: 4px;
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius-pill); padding: 4px; box-shadow: var(--shadow);
+}
+.viewbar button {
+  border: none; background: transparent; font-family: inherit; font-size: 13px;
+  color: var(--text-2); padding: 6px 16px; border-radius: var(--radius-pill);
+  cursor: pointer; transition: all .15s;
+}
+.viewbar button.active { background: var(--primary); color: var(--on-primary); font-weight: 500; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* ═══════════════════ 视图1 · 首页 ═══════════════════ */
+.home {
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 80px 24px 48px;
+}
+.mascot-wrap { width: 300px; max-width: 90vw; margin-bottom: 12px; }
+.mascot { width: 100%; height: auto; display: block; }
+.home h1 {
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 700; letter-spacing: 0.5px; margin: 16px 0 8px;
+}
+.home .sub {
+  color: var(--text-2); font-size: 15px; margin-bottom: 36px; text-align: center;
+}
+.home-input {
+  width: 100%; max-width: 640px;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill); padding: 6px 6px 6px 22px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.home-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(17,17,17,0.06); }
+.home-input input {
+  flex: 1; border: none; outline: none; font-family: inherit; font-size: 16px;
+  color: var(--text); background: transparent; padding: 8px 0;
+}
+.home-input input::placeholder { color: var(--text-3); }
+.home-input .send {
+  width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--primary);
+  color: var(--on-primary); font-size: 18px; cursor: pointer; flex-shrink: 0;
+  transition: transform .12s;
+}
+.home-input .send:hover { transform: scale(1.05); }
+.home-chips {
+  margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: 640px;
+}
+.home-chips .chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: var(--radius-pill);
+  cursor: pointer; transition: all .15s;
+}
+.home-chips .chip:hover { border-color: var(--primary); color: var(--text); }
+.home-foot {
+  margin-top: 56px; color: var(--text-3); font-size: 12px; letter-spacing: 1px;
+}
+
+/* ---- 吉祥物动画（小说猫：趴着打瞌睡 / 抬头） ---- */
+.draw { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: draw 1.2s ease forwards; }
+.d2  { animation-delay: .12s; } .d3  { animation-delay: .20s; } .d4  { animation-delay: .28s; }
+.d5  { animation-delay: .36s; } .d6  { animation-delay: .44s; } .d7  { animation-delay: .52s; }
+.d8  { animation-delay: .60s; } .d9  { animation-delay: .68s; } .d10 { animation-delay: .76s; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* 打瞌睡 / 抬头：7s 一轮 —— 抬头睁眼 → 低头闭眼 → 打盹 zZz → 睁眼抬头 */
+.head { transform-box: view-box; transform-origin: 134px 180px; animation: headcycle 7s ease-in-out infinite; }
+@keyframes headcycle {
+  0%   { transform: rotate(-6deg); }
+  30%  { transform: rotate(-6deg); }
+  46%  { transform: rotate(16deg); }
+  72%  { transform: rotate(16deg); }
+  86%  { transform: rotate(-6deg); }
+  100% { transform: rotate(-6deg); }
+}
+.eye-open   { animation: eyeOpen 7s infinite; }
+.eye-closed { animation: eyeClosed 7s infinite; }
+@keyframes eyeOpen   { 0%,28%,90%,100% { opacity: 1; } 40%,78% { opacity: 0; } }
+@keyframes eyeClosed { 0%,28%,90%,100% { opacity: 0; } 40%,78% { opacity: 1; } }
+.zzz { animation: zzzfade 7s infinite; }
+@keyframes zzzfade { 0%,45%,75%,100% { opacity: 0; } 52%,70% { opacity: 1; } }
+.z { animation: floatz 7s ease-in-out infinite; }
+.z2 { animation-delay: .6s; } .z3 { animation-delay: 1.2s; }
+@keyframes floatz { 0%,44%,74%,100% { transform: translateY(0); } 60% { transform: translateY(-4px); } }
+
+/* ═══════════════════ 视图2 · 对话页 ═══════════════════ */
+.chat { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 224px; flex-shrink: 0; border-right: 0.5px solid var(--border);
+  display: flex; flex-direction: column; padding: 16px 10px;
+}
+.side-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 4px 8px 14px; }
+.side-logo .logo-ic {
+  width: 24px; height: 24px; border-radius: 7px; background: var(--primary); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.side-group { font-size: 12px; color: var(--text-3); letter-spacing: 1.5px; padding: 14px 8px 6px; }
+.side-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-2); cursor: pointer; transition: background .12s;
+}
+.side-item:hover { background: var(--surface-2); color: var(--text); }
+.side-item.active { background: var(--primary); color: var(--on-primary); }
+.side-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
+.side-item.active .dot { background: #fff; }
+.side-item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
+.side-item.active .meta { color: rgba(255,255,255,.7); }
+.side-new {
+  margin-top: auto; border: 1px dashed var(--border-strong); background: transparent;
+  color: var(--text-2); font-family: inherit; font-size: 13px; padding: 9px; border-radius: var(--radius-sm);
+  cursor: pointer; transition: all .15s;
+}
+.side-new:hover { border-color: var(--primary); color: var(--text); }
+
+.chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 28px; border-bottom: 0.5px solid var(--border);
+}
+.chat-head .title { font-size: 15px; font-weight: 600; }
+.pill {
+  font-size: 11px; padding: 3px 10px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong); color: var(--text-2);
+}
+.pill.companion { border-color: var(--primary); color: var(--text); background: var(--surface-2); }
+
+.msgs { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px; max-width: 780px; width: 100%; margin: 0 auto; }
+.msg { display: flex; gap: 10px; max-width: 86%; }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg .avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  background: var(--surface-2); border: 0.5px solid var(--border);
+}
+.msg.user .avatar { background: var(--primary); color: #fff; border: none; }
+.msg .body {
+  padding: 11px 15px; border-radius: var(--radius); font-size: 14.5px; line-height: 1.7;
+  background: var(--surface-2); border: 0.5px solid var(--border);
+}
+.msg.user .body { background: var(--primary); color: #fff; border: none; }
+.msg .src {
+  margin-top: 6px; font-size: 11px; color: var(--text-3); letter-spacing: .3px;
+}
+.msg.companion .body {
+  background: var(--surface); border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--primary);
+}
+.msg.companion .tag {
+  display: inline-block; font-size: 11px; color: var(--text); background: var(--surface-2);
+  border: 0.5px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill);
+  margin-bottom: 6px;
+}
+
+.chat-input {
+  max-width: 780px; width: calc(100% - 56px); margin: 0 auto 20px;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  padding: 6px 6px 6px 20px; background: var(--surface);
+}
+.chat-input:focus-within { border-color: var(--primary); }
+.chat-input input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 14.5px; padding: 8px 0; background: transparent; }
+.chat-input input::placeholder { color: var(--text-3); }
+.chat-input .send {
+  width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--primary);
+  color: #fff; font-size: 16px; cursor: pointer;
+}
+.chips-row {
+  max-width: 780px; width: calc(100% - 56px); margin: 0 auto 8px;
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+}
+.chips-row .chip {
+  flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  font-family: inherit; font-size: 12.5px; padding: 6px 13px; border-radius: var(--radius-pill); cursor: pointer;
+}
+.chips-row .chip:hover { border-color: var(--primary); color: var(--text); }
+
+/* ═══════════════════ 视图3 · 设计系统 ═══════════════════ */
+.sys { max-width: 880px; margin: 0 auto; padding: 96px 24px 64px; }
+.sys h2 { font-size: 22px; margin: 40px 0 14px; }
+.sys h2:first-child { margin-top: 0; }
+.sys .desc { color: var(--text-2); font-size: 13.5px; margin-bottom: 18px; }
+.swatches { display: flex; gap: 12px; flex-wrap: wrap; }
+.swatch { width: 120px; border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.swatch .c { height: 52px; }
+.swatch .n { padding: 8px 10px; font-size: 11.5px; }
+.swatch .n b { display: block; font-size: 12px; font-weight: 600; color: var(--text); }
+.swatch .n span { color: var(--text-3); font-size: 11px; }
+.type-row { display: flex; align-items: baseline; gap: 20px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+.type-row .label { width: 90px; color: var(--text-3); font-size: 12px; flex-shrink: 0; }
+.comp-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; padding: 6px 0 18px; }
+.btn { font-family: inherit; font-size: 14px; padding: 9px 22px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.input-demo { width: 300px; display: flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 9px 16px; font-size: 14px; color: var(--text-3); }
+.card-demo { width: 220px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.card-demo b { font-size: 14px; }
+.card-demo p { font-size: 12.5px; color: var(--text-2); margin-top: 6px; }
+.bubble-demo { max-width: 320px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 11px 15px; font-size: 14px; }
+.bubble-demo.user { background: var(--primary); color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- 视图切换（仅 Demo） -->
+<div class="viewbar">
+  <button data-view="home" class="active">首页</button>
+  <button data-view="chat">对话页</button>
+  <button data-view="sys">设计系统</button>
+</div>
+
+<!-- ═══════════ 视图1 · 首页 ═══════════ -->
+<section class="view home active" id="view-home">
+  <!-- 小说猫 · 动态吉祥物（简笔画：趴着打瞌睡 / 抬头循环） -->
+  <div class="mascot-wrap">
+    <svg class="mascot" viewBox="0 0 360 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- 地面 -->
+      <path class="draw d1" d="M24,200 Q180,195 336,200" stroke="#111" stroke-width="3" stroke-linecap="round"/>
+      <!-- 猫身（一条小香肠） -->
+      <path class="draw d2" d="M140,176 C140,158 168,152 200,152 C232,152 260,158 260,176 C260,194 232,200 200,200 C168,200 140,194 140,176 Z" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+      <!-- 尾巴（卷卷） -->
+      <path class="draw d3" d="M256,178 C286,180 300,160 286,145 C278,137 268,141 269,150" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+      <!-- 前爪 -->
+      <path class="draw d4" d="M88,193 a9,9 0 0 0 18,0" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+      <path class="draw d5" d="M118,193 a9,9 0 0 0 18,0" stroke="#111" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- 头（整组做打瞌睡 / 抬头） -->
+      <g class="head">
+        <circle class="draw d6" cx="116" cy="166" r="34" stroke="#111" stroke-width="4"/>
+        <!-- 耳朵（小三角） -->
+        <path class="draw d7" d="M92,147 L83,109 L115,131 Z" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+        <path class="draw d8" d="M141,146 L149,111 L119,129 Z" stroke="#111" stroke-width="3.5" stroke-linejoin="round"/>
+        <!-- 胡须 -->
+        <path class="draw d9" d="M100,172 L78,166 M100,178 L75,178 M100,184 L78,190" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- 睁眼（抬头时） -->
+        <circle class="eye-open" cx="99" cy="167" r="3.5" fill="#111"/>
+        <circle class="eye-open" cx="125" cy="167" r="3.5" fill="#111"/>
+        <!-- 闭眼（打瞌睡时） -->
+        <path class="eye-closed" d="M95,170 q4,-4 8,0" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+        <path class="eye-closed" d="M121,170 q4,-4 8,0" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- 鼻子 -->
+        <path d="M114,174 h8 l-4,5 Z" fill="#111"/>
+        <!-- 嘴（ω） -->
+        <path class="draw d10" d="M112,181 Q115,185 118,181 Q121,185 124,181" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+      </g>
+      <!-- 打盹 zZz -->
+      <g class="zzz">
+        <path class="z z1" d="M98,84 h14 l-14,12 h14" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="z z2" d="M118,64 h11 l-11,9 h11" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="z z3" d="M132,46 h9 l-9,7 h9" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </svg>
+  </div>
+
+  <h1>小说岛</h1>
+  <p class="sub">你的第二大脑 —— 陪你写完整本书</p>
+
+  <div class="home-input">
+    <input placeholder="直接告诉我你想写什么…" />
+    <button class="send" aria-label="发送">→</button>
+  </div>
+
+  <div class="home-chips">
+    <button class="chip">帮我创建一本新书</button>
+    <button class="chip">卡文了，怎么办</button>
+    <button class="chip">看看我的灵感库</button>
+    <button class="chip">人设总是崩，帮我检查</button>
+  </div>
+
+  <p class="home-foot">写不下去的时候，我都在。</p>
+</section>
+
+<!-- ═══════════ 视图2 · 对话页 ═══════════ -->
+<section class="view chat" id="view-chat">
+  <aside class="sidebar">
+    <div class="side-logo"><span class="logo-ic">岛</span>小说岛</div>
+    <div class="side-group">小说项目</div>
+    <div class="side-item active"><span class="dot"></span>观南嘉措 <span class="meta">12.3万字</span></div>
+    <div class="side-item"><span class="dot"></span>雾港来信 <span class="meta">3.1万字</span></div>
+    <div class="side-item"><span class="dot"></span>夜航船 <span class="meta">0.8万字</span></div>
+    <div class="side-group">灵感库</div>
+    <div class="side-item"><span class="dot"></span>人设灵感 <span class="meta">12</span></div>
+    <div class="side-item"><span class="dot"></span>剧情灵感 <span class="meta">8</span></div>
+    <div class="side-item"><span class="dot"></span>金句 <span class="meta">5</span></div>
+    <button class="side-new">＋ 新建项目</button>
+  </aside>
+
+  <div class="chat-main">
+    <div class="chat-head">
+      <span class="title">观南嘉措</span>
+      <span class="pill">写作中</span>
+      <span class="pill companion">陪伴模式</span>
+    </div>
+
+    <div class="msgs">
+      <div class="msg">
+        <div class="avatar">猫</div>
+        <div class="body">嗨，我是你的写作搭子。今天想聊点什么？人物、剧情、卡文，都可以找我。</div>
+      </div>
+
+      <div class="msg user">
+        <div class="avatar">我</div>
+        <div class="body">卡文了，江观南和唐嘉措的感情线接下来怎么发展？</div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar">猫</div>
+        <div class="body">
+          结合你前面埋的线，给你 3 个方向：<br>
+          ① <b>悬疑线</b> —— 用「19960405」门锁密码和红莲花头像做信息差，两人隔着墙互相试探；<br>
+          ② <b>事业线</b> —— 宠物医院 × 美妆直播的跨界碰撞，让感情在共事里升温；<br>
+          ③ <b>家庭线</b> —— 江观南原生家庭的旧伤被唐嘉措无意戳到，借一次冲突推近关系。
+          <div class="src">来源：片段#3 · #7 · #12</div>
+        </div>
+      </div>
+
+      <div class="msg user">
+        <div class="avatar">我</div>
+        <div class="body">呜呜，今天被读者骂了，说女主太作，写不下去了</div>
+      </div>
+
+      <!-- 陪伴模式气泡（虚线 + 左侧黑边 + 陪伴标签） -->
+      <div class="msg companion">
+        <div class="avatar">猫</div>
+        <div class="body">
+          <span class="tag">♡ 陪伴模式</span><br>
+          抱抱你。被读者骂真的很难受，尤其是你正把心掏出来写的时候。<br>
+          我刚翻了你的片段，江观南那句「我长得好看，身材好，会赚钱……可我，怎么就是不开心呢」，是很有力量的句子。会说出"作"的读者，其实是被她牵动了情绪。<br>
+          如果累了，今天可以先歇一歇。写作是漫长的路，我在岛上等你。
+        </div>
+      </div>
+    </div>
+
+    <div class="chips-row">
+      <button class="chip">检查这段逻辑</button>
+      <button class="chip">人设崩了吗</button>
+      <button class="chip">给我三个灵感</button>
+      <button class="chip">生成章纲</button>
+    </div>
+    <div class="chat-input">
+      <input placeholder="和你的写作搭子说点什么…" />
+      <button class="send">→</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 视图3 · 设计系统 ═══════════ -->
+<section class="view sys" id="view-sys">
+  <h2>色彩（Figma Variables）</h2>
+  <p class="desc">黑白灰五阶 + 主色=黑。全站无彩色、无渐变，靠黑白对比与留白建立层次。</p>
+  <div class="swatches">
+    <div class="swatch"><div class="c" style="background:#111111"></div><div class="n"><b>--primary / --text</b><span>#111111 主黑</span></div></div>
+    <div class="swatch"><div class="c" style="background:#ffffff; border-bottom:0.5px solid #e5e5e5"></div><div class="n"><b>--bg / --surface</b><span>#ffffff 纯白</span></div></div>
+    <div class="swatch"><div class="c" style="background:#f7f7f7"></div><div class="n"><b>--surface-2</b><span>#f7f7f7 次级底</span></div></div>
+    <div class="swatch"><div class="c" style="background:#e5e5e5"></div><div class="n"><b>--border</b><span>#e5e5e5 细线</span></div></div>
+    <div class="swatch"><div class="c" style="background:#d0d0d0"></div><div class="n"><b>--border-strong</b><span>#d0d0d0 强调线</span></div></div>
+    <div class="swatch"><div class="c" style="background:#6b6b6b"></div><div class="n"><b>--text-2</b><span>#6b6b6b 次级文字</span></div></div>
+    <div class="swatch"><div class="c" style="background:#9c9c9c"></div><div class="n"><b>--text-3</b><span>#9c9c9c 弱化文字</span></div></div>
+  </div>
+
+  <h2>字体层级</h2>
+  <div class="type-row"><span class="label">Display / 40</span><span style="font-size:40px;font-weight:700">小说岛</span></div>
+  <div class="type-row"><span class="label">H1 / 24</span><span style="font-size:24px;font-weight:600">人设卡片</span></div>
+  <div class="type-row"><span class="label">H2 / 18</span><span style="font-size:18px;font-weight:600">章节大纲</span></div>
+  <div class="type-row"><span class="label">Body / 14.5</span><span style="font-size:14.5px">正文内容，行高 1.7，阅读舒适</span></div>
+  <div class="type-row"><span class="label">Caption / 12</span><span style="font-size:12px;color:var(--text-2)">辅助说明与来源角标</span></div>
+
+  <h2>组件</h2>
+  <p class="desc">圆角：大控件 12px，小控件 8px，chip/标签胶囊 999px。间距统一走 8px 网格。</p>
+  <div class="comp-row">
+    <button class="btn primary">创建项目</button>
+    <button class="btn">保存</button>
+    <div class="input-demo">输入框占位文字…</div>
+  </div>
+  <div class="comp-row">
+    <button class="chip" style="border:1px solid var(--border);padding:7px 14px;border-radius:999px;font-size:13px;color:var(--text-2)">快捷引导</button>
+    <span class="pill companion" style="display:inline-block">陪伴模式</span>
+    <span class="pill" style="display:inline-block">写作中</span>
+  </div>
+  <div class="comp-row" style="align-items:flex-start">
+    <div class="card-demo"><b>人设卡片</b><p>姓名 · 身份 · 性格内核<br>过往经历 · 社会关系</p></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bubble-demo">Agent 回复气泡，灰底描边，来源角标在其下</div>
+      <div class="bubble-demo user">作者气泡，黑底白字，右对齐</div>
+      <div class="bubble-demo" style="background:#fff;border:1px dashed var(--border-strong);border-left:3px solid #111">陪伴气泡：白底 + 虚线 + 左侧黑边</div>
+    </div>
+  </div>
+
+  <h2>吉祥物 · 小说猫</h2>
+  <p class="desc">简笔画风的趴趴猫，写作搭子的化身 —— 用户就叫它「小说猫」。黑白单色、粗圆笔触，小香肠身体 + 圆头三角耳 + 卷尾巴 + 胡须，循环做「抬头睁眼 → 低头闭眼打盹 → 冒 zZz → 再抬头」，与品牌语言一致。</p>
+
+  <h2>栅格与留白</h2>
+  <p class="desc">8px 网格：间距 8 / 16 / 24 / 32 / 48。页面内容区最大 880px 居中；首页内容 640px 居中，垂直居中营造"大气"的呼吸感。</p>
+</section>
+
+<script>
+// 视图切换（仅 Demo）
+document.querySelectorAll('.viewbar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.viewbar button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
