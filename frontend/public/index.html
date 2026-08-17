@@ -331,6 +331,15 @@ input, textarea { font-family: inherit; }
   .char-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 4px; overflow-x: auto; padding-bottom: 12px; }
 }
 </style>
+
+<!-- 自诊断：版本徽标（JS 正常执行才会出现）+ JS 错误横幅 -->
+<div id="jsErrBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#111;color:#fff;padding:10px 16px;font-size:13px;font-family:monospace"></div>
+<script>
+window.addEventListener('error', function (e) {
+  var b = document.getElementById('jsErrBanner');
+  if (b) { b.style.display = 'block'; b.textContent = 'JS 错误: ' + (e.message || 'unknown'); }
+});
+</script>
 </head>
 <body>
 <div class="app">
@@ -1190,6 +1199,13 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.modal-mask.show').forEach(m => m.classList.remove('show'));
 });
 
+
+  // 自诊断版本徽标（看到它 = JS 正常执行）
+  var vb = document.createElement('div');
+  vb.id = 'versionBadge';
+  vb.textContent = 'v1 · 457dc95';
+  vb.style.cssText = 'position:fixed;right:12px;bottom:8px;font-size:11px;color:#9c9c9c;z-index:9998;font-family:monospace';
+  document.body.appendChild(vb);
 // ===== 初始化 =====
 window.addEventListener('load', () => {
   showView('home');
