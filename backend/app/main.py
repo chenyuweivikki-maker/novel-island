@@ -31,6 +31,7 @@ from .tools.consistency_tools import check_plot_consistency
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 from .nodes.build_nodes import CHAPTER_OUTLINE_PROMPT
+from .nodes.qa_nodes import IntentRouterNode, CompanionNode
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -68,6 +69,7 @@ class AskRequest(BaseModel):
     top_k: int = 5
     stream: bool = False
     novel_id: int | None = None  # 里程碑11：按项目检索/问答
+    material: str | None = None  # 对话式建库：随消息拖入/粘贴的素材文本（Agent 解析入库）
 
 
 # ===== 创作空间请求模型（里程碑10）=====
@@ -176,13 +178,83 @@ def kb_status(novel_id: int | None = None):
     }
 
 
+# ===== 对话式建库（P3）：素材解析入库 + 空库引导提问 =====
+def ingest_material(text: str, novel_id: int | None) -> str:
+    """素材解析入库：跑建库状态机（清洗分块 → 并行抽取 → 图谱一致性 → 入库）→ 返回入库摘要
+
+    设计：作者在对话里拖入/粘贴素材，Agent 自动解析并增量入库（对话式建库）。
+    """
+    result = build_app.invoke({
+        "raw_input_files": [text],
+        "novel_id": novel_id,
+    })
+    out = result["final_output"]
+    chunks = result.get("processed_chunks", [])
+    # 向量库增量追加（里程碑9/11：按项目）
+    vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
+    vs.add_chunks(
+        [c["text"] for c in chunks],
+        [{"chunk_id": c["id"]} for c in chunks],
+    )
+    vs.save()
+
+    n_ent = len(out.get("entities", []))
+    n_rel = len(out.get("relationships", []))
+    n_evt = len(out.get("events", []))
+    summary = (
+        f"收到，素材已解析入库：提取 {n_ent} 个人物、{n_rel} 条关系、{n_evt} 个事件，"
+        f"新增 {len(chunks)} 个文本片段。"
+    )
+    conflicts = (result.get("consistency_report") or {}).get("conflicts", [])
+    if conflicts:
+        c = conflicts[0]
+        summary += f"\n⚠️ 检测到 1 处图谱冲突：[{c['dimension']}] {c['conflict']}"
+    summary += "\n\n" + next_guide_question(novel_id)
+    return summary
+
+
+def next_guide_question(novel_id: int | None) -> str:
+    """按流程询问（题材→主角→配角→大纲→设定），用图谱已有内容推断当前进度，无需额外状态"""
+    g = get_graph_for(novel_id)
+    n_ents = len(g) if g else 0
+    n_rels = len(g.all_relations()) if g and n_ents else 0
+    n_evts = len(g.get_timeline()) if g and n_ents else 0
+
+    if n_ents == 0:
+        return ("知识库还是空的，我们从人设聊起吧——这本书的主角是谁？\n"
+                "直接告诉我名字、性格、外貌都行；或者把素材（片段/设定）拖进对话框，我自动解析入库。")
+    if n_rels == 0:
+        return "主角已经有了。主要配角呢？他们和主角是什么关系？"
+    if n_evts == 0:
+        return "人物和关系都进库了，故事的大纲方向呢？想写一个什么故事？"
+    return ("库在慢慢长大啦。可以继续补充设定，也可以直接去「写作编辑器」写第一章——"
+            "保存后我会自动抽取人物、生成章纲、更新知识库。随时问我设定、逻辑或灵感的问题。")
+
+
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
-    """提问：检索 Top-K → LLM 生成回答"""
+    """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
+    # ===== 对话式建库：素材解析入库（拖入/粘贴的文本，随时可入）=====
+    if req.material and req.material.strip():
+        answer = ingest_material(req.material, req.novel_id)
+        return {"answer": answer, "sources": []}
+
     # 里程碑17：按项目取 TF-IDF 检索器（不选项目时用全局单例）
     r = get_retriever_for(req.novel_id)
+
+    # ===== 空库：不硬报错，进入建库引导（对话式建库）=====
     if not r.is_ready:
-        return {"error": "知识库未构建，请先调用 /api/kb/build"}
+        # 情感低落 → 纯陪伴（CompanionNode 空库路径）
+        intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
+        if intent == "companion":
+            comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
+            return {"answer": comp["agent_response"], "sources": []}
+        # 大段输入视为素材 → 解析入库
+        if len(req.query) > 60:
+            answer = ingest_material(req.query, req.novel_id)
+            return {"answer": answer, "sources": []}
+        # 否则 → 引导提问（按图谱已有内容推断下一步）
+        return {"answer": next_guide_question(req.novel_id), "sources": []}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
     precise = precise_attribute_search(req.query, req.novel_id)
