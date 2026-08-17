@@ -32,6 +32,7 @@ from ..nodes.build_nodes import (
     ChapterSummaryExtractNode,
     BuildOutputNode,
 )
+from ..nodes.graph_consistency import GraphConsistencyNode  # 路线图P1-6
 
 
 def build_build_graph():
@@ -44,6 +45,7 @@ def build_build_graph():
     graph.add_node("extract_events", EventExtractNode())
     graph.add_node("extract_relations", RelationExtractNode())
     graph.add_node("extract_chapter_summaries", ChapterSummaryExtractNode())
+    graph.add_node("graph_consistency", GraphConsistencyNode())  # P1-6：图谱一致性校验
     graph.add_node("build_output", BuildOutputNode())
 
     # 2. 连边：入口 → 清洗分块
@@ -55,11 +57,12 @@ def build_build_graph():
     graph.add_edge("build", "extract_relations")
     graph.add_edge("build", "extract_chapter_summaries")
 
-    # 4. 汇合：四个抽取分支都完成后，才到 build_output
-    graph.add_edge("extract_entities", "build_output")
-    graph.add_edge("extract_events", "build_output")
-    graph.add_edge("extract_relations", "build_output")
-    graph.add_edge("extract_chapter_summaries", "build_output")
+    # 4. 汇合：四个抽取分支都完成后，先做图谱一致性校验（对照旧图谱），再入库
+    graph.add_edge("extract_entities", "graph_consistency")
+    graph.add_edge("extract_events", "graph_consistency")
+    graph.add_edge("extract_relations", "graph_consistency")
+    graph.add_edge("extract_chapter_summaries", "graph_consistency")
+    graph.add_edge("graph_consistency", "build_output")
 
     # 5. 结束
     graph.add_edge("build_output", END)

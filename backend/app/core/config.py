@@ -10,6 +10,17 @@ class Settings:
     DEEPSEEK_BASE_URL: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
+    # Moonshot (Kimi) — 高阶创作模型（PRD：复杂逻辑纠错/人设深度分析/核心灵感拓展）
+    # OpenAI 兼容协议，缺 key 时自动回退 DeepSeek，不影响主流程
+    MOONSHOT_API_KEY: str = os.getenv("MOONSHOT_API_KEY", "")
+    MOONSHOT_BASE_URL: str = os.getenv("MOONSHOT_BASE_URL", "https://api.moonshot.cn/v1")
+    MOONSHOT_MODEL: str = os.getenv("MOONSHOT_MODEL", "kimi-k2-turbo-preview")
+
+    # 腾讯混元 — 高阶创作模型（备选；PRD实测 HY3 续写风格/避雷提醒最强）
+    HUNYUAN_API_KEY: str = os.getenv("HUNYUAN_API_KEY", "")
+    HUNYUAN_BASE_URL: str = os.getenv("HUNYUAN_BASE_URL", "https://api.hunyuan.cloud.tencent.com/v1")
+    HUNYUAN_MODEL: str = os.getenv("HUNYUAN_MODEL", "hunyuan-turbos-latest")
+
     # SiliconFlow (Embedding)
     SILICONFLOW_API_KEY: str = os.getenv("SILICONFLOW_API_KEY", "")
     SILICONFLOW_BASE_URL: str = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")

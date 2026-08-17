@@ -1,9 +1,16 @@
 """
-模型路由 + 成本记录 — 里程碑7
+模型路由 + 成本记录 — 里程碑7（Phase 0 升级：三级模型真实落地 + 多 Provider）
 
-三级模型路由（PRD成本控制核心）：
-  任务分级 → 选对应模型。当前只有一个 deepseek-chat，但架构支持扩展
-  多个模型（只需改配置，不改代码）。
+三级模型路由（PRD 成本控制核心）：
+  任务分级 → 选对应模型。三级：
+    simple  → 海量低价值任务（清洗/分类/意图识别）   → 便宜模型
+    main    → 常规任务（问答/摘要/陪伴）              → 主力模型
+    complex → 复杂推理/高价值创作（逻辑纠错/深度分析） → 高阶模型
+
+多 Provider 支持（PRD 结论：产品接国产模型）：
+  - DeepSeek（deepseek-chat）为主力，已接入、成本最低
+  - Moonshot Kimi / 腾讯混元为高阶备选（OpenAI 兼容协议）
+  - 某 Provider 缺 API Key 时自动回退 DeepSeek（get_model_for_task 内判断）
 
 成本记录：
   每次 LLM 调用记录 model / input_tokens / output_tokens / 估算成本，
@@ -12,14 +19,15 @@
 import time
 from typing import List, Dict, Any
 
+from .config import settings
+
 
 # ===== 模型路由表 =====
-# 任务级别 → 模型名。当前都是 deepseek-chat（只有一个key），
-# 以后接多个模型时只改这里。
+# 任务级别 → 模型名（Phase 0：填入真实模型；缺 key 时 get_model_for_task 自动回退）
 MODEL_ROUTES = {
-    "simple": "deepseek-chat",   # 意图分类、简单抽取
-    "main": "deepseek-chat",     # 日常问答、摘要
-    "complex": "deepseek-chat",  # 复杂创作、深度分析
+    "simple": "deepseek-chat",            # 意图分类、简单抽取、数据预处理
+    "main": "deepseek-chat",              # 日常问答、摘要、情感陪伴
+    "complex": "kimi-k2.6",               # 复杂创作、深度分析（Kimi K2.6，可在 .env 换混元）
 }
 
 # 任务 → 级别映射（哪些任务算simple/main/complex）
@@ -29,15 +37,41 @@ TASK_LEVELS = {
     "qa": "main",
     "summary": "main",
     "inspire": "main",
+    "companion": "main",     # Phase 0：情感陪伴走主力模型
     "logic": "complex",      # 情节一致性检查：推理任务，走复杂级
     "creative": "complex",
 }
 
+# ===== Provider 注册表 =====
+# 模型名 → Provider。llm_client 据此选客户端（每家 = base_url + key）
+MODEL_PROVIDERS = {
+    "deepseek-chat": "deepseek",
+    "kimi-k2.6": "moonshot",
+    "hunyuan-turbos-latest": "hunyuan",
+}
+
+
+def _provider_available(model: str) -> bool:
+    """该模型所属 Provider 是否已配置 API Key（缺 key 就回退）"""
+    provider = MODEL_PROVIDERS.get(model, "deepseek")
+    if provider == "moonshot":
+        return bool(settings.MOONSHOT_API_KEY)
+    if provider == "hunyuan":
+        return bool(settings.HUNYUAN_API_KEY)
+    return bool(settings.DEEPSEEK_API_KEY)
+
 
 def get_model_for_task(task: str) -> str:
-    """按任务返回模型名（路由核心）"""
+    """按任务返回模型名（路由核心）
+
+    优雅回退：目标模型的 Provider 没配 key → 回退 DeepSeek 主力模型，
+    保证任何情况下主流程都能跑（成本记录/降级链路上游）。
+    """
     level = TASK_LEVELS.get(task, "main")
-    return MODEL_ROUTES[level]
+    model = MODEL_ROUTES[level]
+    if not _provider_available(model):
+        return "deepseek-chat"
+    return model
 
 
 def get_level_for_task(task: str) -> str:
@@ -47,12 +81,18 @@ def get_level_for_task(task: str) -> str:
 
 # ===== 成本记录 =====
 # 粗略单价（每百万token，单位元）。deepseek-chat 约 2元/百万输入，8元/百万输出
+# Kimi K2 / 混元为估算价（以各家官方定价为准，仅用于成本监控看板）
 PRICE_PER_MILLION = {
     "deepseek-chat": {"input": 2.0, "output": 8.0},
+    "kimi-k2.6": {"input": 4.0, "output": 16.0},
+    "hunyuan-turbos-latest": {"input": 1.0, "output": 4.0},
 }
 
 # 内存中的调用日志（PRD埋点 api_call_llm）
 _llm_call_logs: List[Dict[str, Any]] = []
+
+# 模型降级日志（PRD埋点 model_fallback）：高阶模型故障 → 回退 DeepSeek
+_fallback_logs: List[Dict[str, Any]] = []
 
 
 def record_llm_cost(model: str, task: str, input_tokens: int, output_tokens: int) -> float:
@@ -72,8 +112,18 @@ def record_llm_cost(model: str, task: str, input_tokens: int, output_tokens: int
     return cost
 
 
+def record_model_fallback(original_model: str, fallback_model: str, reason: str = "provider_error"):
+    """记录一次模型降级（PRD埋点 model_fallback）：高阶模型故障自动回退主力模型"""
+    _fallback_logs.append({
+        "timestamp": time.time(),
+        "original_model": original_model,
+        "fallback_model": fallback_model,
+        "reason": reason,
+    })
+
+
 def get_cost_summary() -> Dict[str, Any]:
-    """汇总成本：总调用次数、总token、总成本、按任务分布"""
+    """汇总成本：总调用次数、总token、总成本、按任务分布、降级次数"""
     total_cost = sum(log["cost"] for log in _llm_call_logs)
     total_input = sum(log["input_tokens"] for log in _llm_call_logs)
     total_output = sum(log["output_tokens"] for log in _llm_call_logs)
@@ -91,6 +141,7 @@ def get_cost_summary() -> Dict[str, Any]:
         "total_input_tokens": total_input,
         "total_output_tokens": total_output,
         "total_cost": round(total_cost, 4),
+        "model_fallbacks": len(_fallback_logs),  # PRD埋点 model_fallback
         "by_task": {k: {"calls": v["calls"], "cost": round(v["cost"], 4)} for k, v in by_task.items()},
     }
 
@@ -98,3 +149,4 @@ def get_cost_summary() -> Dict[str, Any]:
 def clear_cost_logs():
     """清空成本日志（测试用）"""
     _llm_call_logs.clear()
+    _fallback_logs.clear()

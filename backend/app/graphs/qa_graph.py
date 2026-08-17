@@ -39,10 +39,11 @@ from ..nodes.qa_nodes import (
     RetrieveNode,
     IntentRouterNode,
     AgentNode,
-    InspireNode,
+    MultiHopInspirationNode,
     HallucinationCriticNode,
     LogicCritiqueNode,
     CharacterCriticNode,
+    CompanionNode,
     route_by_intent,
 )
 
@@ -73,10 +74,11 @@ def build_qa_graph():
     graph.add_node("retrieve", RetrieveNode())
     graph.add_node("intent_router", IntentRouterNode())
     graph.add_node("agent", AgentNode())
-    graph.add_node("inspire", InspireNode())
+    graph.add_node("multi_hop_inspiration", MultiHopInspirationNode())  # Phase 0：多跳RAG灵感
     graph.add_node("hallucination_critic", HallucinationCriticNode())
     graph.add_node("logic_critique", LogicCritiqueNode())
     graph.add_node("character_critic", CharacterCriticNode())
+    graph.add_node("companion", CompanionNode())  # Phase 0：情感陪伴
 
     # 2. 连边
     graph.set_entry_point("retrieve")
@@ -84,16 +86,18 @@ def build_qa_graph():
 
     # 3. 条件边：intent_router 之后，根据路由函数返回值分流
     #    route_by_intent 返回 "fact_qa" → 走 agent（里程碑3升级为工具调用）
-    #    route_by_intent 返回 "inspiration" → 走 inspire
+    #    route_by_intent 返回 "inspiration" → 走 multi_hop_inspiration（Phase 0 多跳RAG）
     #    route_by_intent 返回 "logic_critique"/"character_critic" → 走对应检查节点（里程碑13）
+    #    route_by_intent 返回 "companion" → 走陪伴节点（Phase 0）
     graph.add_conditional_edges(
         "intent_router",
         route_by_intent,
         {
             "fact_qa": "agent",
-            "inspiration": "inspire",
+            "inspiration": "multi_hop_inspiration",
             "logic_critique": "logic_critique",
             "character_critic": "character_critic",
+            "companion": "companion",
         },
     )
 
@@ -113,13 +117,16 @@ def build_qa_graph():
     )
 
     # 6. 灵感分支直接结束（不质检）
-    graph.add_edge("inspire", END)
+    graph.add_edge("multi_hop_inspiration", END)
 
     # 7. 里程碑13：逻辑/人设检查分支直接结束（质检类节点，输出即结论）
     graph.add_edge("logic_critique", END)
     graph.add_edge("character_critic", END)
 
-    # 8. 编译
+    # 8. Phase 0：陪伴分支直接结束（PRD 后期可加 CharacterCritic 质检，保持人设）
+    graph.add_edge("companion", END)
+
+    # 9. 编译
     return graph.compile()
 
 

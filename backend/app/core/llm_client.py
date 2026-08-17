@@ -1,26 +1,73 @@
 """
-DeepSeek LLM 客户端 — OpenAI 兼容格式
+LLM 客户端 — OpenAI 兼容格式（Phase 0：多 Provider 支持）
 
-使用 DeepSeek-V3 (deepseek-chat) 做：
-1. 基于检索结果的问答生成
-2. 实体/人设抽取（Phase 2 预留）
+各家模型（DeepSeek / Moonshot Kimi / 腾讯混元）都是 OpenAI 兼容协议，
+这里按"模型名 → Provider"维护一个客户端注册表：
+  get_client(model) 根据模型名选对应 Provider 的客户端（base_url + key 不同）。
+
+模型名由 model_router.get_model_for_task 按任务级别路由决定
+（缺 key 时已在路由层回退 DeepSeek，这里只负责"用哪个客户端"）。
 """
 import json
 from openai import OpenAI
 from .config import settings
-from .model_router import get_model_for_task, record_llm_cost
+from .model_router import (
+    get_model_for_task,
+    record_llm_cost,
+    record_model_fallback,
+    MODEL_PROVIDERS,
+)
 
-_client: OpenAI | None = None
+# Provider → OpenAI 客户端缓存（每家一个，懒加载）
+_clients: dict[str, OpenAI] = {}
+
+# 推理模型（Moonshot kimi-k2.6）：默认关闭思考模式（thinking=disabled）
+#   - 开启思考时 API 强制 temperature=1，且思考会吃掉全部输出 token（实测 4096 token 全被思考消耗、正文为空）
+#   - 关闭思考后 API 强制 temperature=0.6，响应快、确定性高、正文正常
+#   - 需要深度推理的付费场景（如深度灵感）后续可单独开思考，这里保证默认可靠
+REASONING_MODELS = {"kimi-k2.6", "kimi-k2.7-code"}
+REASONING_TEMPERATURE = 0.6
+# 推理模型输出 token 下限（保险丝：防止长任务被截断）
+REASONING_MIN_OUTPUT_TOKENS = 4096
 
 
-def get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI(
-            api_key=settings.DEEPSEEK_API_KEY,
-            base_url=settings.DEEPSEEK_BASE_URL,
-        )
-    return _client
+def _effective_temperature(model: str, temperature: float) -> float:
+    """推理模型（关闭思考后）API 强制 temperature=0.6，其余按调用方传值"""
+    if model in REASONING_MODELS:
+        return REASONING_TEMPERATURE
+    return temperature
+
+
+def _effective_max_tokens(model: str, max_tokens: int) -> int:
+    """推理模型保留输出 token 下限（保险丝），其余按调用方传值"""
+    if model in REASONING_MODELS:
+        return max(max_tokens, REASONING_MIN_OUTPUT_TOKENS)
+    return max_tokens
+
+
+def _effective_extra_body(model: str) -> dict | None:
+    """推理模型默认关闭思考；非推理模型不加额外参数"""
+    if model in REASONING_MODELS:
+        return {"thinking": {"type": "disabled"}}
+    return None
+
+
+def _provider_spec(provider: str) -> tuple[str, str]:
+    """返回 (api_key, base_url)。未知 Provider 一律按 DeepSeek 处理"""
+    if provider == "moonshot":
+        return settings.MOONSHOT_API_KEY, settings.MOONSHOT_BASE_URL
+    if provider == "hunyuan":
+        return settings.HUNYUAN_API_KEY, settings.HUNYUAN_BASE_URL
+    return settings.DEEPSEEK_API_KEY, settings.DEEPSEEK_BASE_URL
+
+
+def get_client(model: str | None = None) -> OpenAI:
+    """按模型名取对应 Provider 的客户端；不传模型时默认 DeepSeek（向后兼容）"""
+    provider = MODEL_PROVIDERS.get(model or settings.DEEPSEEK_MODEL, "deepseek")
+    if provider not in _clients:
+        api_key, base_url = _provider_spec(provider)
+        _clients[provider] = OpenAI(api_key=api_key, base_url=base_url)
+    return _clients[provider]
 
 
 def chat(
@@ -30,22 +77,45 @@ def chat(
     max_tokens: int = 1024,
     task: str = 'qa',
 ) -> str:
-    """调用 DeepSeek 生成回答（里程碑7：按任务路由模型 + 记录成本）"""
-    client = get_client()
+    """调用 LLM 生成回答（里程碑7：按任务路由模型 + 记录成本）
+
+    模型名由 get_model_for_task 决定，客户端按模型名选 Provider。
+    Phase 0 降级：高阶模型调用失败（余额不足/超时/限流）→ 自动回退 DeepSeek，
+    保证主流程不崩（PRD 模型降级/熔断，埋点 model_fallback）。
+    """
     model = get_model_for_task(task)
+    try:
+        return _chat_once(model, system_prompt, user_prompt, temperature, max_tokens, task)
+    except Exception:
+        if model == "deepseek-chat":
+            raise  # 主力模型都挂了，往上抛让上层兜底
+        # 降级：高阶模型故障 → 回退 DeepSeek 主力模型
+        record_model_fallback(model, "deepseek-chat", reason="provider_error")
+        print(f"[model_fallback] {model} 调用失败，回退 deepseek-chat（task={task}）")
+        return _chat_once("deepseek-chat", system_prompt, user_prompt, temperature, max_tokens, task)
+
+
+def _chat_once(model, system_prompt, user_prompt, temperature, max_tokens, task) -> str:
+    """单次非流式调用（不降级，供 chat 复用）"""
+    client = get_client(model)
     resp = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
+        temperature=_effective_temperature(model, temperature),
+        max_tokens=_effective_max_tokens(model, max_tokens),
+        extra_body=_effective_extra_body(model),
         stream=False,
     )
     # 里程碑7：记录成本（token数来自API响应）
     record_llm_cost(model, task, resp.usage.prompt_tokens, resp.usage.completion_tokens)
-    return resp.choices[0].message.content
+    content = resp.choices[0].message.content
+    if not content:
+        # 推理模型 max_tokens 可能全被思考过程吃掉 → 正文为空，视为失败
+        raise ValueError(f"模型 {model} 返回空内容（推理模型可能 max_tokens 不足）")
+    return content
 
 
 def chat_stream(
@@ -53,17 +123,32 @@ def chat_stream(
     user_prompt: str,
     temperature: float = 0.3,
     max_tokens: int = 1024,
+    task: str = 'qa',
 ):
-    """流式输出 — 逐 token 返回"""
-    client = get_client()
+    """流式输出 — 逐 token 返回（高阶模型故障时降级回退 DeepSeek）"""
+    model = get_model_for_task(task)
+    try:
+        yield from _stream_once(model, system_prompt, user_prompt, temperature, max_tokens)
+    except Exception:
+        if model == "deepseek-chat":
+            raise
+        record_model_fallback(model, "deepseek-chat", reason="provider_error")
+        print(f"[model_fallback] {model} 流式调用失败，回退 deepseek-chat（task={task}）")
+        yield from _stream_once("deepseek-chat", system_prompt, user_prompt, temperature, max_tokens)
+
+
+def _stream_once(model, system_prompt, user_prompt, temperature, max_tokens):
+    """单次流式调用（不降级）"""
+    client = get_client(model)
     resp = client.chat.completions.create(
-        model=settings.DEEPSEEK_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
+        temperature=_effective_temperature(model, temperature),
+        max_tokens=_effective_max_tokens(model, max_tokens),
+        extra_body=_effective_extra_body(model),
         stream=True,
     )
     for chunk in resp:
@@ -99,8 +184,6 @@ def chat_with_tools(
     tools:          工具说明书列表（给 LLM 看的 JSON Schema）
     tool_executors: {工具名: 执行函数}，LLM 说调哪个，代码就调哪个
     """
-    client = get_client()
-
     # 里程碑6：如果传的是完整消息列表，直接用它；否则构造系统+用户
     if use_messages:
         messages = list(user_prompt)
@@ -113,14 +196,34 @@ def chat_with_tools(
     # 最多允许 LLM 连续调 3 次工具（防止它陷入工具循环）
     for _ in range(3):
         model = get_model_for_task(task)
-        resp = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=tools,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=False,
-        )
+        # 每次按模型名取客户端（工具调用可能跨 Provider 换模型）
+        client = get_client(model)
+        # 高阶模型故障（余额不足/超时）→ 本轮回退 DeepSeek 重试一次
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                temperature=_effective_temperature(model, temperature),
+                max_tokens=_effective_max_tokens(model, max_tokens),
+                extra_body=_effective_extra_body(model),
+                stream=False,
+            )
+        except Exception:
+            if model == "deepseek-chat":
+                raise
+            record_model_fallback(model, "deepseek-chat", reason="provider_error")
+            print(f"[model_fallback] {model} 工具调用失败，回退 deepseek-chat（task={task}）")
+            client = get_client("deepseek-chat")
+            resp = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                tools=tools,
+                temperature=_effective_temperature("deepseek-chat", temperature),
+                max_tokens=_effective_max_tokens("deepseek-chat", max_tokens),
+                extra_body=_effective_extra_body("deepseek-chat"),
+                stream=False,
+            )
         msg = resp.choices[0].message
 
         # 情况A：LLM 决定调用工具

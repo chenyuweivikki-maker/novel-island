@@ -43,11 +43,20 @@ class IntentRouterNode:
 
     里程碑13：四大意图 —— fact_qa（事实问答）/ inspiration（灵感）
     / logic_critique（逻辑矛盾检查）/ character_critic（人设一致性检查）。
-    判断顺序：character_critic → logic_critique → inspiration → fact_qa
+    Phase 0 新增 companion（情感陪伴）—— PRD 四大场景之一。
+    判断顺序：companion → character_critic → logic_critique → inspiration → fact_qa
     （越"具体"的意图越先判，避免关键词重叠误判）。
     """
 
     name = "intent_router"
+
+    # 情感陪伴关键词（Phase 0 / 路线图P1-1）：作者情绪低落/卡文/被骂时走陪伴分支。
+    # "写不下去"从灵感词里移到这里（PRD评测：卡文场景 = 情感鼓励 + 续写支持）。
+    COMPANION_KEYWORDS = [
+        "加油", "写不下去", "崩溃", "好累", "被骂", "心态", "没动力",
+        "撑不住", "不想写", "焦虑", "emo", "难受", "想放弃", "坚持不下去",
+        "安慰", "鼓励", "好烦", "累了", "压力大", "哭",
+    ]
 
     # 灵感类关键词：命中则走灵感分支，否则走事实问答
     INSPIRATION_KEYWORDS = [
@@ -70,8 +79,10 @@ class IntentRouterNode:
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         query = state.get("user_query", "")
 
-        # 规则判断（按优先级）：人设 → 逻辑 → 灵感 → 事实
-        if any(kw in query for kw in self.CHARACTER_CRITIC_KEYWORDS):
+        # 规则判断（按优先级）：陪伴 → 人设 → 逻辑 → 灵感 → 事实
+        if any(kw in query for kw in self.COMPANION_KEYWORDS):
+            intent = "companion"
+        elif any(kw in query for kw in self.CHARACTER_CRITIC_KEYWORDS):
             intent = "character_critic"
         elif any(kw in query for kw in self.LOGIC_CRITIQUE_KEYWORDS):
             intent = "logic_critique"
@@ -144,39 +155,156 @@ AGENT_SYSTEM_PROMPT = """你是「小说岛」的智能助手，帮助小说作�
 4. 回答要简洁、准确。"""
 
 
-# 灵感分支专用的系统提示词：同样基于原文，但语气是"创作建议"
-INSPIRE_SYSTEM_PROMPT = """你是「小说岛」的创作灵感助手，帮助小说作者拓展后续剧情。
+# ===== Phase 0 / 路线图P1-2：多跳 RAG 灵感拓展（替代原 InspireNode）=====
+
+# 线索提取 Prompt（Hop1 → Hop2 的"跳"）：从卡点片段提取可用于二次检索的关键线索
+CLUE_EXTRACT_SYSTEM_PROMPT = """你是「小说岛」的线索分析师，帮助作者找到可以"顺藤摸瓜"的关键线索。
+
+阅读作者卡点的上下文片段，提取 2-4 个最值得追查的关键线索。线索可以是：
+- 关键人物（名字）
+- 关键物品（如"密室墙上的画"）
+- 未解伏笔/疑点（如"她为什么突然提到母亲"）
+- 地点、组织、特殊设定
 
 规则：
-1. 只能基于提供的「原文片段」做建议，不要编造原文没有的人物或设定。
-2. 给出 2-3 个具体的剧情发展方向，每个方向说明"为什么符合现有设定"。
-3. 建议要具体、可操作，不要空泛（不要只说"可以增加冲突"）。
-4. 如果片段信息不足，说明"目前信息不足以给出好建议，建议先补充XX设定"。"""
+1. 线索必须来自片段原文，不能凭空编造。
+2. 线索要"可检索"——用最可能出现在前文里的原词或短语表达（如用"画"而不是"一幅奇怪的画"）。
+3. 只输出 JSON 数组，如：["密室", "墙上的画", "江观南的母亲"]，不要输出其他内容。"""
 
 
-class InspireNode:
-    """灵感节点：创作建议 —— 复用检索结果，用不同 prompt 生成"""
+def _build_clue_prompt(query: str, results: list) -> str:
+    """拼线索提取 prompt：卡点问题 + 当前情境片段"""
+    context_parts = []
+    for r in results:
+        c = r["chunk"]
+        context_parts.append(f"【片段#{c.id + 1}】\n{c.text}")
+    context = "\n\n---\n\n".join(context_parts)
+    return f"""作者卡点：{query}
 
-    name = "inspire"
+以下是检索到的当前情境片段：
+
+{context}
+
+---
+
+请提取 2-4 个关键线索（只输出 JSON 数组）。"""
+
+
+def _parse_clues(output: str) -> list[str]:
+    """解析线索提取输出（JSON 数组）；解析失败用宽容切分兜底"""
+    import json
+    import re
+    output = output.strip()
+    try:
+        data = json.loads(output)
+        if isinstance(data, list):
+            return [str(x).strip() for x in data if str(x).strip()][:4]
+    except json.JSONDecodeError:
+        pass
+    # 宽容模式：按行/顿号/逗号切分，取前 4 条
+    items = re.split(r"[\n、，,;；]+", output)
+    return [x.strip(" \"'[]") for x in items if x.strip()][:4]
+
+
+# 多跳灵感生成 Prompt：结合 Hop1（当前情境）+ Hop2（前文关联/伏笔）+ 线索
+MULTIHOP_INSPIRE_SYSTEM_PROMPT = """你是「小说岛」的创作灵感助手，帮助小说作者拓展后续剧情。
+
+你拿到了两组资料：
+- 【当前情境】作者卡点处的原文片段
+- 【前文关联】用关键线索二次检索到的更早内容（可能藏着伏笔、前因）
+
+规则：
+1. 只基于提供的两组资料做建议，不编造原文没有的人物或设定。
+2. 给出 3 个具体的剧情发展方向，必须属于不同情节类型（如：事业线、感情线、家庭线、冲突线、悬疑线……）。
+3. 每个方向要说明：具体怎么走 + 依据（引用了当前情境/前文关联里的什么）。
+4. 优先利用"前文关联"里发现的伏笔或线索（这是多跳检索的价值）。
+5. 建议要具体、可操作，不要空泛（不要只说"可以增加冲突"）。"""
+
+
+def _build_multihop_prompt(query: str, chunks_1: list, chunks_2: list, clues_text: str) -> str:
+    """拼多跳生成 prompt：线索 + 当前情境 + 前文关联"""
+    def fmt(results: list, tag: str) -> str:
+        if not results:
+            return f"（{tag}：无检索结果）"
+        parts = []
+        for r in results:
+            c = r["chunk"]
+            parts.append(f"【片段#{c.id + 1}】(相似度:{r['score']:.2f})\n{c.text}")
+        return "\n\n".join(parts)
+
+    ctx_1 = fmt(chunks_1, "当前情境")
+    ctx_2 = fmt(chunks_2, "前文关联")
+
+    return f"""作者卡点：{query}
+
+提取出的关键线索：{clues_text}
+
+===== 【当前情境】=====
+{ctx_1}
+
+===== 【前文关联】=====
+{ctx_2}
+
+---
+
+请基于以上资料，给出 3 个不同情节类型的具体灵感方向。"""
+
+
+class MultiHopInspirationNode:
+    """多跳 RAG 灵感节点 — Phase 0 / 路线图P1-2
+
+    替代原来的 InspireNode（单次检索直接生成）：
+      Hop1：检索当前卡点上下文（复用 RetrieveNode 结果 state['retrieved_chunks']）
+      跳 ：LLM 提取关键实体/线索（如"密室墙上有奇怪的画"）
+      Hop2：用线索二次检索 → 召回前文伏笔/前因
+      生成：结合两轮检索，给出 3 个不同情节类型的具体灵感（PRD 评测标准）
+    """
+
+    name = "multi_hop_inspiration"
 
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         query = state.get("user_query", "")
-        results = state.get("retrieved_chunks", [])
+        novel_id = state.get("novel_id")
+        chunks_1 = state.get("retrieved_chunks", [])
+        top_k = state.get("top_k", 5)
 
-        if not results:
+        if not chunks_1:
             return {
                 "agent_response": "当前知识库信息不足，无法给出具体灵感建议。建议先补充更多章节内容。",
                 "sources": [],
                 "current_step": self.name,
             }
 
-        # 复用 build_rag_prompt 拼上下文（同一个函数，不同 system prompt）
-        user_prompt = build_rag_prompt(query, results)
-        answer = chat(INSPIRE_SYSTEM_PROMPT, user_prompt, task="inspire")
+        # ---- 跳：提取关键线索（task=extract 走简单级模型，便宜）----
+        clue_prompt = _build_clue_prompt(query, chunks_1)
+        clue_output = chat(CLUE_EXTRACT_SYSTEM_PROMPT, clue_prompt, temperature=0.2, max_tokens=256, task="extract")
+        clues = _parse_clues(clue_output)
 
+        # ---- Hop2：用线索二次检索（召回前文伏笔），去重合并 ----
+        retriever = get_retriever_for(novel_id)
+        chunks_2: list = []
+        seen_ids = {r["chunk"].id for r in chunks_1}
+        for clue in clues[:3]:  # 最多用 3 条线索，每条检索一次
+            for r in retriever.search(clue, top_k):
+                if r["chunk"].id not in seen_ids:
+                    seen_ids.add(r["chunk"].id)
+                    chunks_2.append(r)
+
+        # ---- 生成：结合两轮检索（task=inspire 走主力模型）----
+        clues_text = "、".join(clues) if clues else "（未提取到结构化线索，使用卡点原文）"
+        user_prompt = _build_multihop_prompt(query, chunks_1, chunks_2, clues_text)
+        answer = chat(
+            MULTIHOP_INSPIRE_SYSTEM_PROMPT,
+            user_prompt,
+            temperature=0.7,
+            max_tokens=1024,
+            task="inspire",
+        )
+
+        # 来源：合并两轮检索（去重）
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
-            for r in results
+            for r in [*chunks_1, *chunks_2]
         ]
 
         return {
@@ -470,6 +598,68 @@ class CharacterCriticNode:
         # 拼 prompt → 调 LLM（task=complex 走复杂级路由）
         user_prompt = _build_character_critic_prompt(query, results, persona, character or "该角色")
         answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative")
+
+        sources = [
+            {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
+            for r in results
+        ]
+
+        return {
+            "agent_response": answer,
+            "sources": sources,
+            "current_step": self.name,
+        }
+
+
+# ===== Phase 0 / 路线图P1-1：情感陪伴节点 =====
+
+# 情感陪伴的系统提示词（对齐 PRD 评测标准）：
+# 1. 回答应包含鼓励性内容（鼓励继续写作、或休息一会儿等安抚情绪内容）
+# 2. 语气温柔、平和，不应措辞犀利
+# 3. 基于作品内容共情（检索片段），让作者感到 AI 在读他的作品
+COMPANION_SYSTEM_PROMPT = """你是「小说岛」的创作陪伴伙伴，也是一位温柔耐心的写作搭子。
+
+作者现在可能正处在疲惫、卡文或情绪低落的时刻。你的任务是陪伴与鼓励。
+
+规则：
+1. 先共情、再帮助：先温柔接住作者的情绪（理解写作是漫长而孤独的路），再考虑给建议。
+2. 语气温柔平和，像朋友一样，绝不能犀利、说教或指责。
+3. 结合「原文片段」中作品的内容共情——提到作者笔下的人物或情节，让作者感到你真正在读他的作品。
+4. 如果作者需要方向，可以基于作品内容给出 1-2 个温和的续写建议，但以安抚情绪为先，不要堆砌方案。
+5. 回答要自然、简洁，不要像客服话术，也不要过度煽情。"""
+
+
+class CompanionNode:
+    """情感陪伴节点 — Phase 0 / 路线图P1-1（PRD 四大场景之一）
+
+    作者情绪低落（卡文/疲惫/被骂）时走这个分支：
+      复用共享检索结果（RetrieveNode 已跑），LLM 温柔鼓励 + 基于作品共情。
+    区别于 InspireNode：不以"给方案"为主，以"接住情绪"为先。
+    """
+
+    name = "companion"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+        results = state.get("retrieved_chunks", [])
+
+        # 有检索结果：结合作品内容共情；没结果：纯情感陪伴（不依赖知识库）
+        if results:
+            user_prompt = build_rag_prompt(query, results)
+        else:
+            user_prompt = (
+                f"作者说：{query}\n\n"
+                "（当前知识库中暂无该作品内容，请以陪伴和鼓励为主，不必强求结合原文。）"
+            )
+
+        # 陪伴语气更温和 → temperature 调高一点（0.7），max_tokens 足够说几句暖心话
+        answer = chat(
+            COMPANION_SYSTEM_PROMPT,
+            user_prompt,
+            temperature=0.7,
+            max_tokens=600,
+            task="companion",
+        )
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}

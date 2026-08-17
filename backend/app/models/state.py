@@ -28,6 +28,7 @@ class NovelIslandState(TypedDict):
     character_graph: dict                 # 人物关系图数据
     detailed_outline: dict                # 详细大纲数据
     story_timeline: dict                  # 故事脉络图数据
+    consistency_report: Optional[dict]    # 路线图P1-6：图谱一致性校验报告
 
     # 5. 问答交互相关
     user_query: str

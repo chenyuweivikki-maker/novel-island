@@ -161,6 +161,8 @@ def build_kb(req: BuildRequest):
             "events": output["events"],
         },
         "chunks": chunks,
+        # 路线图P1-6：图谱一致性校验报告（新建库时图谱为空，checked=False）
+        "consistency": result.get("consistency_report", {"conflicts": [], "checked": False}),
     }
 
 
@@ -423,6 +425,8 @@ def save_chapter(req: ChapterSaveRequest):
         "chapter_id": chapter_id,
         "knowledge_updated": updated,
         "conflicts": conflicts,  # 里程碑12：情节冲突检测结果（空数组=无冲突）
+        # 路线图P1-6：图谱五维一致性校验（与旧图谱对照，报告由作者决定是否修改）
+        "graph_conflicts": (result.get("consistency_report") or {}).get("conflicts", []) if updated else [],
         "stats": {
             "chunks": len(result["processed_chunks"]) if updated else 0,
             "entities": result["final_output"]["entities"] if updated else [],
