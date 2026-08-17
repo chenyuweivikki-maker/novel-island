@@ -122,7 +122,8 @@ input, textarea { font-family: inherit; }
 .empty-state img { width: 80px; margin-bottom: 16px; opacity: .8; }
 
 /* ── 创作工作台（对话页） ── */
-.chat { display: flex; height: 100%; }
+.chat { display: flex; height: 100%; position: relative; }
+.view.active.chat { display: flex; } /* 覆盖 .view.active 的 display:block，保证侧栏+主区横排 */
 .sidebar {
   width: 224px; flex-shrink: 0; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 8px 10px; transition: width .2s;
@@ -335,7 +336,7 @@ input, textarea { font-family: inherit; }
 <div class="app">
   <!-- ═══════ 全局 Header ═══════ -->
   <header class="header">
-    <div class="logo"><img src="/static/xiaoshuomao-awake.svg" alt="小说猫"><span>小说岛</span></div>
+    <div class="logo"><img src="/static/xiaoshuomao-official.svg" alt="小说猫"><span>小说岛</span></div>
     <nav class="nav">
       <a data-view="chat" class="active">创作</a>
       <a data-view="works">灵感库</a>
@@ -351,7 +352,7 @@ input, textarea { font-family: inherit; }
   <main class="main">
     <!-- ═══════ 首页 ═══════ -->
     <section class="view home active" id="view-home">
-      <img class="mascot" src="/static/xiaoshuomao-awake.svg" alt="小说猫">
+      <img class="mascot" src="/static/xiaoshuomao-official.svg" alt="小说猫">
       <h1>小说岛</h1>
       <p class="sub">你的第二大脑 —— 陪你写完整本书</p>
       <div class="home-input">
@@ -519,7 +520,7 @@ input, textarea { font-family: inherit; }
     <section class="view" id="view-login">
       <div class="login-wrap">
         <div class="login-card">
-          <img src="/static/xiaoshuomao-awake.svg" alt="小说猫">
+          <img src="/static/xiaoshuomao-official.svg" alt="小说猫">
           <h2>小说岛</h2>
           <p class="sub">你的第二大脑，陪你写完整本书</p>
           <div id="loginForm">
@@ -672,7 +673,7 @@ function loadWorks() {
     );
     const wrap = document.getElementById('worksContent');
     if (filtered.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><img src="/static/xiaoshuomao-awake.svg"><br>还没有作品，点击「新建小说」开始你的第一本</div>`;
+      wrap.innerHTML = `<div class="empty-state"><img src="/static/xiaoshuomao-official.svg"><br>还没有作品，点击「新建小说」开始你的第一本</div>`;
       return;
     }
     wrap.innerHTML = `
@@ -1153,14 +1154,15 @@ document.getElementById('btnLoginHeader').addEventListener('click', () => {
   document.getElementById('userName').style.display = 'inline';
   showView('home');
 });
-document.getElementById('loginToggle').addEventListener('click', () => {
+function toggleLoginMode() {
   loginMode = loginMode === 'login' ? 'register' : 'login';
   document.getElementById('loginPwd2Field').style.display = loginMode === 'register' ? 'block' : 'none';
   document.getElementById('btnLogin').textContent = loginMode === 'register' ? '注册' : '登录';
   document.getElementById('loginSwitch').innerHTML = loginMode === 'register'
     ? '已有账号？<a id="loginToggle">直接登录</a>' : '还没有账号？<a id="loginToggle">立即注册</a>';
-  document.getElementById('loginToggle').addEventListener('click', arguments.callee);
-});
+  document.getElementById('loginToggle').addEventListener('click', toggleLoginMode);
+}
+document.getElementById('loginToggle').addEventListener('click', toggleLoginMode);
 document.getElementById('btnLogin').addEventListener('click', () => {
   const email = document.getElementById('loginEmail').value;
   document.getElementById('loginErr').style.display = email.includes('@') ? 'none' : 'block';
