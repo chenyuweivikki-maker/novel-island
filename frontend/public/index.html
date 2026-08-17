@@ -313,9 +313,9 @@ input, textarea { font-family: inherit; }
 .login-agree { margin-top: 32px; font-size: 11px; color: var(--text-3); }
 
 /* 弹窗 */
-.modal-mask { position: fixed; inset: 0; background: rgba(17,17,17,.35); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-mask { position: fixed; inset: 0; background: rgba(17,17,17,.35); display: none; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
 .modal-mask.show { display: flex; }
-.modal { background: var(--surface); border-radius: var(--radius); width: 420px; max-width: 92vw; padding: 24px; box-shadow: 0 4px 32px rgba(0,0,0,.08); }
+.modal { background: var(--surface); border-radius: var(--radius); width: 420px; max-width: 92vw; padding: 24px; box-shadow: 0 4px 32px rgba(0,0,0,.08); cursor: default; }
 .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
 .modal-field { margin-bottom: 12px; }
 .modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
@@ -600,9 +600,14 @@ function showView(view) {
   document.getElementById('view-' + view).classList.add('active');
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
   if (view === 'works') { loadWorks(); }
-  if (view === 'chat') { renderSidebar(); if (currentNovelId) refreshKBViews(); }
+  if (view === 'chat') {
+    if (!currentNovelId) selectDefaultChat(); // 无选中小说时初始化默认对话态
+    renderSidebar();
+    if (currentNovelId) refreshKBViews();
+  }
   if (view === 'home') { loadRecent(); }
 }
+document.querySelector('.logo').addEventListener('click', () => showView('home'));
 document.querySelectorAll('.nav a').forEach(a => a.addEventListener('click', () => {
   if (a.textContent.trim() === '社区') { alert('社区即将上线'); return; }
   showView(a.dataset.view === 'works' && a.textContent.trim() === '我的作品' ? 'works' : a.dataset.view);
@@ -1176,6 +1181,14 @@ document.getElementById('btnLogin').addEventListener('click', () => {
 function showAgentWelcome(title) {
   appendMsg('agent', `恭喜创建《${title}》！知识库已就绪（空库也能问答）。\n\n接下来可以按这个顺序开始：\n① 直接在这里告诉我你的主角是谁、故事发生在哪——我边聊边帮你建库\n② 或在「写作编辑器」保存第一章（自动生成章纲、抽取人物、更新知识库）\n③ 素材也可以直接拖进输入框，我自动解析入库`);
 }
+
+// ===== 弹窗通用关闭（Esc / 点遮罩）=====
+document.querySelectorAll('.modal-mask').forEach(mask => {
+  mask.addEventListener('click', e => { if (e.target === mask) mask.classList.remove('show'); });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-mask.show').forEach(m => m.classList.remove('show'));
+});
 
 // ===== 初始化 =====
 window.addEventListener('load', () => {
