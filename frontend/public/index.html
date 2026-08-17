@@ -5,1316 +5,750 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小说岛 — 创作者的第二大脑</title>
 <style>
-  :root {
-    /* 里程碑17：黑白极简（参考"灵感收件箱"美学：白底黑字+灰线+黑底白字选中态） */
-    --bg: #ffffff;
-    --surface: #ffffff;
-    --surface-2: #f7f7f7;
-    --border: #e5e5e5;
-    --border-strong: #d0d0d0;
-    --text: #111111;
-    --text-2: #6b6b6b;
-    --text-3: #9c9c9c;
-    --primary: #111111;
-    --primary-light: #f0f0f0;
-    --primary-dark: #000000;
-    --teal: #000000;
-    --teal-light: #f0f0f0;
-    --coral: #111111;
-    --coral-light: #f7f7f7;
-    --amber: #111111;
-    --amber-light: #f7f7f7;
-    --radius: 8px;
-    --radius-sm: 6px;
-    --shadow: 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-  }
+/* ═══════════════════════════════════════════════════════════
+   小说岛 · 设计系统（Figma 规范 v1.0 · 黑白极简 · 大气留白 · 温暖陪伴）
+   变量与 Figma Variables 一一对应
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #ffffff;            /* 页面底色 */
+  --surface: #ffffff;       /* 卡片/面板 */
+  --surface-2: #f7f7f7;     /* 次级底（输入框内、陪伴气泡） */
+  --border: #e5e5e5;        /* 细线 */
+  --border-strong: #d0d0d0; /* 强调线 */
+  --text: #111111;          /* 主文字 / 主色=黑 */
+  --text-2: #6b6b6b;        /* 次级文字 */
+  --text-3: #9c9c9c;        /* 弱化文字/占位 */
+  --on-primary: #ffffff;
+  --radius: 12px;           /* 大控件 */
+  --radius-sm: 8px;         /* 小控件 */
+  --radius-pill: 999px;     /* 胶囊 */
+  --space: 8px;             /* 8px 网格 */
+  --font: Inter, -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font); background: var(--bg); color: var(--text);
+  -webkit-font-smoothing: antialiased; line-height: 1.6; font-size: 14px;
+}
+button { font-family: inherit; cursor: pointer; }
+input, textarea { font-family: inherit; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
 
-  /* ===== LAYOUT：侧栏 + 主区（里程碑17：agent辅助写作平台骨架） ===== */
-  body { display: flex; min-height: 100vh; }
-  .sidebar {
-    width: 220px; flex-shrink: 0;
-    border-right: 0.5px solid var(--border);
-    display: flex; flex-direction: column;
-    background: var(--surface);
-  }
-  .sidebar-logo {
-    display: flex; align-items: center; gap: 8px;
-    padding: 16px 16px 12px; font-weight: 600; font-size: 15px;
-  }
-  .logo-icon {
-    width: 24px; height: 24px; border-radius: 5px;
-    background: var(--primary); color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px;
-  }
-  .sidebar-nav { flex: 1; overflow-y: auto; padding: 0 8px; }
-  .sidebar-group {
-    font-size: 13px; color: var(--text); font-weight: 600; letter-spacing: 0.3px;
-    padding: 16px 8px 8px;
-  }
-  .side-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 8px; border-radius: var(--radius-sm);
-    font-size: 13px; color: var(--text-2); cursor: pointer;
-    transition: all 0.12s; user-select: none;
-  }
-  .side-item:hover { background: var(--surface-2); color: var(--text); }
-  .side-item.active { background: var(--primary); color: #fff; font-weight: 500; }
-  .side-item.dragging { opacity: 0.5; }
-  .side-item .side-icon { width: 18px; text-align: center; font-size: 13px; }
-  .side-item .side-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .side-item .side-edit {
-    font-size: 12px; opacity: 0; transition: opacity 0.12s;
-    padding: 0 4px; cursor: pointer;
-  }
-  .side-item:hover .side-edit { opacity: 0.6; }
-  .side-item:hover .side-edit:hover { opacity: 1; }
-  .side-item .side-rename-input {
-    flex: 1; border: none; border-bottom: 1px solid var(--border-strong);
-    background: transparent; color: var(--text); font-size: 13px;
-    font-family: inherit; padding: 1px 2px; outline: none;
-  }
-  .sidebar-footer {
-    padding: 12px 8px; border-top: 0.5px solid var(--border);
-    display: flex; flex-direction: column; gap: 2px;
-  }
-  .main {
-    flex: 1; min-width: 0;
-    display: flex; flex-direction: column;
-  }
-  .sub-tabs {
-    display: flex; gap: 2px; padding: 12px 24px 0;
-    border-bottom: 0.5px solid var(--border);
-    display: none;  /* 默认隐藏，选中项目后显示 */
-  }
-  .sub-tabs.visible { display: flex; }
-  .sub-tab {
-    padding: 6px 14px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    font-size: 13px; color: var(--text-2); cursor: pointer;
-    border: none; background: none; font-family: inherit;
-    transition: all 0.12s;
-  }
-  .sub-tab:hover { background: var(--surface-2); color: var(--text); }
-  .sub-tab.active { background: var(--surface-2); color: var(--text); font-weight: 500; }
-  .main-content { flex: 1; padding: 24px; overflow-y: auto; }
-  .container { max-width: 1000px; margin: 0 auto; }
-  .page { display: none; }
-  .page.active { display: block; }
+/* ── 全局壳 · Header ── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+.header {
+  height: 64px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 24px; justify-content: space-between;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.header .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+.header .logo img { width: 36px; height: 19.8px; }
+.nav { display: flex; gap: 32px; }
+.nav a {
+  font-size: 14px; color: var(--text-2); text-decoration: none; padding: 6px 0;
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color .15s;
+}
+.nav a:hover { color: var(--text); }
+.nav a.active { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+.header .user { display: flex; align-items: center; gap: 8px; }
+.btn-pill { font-size: 14px; padding: 9px 22px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.btn-pill.primary { background: var(--text); color: var(--on-primary); border-color: var(--text); }
+.btn-pill.small { font-size: 13px; padding: 6px 16px; }
+.user-name { font-size: 14px; font-weight: 500; }
 
-  /* ===== HERO ===== */
-  .hero { text-align: center; padding: 48px 0 32px; }
-  .hero h1 { font-size: 28px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.5px; }
-  .hero p { font-size: 15px; color: var(--text-2); max-width: 520px; margin: 0 auto; }
-  .hero-tags { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
-  .tag {
-    padding: 4px 12px; border-radius: 20px; font-size: 12px;
-    background: var(--surface); border: 0.5px solid var(--border);
-    color: var(--text-2);
-  }
+/* ── 视图容器 ── */
+.main { flex: 1; overflow: hidden; position: relative; }
+.view { display: none; height: 100%; }
+.view.active { display: block; }
 
-  /* ===== CARD ===== */
-  .card {
-    background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
-  }
-  .card-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
-  .card-desc { font-size: 12px; color: var(--text-3); margin-bottom: 16px; }
+/* ── 首页 ── */
+.home {
+  height: 100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 80px 24px 48px;
+}
+.home .mascot { width: 240px; max-width: 90vw; margin-bottom: 12px; }
+.home h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: 0.5px; margin: 16px 0 8px; }
+.home .sub { color: var(--text-2); font-size: 15px; margin-bottom: 36px; text-align: center; }
+.home-input {
+  width: 100%; max-width: 640px; display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1.5px solid var(--text); border-radius: var(--radius-pill);
+  padding: 14px 14px 14px 24px; transition: box-shadow .15s;
+}
+.home-input:focus-within { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
+.home-input input { flex: 1; border: none; outline: none; font-size: 16px; color: var(--text); background: transparent; }
+.home-input input::placeholder { color: var(--text-3); }
+.home-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
+.home-input .send:hover { transform: scale(1.05); }
+.home-chips { margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
+.chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-size: 13px; padding: 8px 18px; border-radius: var(--radius-pill); transition: all .15s; }
+.chip:hover { border-color: var(--text); color: var(--text); }
+.home .recent { margin-top: 48px; width: 100%; max-width: 880px; }
+.home .recent h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.recent-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.home .foot { margin-top: 56px; color: var(--text-3); font-size: 12px; letter-spacing: 1px; }
 
-  /* ===== RAG DEMO ===== */
-  .rag-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 768px) { .rag-layout { grid-template-columns: 1fr; } }
+/* ── 我的作品 ── */
+.works { height: 100%; overflow-y: auto; padding: 40px 48px; }
+.works .head { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.works h2 { font-size: 24px; font-weight: 600; margin-right: 12px; }
+.seg { display: flex; padding: 4px; background: var(--surface-2); border-radius: 10px; gap: 4px; }
+.seg button { border: none; background: transparent; font-size: 13px; color: var(--text-2); padding: 7px 16px; border-radius: var(--radius-sm); transition: all .15s; }
+.seg button.active { background: var(--text); color: var(--on-primary); font-weight: 500; }
+.works .spacer { flex: 1; }
+.works-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(277px, 1fr)); gap: 16px; }
+.novel-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color .15s; cursor: pointer; }
+.novel-card:hover { border-color: var(--text); }
+.novel-card .tags { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+.tag { font-size: 11px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 2px 10px; }
+.tag.solid { background: var(--text); color: #fff; border-color: var(--text); }
+.novel-card .date { margin-left: auto; font-size: 11px; color: var(--text-3); }
+.novel-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.novel-card p { font-size: 13px; color: var(--text-2); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.novel-card .meta { margin-top: 14px; font-size: 12px; color: var(--text-3); }
+.work-row {
+  display: flex; align-items: center; gap: 24px; margin-top: 24px;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
+}
+.work-row .cover { width: 64px; height: 80px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.work-row .info { flex: 1; min-width: 0; }
+.work-row .info .tags { display: flex; gap: 6px; margin-bottom: 8px; }
+.work-row h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.work-row .desc { font-size: 13px; color: var(--text-2); }
+.work-row .actions { display: flex; gap: 8px; }
+.empty-state { text-align: center; color: var(--text-3); padding: 80px 0; font-size: 14px; }
+.empty-state img { width: 80px; margin-bottom: 16px; opacity: .8; }
 
-  .text-input {
-    width: 100%; min-height: 200px; padding: 12px;
-    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
-    font-family: inherit; font-size: 13px; line-height: 1.7;
-    resize: vertical; background: var(--surface-2); color: var(--text);
-  }
-  .text-input:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+/* ── 创作工作台（对话页） ── */
+.chat { display: flex; height: 100%; }
+.sidebar {
+  width: 224px; flex-shrink: 0; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 8px 10px; transition: width .2s;
+  overflow: hidden;
+}
+.sidebar.collapsed { width: 48px; padding: 8px 0; }
+.sidebar.collapsed .hide-when-collapsed { display: none; }
+.side-group { font-size: 11px; color: var(--text-3); letter-spacing: 1.5px; padding: 14px 8px 6px; white-space: nowrap; }
+.side-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-2); cursor: pointer; transition: background .12s; white-space: nowrap;
+}
+.side-item:hover { background: var(--surface-2); color: var(--text); }
+.side-item.active { background: var(--text); color: var(--on-primary); }
+.side-item .icon { font-size: 13px; width: 20px; text-align: center; flex-shrink: 0; }
+.side-item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
+.side-item.active .meta { color: rgba(255,255,255,.7); }
+.side-new {
+  margin-top: auto; border: 1px dashed var(--border-strong); background: transparent;
+  color: var(--text-2); font-size: 13px; padding: 9px; border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.side-new:hover { border-color: var(--text); color: var(--text); }
+.sidebar.collapsed .side-new { border: none; padding: 8px 0; }
+.side-collapse {
+  position: absolute; left: 224px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 40px; border: 1px solid var(--border); border-left: none;
+  background: var(--surface); border-radius: 0 8px 8px 0; color: var(--text-2);
+  font-size: 11px; z-index: 5; transition: left .2s;
+}
+.sidebar.collapsed ~ .side-collapse, .sidebar.collapsed + .side-collapse { left: 48px; }
 
-  .btn {
-    padding: 8px 18px; border-radius: var(--radius-sm); border: none;
-    font-family: inherit; font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover { background: var(--primary-dark); }
-  .btn-primary:disabled { background: var(--border-strong); cursor: not-allowed; }
-  .btn-ghost { background: var(--surface); border: 0.5px solid var(--border-strong); color: var(--text-2); }
-  .btn-ghost:hover { background: var(--surface-2); }
+.chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 28px; border-bottom: 1px solid var(--border);
+}
+.chat-head .title { font-size: 15px; font-weight: 600; }
+.pill { font-size: 11px; padding: 3px 10px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); color: var(--text-2); background: var(--surface); }
+.pill.companion { border-color: var(--text); color: var(--text); background: var(--surface-2); }
+.pill.active-pill { background: var(--text); color: #fff; border-color: var(--text); }
 
-  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.sub-tabs {
+  display: flex; align-items: stretch; padding: 0 32px; height: 46px;
+  border-bottom: 1px solid var(--border); gap: 24px; overflow-x: auto; display: none;
+}
+.sub-tabs.visible { display: flex; }
+.sub-tab {
+  border: none; background: transparent; font-size: 13px; color: var(--text-2);
+  padding: 0 2px; border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.sub-tab:hover { color: var(--text); }
+.sub-tab.active { color: var(--text); font-weight: 700; border-bottom-color: var(--text); }
 
-  /* Chunk display */
-  .chunks-list { max-height: 300px; overflow-y: auto; }
-  .chunk-item {
-    padding: 10px 12px; border-radius: var(--radius-sm);
-    background: var(--surface-2); margin-bottom: 6px;
-    font-size: 12px; line-height: 1.6; color: var(--text-2);
-    border-left: 3px solid transparent;
-    transition: all 0.2s;
-  }
-  .chunk-item.match {
-    border-left-color: var(--teal);
-    background: var(--teal-light);
-    color: var(--text);
-  }
-  .chunk-meta { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
-  /* 里程碑15：情节时间线（大事年表） */
-  .timeline-badge {
-    display: inline-block; padding: 1px 6px; border-radius: 4px;
-    font-size: 10px; font-weight: 600; margin-left: 6px;
-    background: var(--primary-light); color: var(--primary-dark);
-  }
-  .score-badge {
-    display: inline-block; padding: 1px 6px; border-radius: 4px;
-    font-size: 10px; font-weight: 600; margin-left: 6px;
-  }
-  .score-high { background: #e1f5ee; color: #0f6e56; }
-  .score-mid { background: #faeeda; color: #854f0b; }
-  .score-low { background: #f5f3ee; color: #9c9a92; }
+.pages { flex: 1; min-height: 0; position: relative; }
+.page { display: none; height: 100%; overflow-y: auto; }
+.page.active { display: block; }
 
-  /* Q&A */
-  .qa-box { margin-top: 16px; }
-  .qa-input-row { display: flex; gap: 8px; }
-  .qa-input {
-    flex: 1; padding: 10px 12px; border: 0.5px solid var(--border);
-    border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
-    background: var(--surface);
-  }
-  .qa-input:focus { outline: none; border-color: var(--primary); }
+/* 对话气泡 */
+.msgs { padding: 28px; display: flex; flex-direction: column; gap: 18px; max-width: 780px; margin: 0 auto; }
+.msg { display: flex; gap: 10px; max-width: 86%; }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg .avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.msg.user .avatar { background: var(--text); color: #fff; border: none; }
+.msg .body {
+  padding: 12px 16px; border-radius: var(--radius); font-size: 14px; line-height: 1.7;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.msg.user .body { background: var(--text); color: #fff; border: none; border-radius: 12px 12px 4px 12px; }
+.msg .src { margin-top: 6px; font-size: 11px; color: var(--text-3); }
+.msg.companion .body {
+  background: var(--surface); border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--text);
+}
+.msg.companion .tag { display: inline-block; font-size: 11px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill); margin-bottom: 6px; }
+.msg.typing .body::after { content: '…'; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
 
-  .answer-box {
-    margin-top: 12px; padding: 14px; border-radius: var(--radius-sm);
-    background: var(--primary-light); font-size: 13px; line-height: 1.7;
-    display: none;
-  }
-  .answer-box.show { display: block; }
-  .answer-source {
-    font-size: 11px; color: var(--text-3); margin-top: 8px;
-    padding-top: 8px; border-top: 0.5px dashed var(--border-strong);
-  }
+.chips-row { max-width: 780px; margin: 0 auto 8px; display: flex; gap: 8px; overflow-x: auto; padding: 0 28px; }
+.chat-input {
+  max-width: 780px; margin: 0 auto 20px; display: flex; align-items: center; gap: 12px;
+  border: 1.5px solid var(--border-strong); border-radius: var(--radius-pill); padding: 6px 6px 6px 20px; background: var(--surface);
+}
+.chat-input:focus-within { border-color: var(--text); }
+.chat-input.dragover { border-color: var(--text); box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
+.chat-input input { flex: 1; border: none; outline: none; font-size: 14.5px; padding: 8px 0; background: transparent; }
+.chat-input input::placeholder { color: var(--text-3); }
+.chat-input .send { width: 38px; height: 38px; border-radius: var(--radius-sm); border: none; background: var(--text); color: #fff; font-size: 16px; flex-shrink: 0; }
+.attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; color: var(--text-2); }
+.attach-chip button { border: none; background: none; color: var(--text-3); font-size: 12px; }
 
-  .suggested-q { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-  .q-chip {
-    padding: 4px 10px; border-radius: 16px; font-size: 12px;
-    background: var(--surface-2); color: var(--text-2);
-    cursor: pointer; border: 0.5px solid var(--border);
-    transition: all 0.15s;
-  }
-  .q-chip:hover { background: var(--primary-light); color: var(--primary-dark); border-color: var(--primary); }
+/* 通用 tab 内容 */
+.tab-pad { padding: 32px; max-width: 880px; margin: 0 auto; }
+.tab-pad h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+.tab-actions { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
 
-  /* ===== CHARACTER CARDS ===== */
-  .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .char-card {
-    background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: var(--radius); overflow: hidden;
-  }
-  .char-header {
-    padding: 16px; display: flex; align-items: center; gap: 12px;
-  }
-  .char-avatar {
-    width: 44px; height: 44px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 600; color: #fff;
-  }
-  .char-name { font-size: 15px; font-weight: 500; }
-  .char-role { font-size: 12px; color: var(--text-3); }
-  .char-body { padding: 0 16px 16px; }
-  .char-field { margin-bottom: 10px; }
-  .char-field-label { font-size: 11px; color: var(--text-3); margin-bottom: 2px; }
-  .char-field-value { font-size: 13px; color: var(--text); line-height: 1.5; }
-  .char-tag {
-    display: inline-block; padding: 2px 8px; border-radius: 4px;
-    font-size: 11px; margin-right: 4px; margin-bottom: 4px;
-    background: var(--surface-2); color: var(--text-2);
-  }
+/* 人设卡片三区 */
+.char-layout { display: flex; gap: 24px; height: 100%; padding: 24px 32px; }
+.char-list { width: 200px; flex-shrink: 0; border-right: 1px solid var(--border); padding-right: 16px; }
+.char-list .cl-item { padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13.5px; color: var(--text-2); margin-bottom: 2px; }
+.char-list .cl-item:hover { background: var(--surface-2); }
+.char-list .cl-item.active { background: var(--text); color: #fff; font-weight: 500; }
+.char-list .cl-new { margin-top: 12px; font-size: 13px; color: var(--text-3); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 8px; text-align: center; cursor: pointer; }
+.char-detail { flex: 1; display: flex; gap: 24px; min-width: 0; }
+.portrait-col { width: 240px; flex-shrink: 0; }
+.portrait-card {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius); aspect-ratio: 3/4;
+  background: var(--surface-2); display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px; text-align: center; padding: 16px; position: relative;
+}
+.portrait-card .silhouette { width: 56px; height: 76px; opacity: .5; }
+.portrait-card .gen-btn { font-size: 13px; padding: 8px 16px; border-radius: var(--radius-sm); background: var(--text); color: #fff; border: none; }
+.portrait-card .gen-hint { font-size: 11px; color: var(--text-3); }
+.portrait-card.generating .spinner { width: 28px; height: 28px; border: 2px solid var(--border-strong); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.portrait-card.done .edit-tag { position: absolute; top: 8px; left: 8px; font-size: 11px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 2px 8px; background: var(--surface); }
+.portrait-states { display: flex; gap: 12px; margin-top: 16px; }
+.portrait-states .ps { flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; text-align: center; font-size: 11px; color: var(--text-2); }
+.ps .ps-card { height: 72px; border: 1px dashed var(--border-strong); border-radius: 8px; background: var(--surface-2); margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 10px; }
+.ps:nth-child(2) .ps-card::after { content: ''; width: 16px; height: 16px; border: 2px solid var(--border-strong); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
+.ps:nth-child(3) .ps-card { border: 1px solid var(--border-strong); }
+.ps:nth-child(3) .ps-card::before { content: '👤'; font-size: 22px; }
+.info-col { flex: 1; min-width: 0; }
+.info-section { margin-bottom: 20px; }
+.info-section .sec-title { font-size: 11px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.info-section .sec-body { font-size: 14px; line-height: 1.7; }
+.rel-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-tag { font-size: 12px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 3px 10px; cursor: pointer; }
+.rel-tag:hover { border-color: var(--text); color: var(--text); }
 
-  /* ===== RELATIONSHIP GRAPH ===== */
-  .graph-container {
-    background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: var(--radius); padding: 24px; min-height: 400px;
-    position: relative;
-  }
-  .graph-svg { width: 100%; height: 400px; }
+/* 关系图 */
+.graph-wrap { padding: 24px 32px; height: 100%; position: relative; }
+#graphSvg { width: 100%; height: 100%; }
+.graph-hint { position: absolute; left: 32px; bottom: 24px; font-size: 11px; color: var(--text-3); }
 
-  /* ===== ARCHITECTURE ===== */
-  .arch-layer {
-    margin-bottom: 12px; padding: 16px 20px; border-radius: var(--radius);
-    border: 0.5px solid var(--border);
-  }
-  .arch-layer-label { font-size: 11px; color: var(--text-3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .arch-layer-title { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
-  .arch-layer-items { display: flex; gap: 8px; flex-wrap: wrap; }
-  .arch-item {
-    padding: 4px 12px; border-radius: 6px; font-size: 12px;
-    background: var(--surface-2);
-  }
+/* 时间线 / 章纲：思维导图 */
+.mm { position: relative; padding: 24px 32px; }
+.mm-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.mm-item { position: relative; width: 46%; margin-bottom: 20px; }
+.mm-item.left { margin-right: auto; }
+.mm-item.right { margin-left: auto; }
+.mm-item .mm-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.mm-item .mm-card:hover { border-color: var(--border-strong); }
+.mm-item .mm-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.timeline-badge { color: var(--text); font-weight: 600; }
+.mm-empty { text-align: center; color: var(--text-3); padding: 60px 0; }
 
-  /* ===== STATS ===== */
-  .stats-row { display: flex; gap: 12px; margin-bottom: 16px; }
-  .stat-box {
-    flex: 1; padding: 14px; border-radius: var(--radius-sm);
-    background: var(--surface); border: 0.5px solid var(--border);
-  }
-  .stat-num { font-size: 22px; font-weight: 600; }
-  .stat-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+/* 大纲 */
+.outline-wrap { padding: 32px; max-width: 880px; margin: 0 auto; }
+.outline-wrap textarea { width: 100%; min-height: 420px; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 20px; font-size: 14px; line-height: 1.8; resize: vertical; outline: none; }
+.outline-wrap textarea:focus { border-color: var(--text); }
+.outline-status { font-size: 12px; color: var(--text-3); margin-left: 12px; }
 
-  /* ===== LOADING ===== */
-  .loading-dots::after {
-    content: ''; animation: dots 1.5s steps(4) infinite;
-  }
-  @keyframes dots {
-    0% { content: ''; } 25% { content: '.'; }
-    50% { content: '..'; } 75% { content: '...'; }
-  }
+/* 背景资料 */
+.bg-category { margin-bottom: 24px; }
+.bg-category-title { font-size: 11px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+.bg-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px; position: relative; }
+.bg-card-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.bg-card-content { font-size: 13px; color: var(--text-2); }
+.bg-card-del { position: absolute; top: 10px; right: 12px; border: none; background: none; color: var(--text-3); font-size: 12px; cursor: pointer; }
+.bg-card-del:hover { color: var(--text); }
 
-  /* ===== SECTION TITLE ===== */
-  .section-title {
-    font-size: 16px; font-weight: 500; margin-bottom: 4px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .section-sub { font-size: 12px; color: var(--text-3); margin-bottom: 16px; }
+/* 写作 */
+.write-wrap { padding: 32px; max-width: 880px; margin: 0 auto; }
+.write-wrap textarea { width: 100%; min-height: 380px; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 20px; font-size: 14px; line-height: 1.8; resize: vertical; outline: none; }
+.write-wrap textarea:focus { border-color: var(--text); }
+.chapter-list { margin-top: 16px; }
+.chunk-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 6px; font-size: 13px; }
+.save-result { margin-top: 12px; font-size: 13px; color: var(--text-2); white-space: pre-wrap; }
 
-  /* ===== EMPTY STATE ===== */
-  .empty-state {
-    text-align: center; padding: 40px 20px; color: var(--text-3);
-    font-size: 13px;
-  }
+/* 登录 */
+.login-wrap { height: 100%; display: flex; align-items: center; justify-content: center; }
+.login-card { width: 400px; text-align: center; }
+.login-card img { width: 104px; margin-bottom: 8px; }
+.login-card h2 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.login-card .sub { font-size: 14px; color: var(--text-2); margin-bottom: 28px; }
+.login-field { margin-bottom: 14px; text-align: left; }
+.login-field input { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 12px 16px; font-size: 14px; outline: none; }
+.login-field input:focus { border-color: var(--text); }
+.login-field .err { font-size: 12px; color: var(--text); font-weight: 600; margin-top: 4px; }
+.login-btn { width: 100%; font-size: 14px; padding: 12px; border-radius: var(--radius-pill); background: var(--text); color: #fff; border: none; margin-top: 8px; }
+.login-switch { margin-top: 16px; font-size: 13px; color: var(--text-2); }
+.login-switch a { color: var(--text); font-weight: 500; cursor: pointer; }
+.login-agree { margin-top: 32px; font-size: 11px; color: var(--text-3); }
 
-  /* ===== PIPELINE VISUAL ===== */
-  .pipeline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 12px 0; }
-  .pipeline-step {
-    padding: 6px 12px; border-radius: 6px; font-size: 12px;
-    background: var(--surface-2); color: var(--text-2);
-    border: 0.5px solid var(--border);
-  }
-  .pipeline-step.done { background: var(--teal-light); color: var(--teal); border-color: var(--teal); }
-  .pipeline-arrow { color: var(--text-3); font-size: 12px; }
+/* 弹窗 */
+.modal-mask { position: fixed; inset: 0; background: rgba(17,17,17,.35); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-mask.show { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius); width: 420px; max-width: 92vw; padding: 24px; box-shadow: 0 4px 32px rgba(0,0,0,.08); }
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.modal-field { margin-bottom: 12px; }
+.modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.modal-field input, .modal-field textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; outline: none; }
+.modal-field input:focus, .modal-field textarea:focus { border-color: var(--text); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 
-  /* ===== ANIMATION ===== */
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeIn 0.3s ease; }
-
-  /* ===== 里程碑18：思维导图式时间线/章纲（中间竖线+左右交错） ===== */
-  .mindmap { position: relative; padding: 16px 0 8px; }
-  .mindmap::before {
-    content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
-    width: 2px; background: var(--border); transform: translateX(-50%);
-  }
-  .mm-item { position: relative; width: 50%; padding: 0 32px 24px; }
-  .mm-item.left { left: 0; text-align: right; }
-  .mm-item.right { left: 50%; text-align: left; }
-  .mm-item::before {
-    content: ''; position: absolute; top: 20px;
-    width: 16px; height: 2px; background: var(--border);
-  }
-  .mm-item.left::before { right: 0; }
-  .mm-item.right::before { left: 0; }
-  .mm-item::after {
-    content: ''; position: absolute; top: 16px; width: 10px; height: 10px;
-    border-radius: 50%; background: var(--text); border: 2px solid var(--surface);
-  }
-  .mm-item.left::after { right: -5px; }
-  .mm-item.right::after { left: -5px; }
-  .mm-card {
-    display: inline-block; text-align: left; background: var(--surface);
-    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
-    padding: 12px 14px; max-width: 100%;
-    box-shadow: var(--shadow);
-  }
-  .mm-title { font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
-  .mm-text { font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
-  .mm-empty { text-align: center; color: var(--text-3); padding: 48px 0; font-size: 13px; }
-
-  /* ===== 里程碑18：手写字SVG动画 ===== */
-  .writing-stage {
-    display: flex; justify-content: center; padding: 8px 0 16px;
-  }
-  .writing-stage svg { width: 480px; max-width: 100%; height: auto; }
-  .ink-line {
-    stroke: var(--text); stroke-width: 1.6; fill: none; stroke-linecap: round;
-    stroke-dasharray: 800; stroke-dashoffset: 800;
-    animation: inkDraw 6s ease-in-out infinite;
-  }
-  .ink-line.delay-1 { animation-delay: 0.8s; }
-  .ink-line.delay-2 { animation-delay: 1.6s; }
-  .ink-line.delay-3 { animation-delay: 2.4s; }
-  @keyframes inkDraw {
-    0% { stroke-dashoffset: 800; }
-    60% { stroke-dashoffset: 0; }
-    100% { stroke-dashoffset: 0; opacity: 0.35; }
-  }
-  .pen-tip { animation: penSwing 6s ease-in-out infinite; }
-  @keyframes penSwing {
-    0%, 100% { transform: translate(0, 0); }
-    30% { transform: translate(8px, 4px); }
-    60% { transform: translate(-4px, 2px); }
-  }
-
-  /* ===== 里程碑18：弹窗 ===== */
-  .modal-mask {
-    display: none; position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.35); align-items: center; justify-content: center;
-  }
-  .modal-mask.show { display: flex; }
-  .modal {
-    background: var(--surface); border-radius: var(--radius);
-    padding: 24px; width: 400px; max-width: 92vw;
-    box-shadow: var(--shadow-lg);
-  }
-  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-  .modal-field { margin-bottom: 12px; }
-  .modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
-  .modal-field input, .modal-field textarea {
-    width: 100%; padding: 8px 10px; border: 0.5px solid var(--border);
-    border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
-    background: var(--surface); color: var(--text);
-  }
-  .modal-field textarea { min-height: 80px; resize: vertical; }
-  .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--text); }
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-
-  /* ===== 里程碑18：背景资料 ===== */
-  .bg-category { margin-bottom: 20px; }
-  .bg-category-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 0.5px solid var(--border); }
-  .bg-card {
-    background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
-    position: relative;
-  }
-  .bg-card-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-  .bg-card-content { font-size: 12px; line-height: 1.7; color: var(--text-2); white-space: pre-wrap; }
-  .bg-card-del {
-    position: absolute; top: 8px; right: 10px; font-size: 12px;
-    color: var(--text-3); cursor: pointer; border: none; background: none;
-    font-family: inherit;
-  }
-  .bg-card-del:hover { color: var(--text); }
+/* 状态 */
+.status { font-size: 12px; color: var(--text-3); margin-left: 8px; }
+@media (max-width: 900px) {
+  .nav { gap: 16px; }
+  .char-layout { flex-direction: column; }
+  .char-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 4px; overflow-x: auto; padding-bottom: 12px; }
+}
 </style>
 </head>
 <body>
+<div class="app">
+  <!-- ═══════ 全局 Header ═══════ -->
+  <header class="header">
+    <div class="logo"><img src="/static/xiaoshuomao-awake.svg" alt="小说猫"><span>小说岛</span></div>
+    <nav class="nav">
+      <a data-view="chat" class="active">创作</a>
+      <a data-view="works">灵感库</a>
+      <a data-view="works">我的作品</a>
+      <a title="即将上线">社区</a>
+    </nav>
+    <div class="user">
+      <span class="user-name" id="userName" style="display:none">林晓岚</span>
+      <button class="btn-pill" id="btnLoginHeader">登录</button>
+    </div>
+  </header>
 
-<div class="sidebar">
-  <div class="sidebar-logo">
-    <div class="logo-icon">N</div>
-    <span>小说岛</span>
-  </div>
-  <div class="sidebar-nav">
-    <!-- 写作Agent入口：不选小说也能用（里程碑18改名） -->
-    <div class="side-item" id="navDefaultChat" data-novel-id="">
-      <span class="side-icon">✒️</span>
-      <span class="side-title">写作Agent</span>
-    </div>
-    <!-- 成本监控：与"我的小说"同级（里程碑18上移） -->
-    <div class="side-item" id="navCost" data-page="cost">
-      <span class="side-icon">₿</span>
-      <span class="side-title">成本监控</span>
-    </div>
-    <div class="sidebar-group">我的小说</div>
-    <div id="projectList"></div>
-    <!-- 新建小说（里程碑18：弹窗填名称/字数） -->
-    <div class="side-item" id="btnNewProject" style="color:var(--text-3);">
-      <span class="side-icon">＋</span>
-      <span class="side-title">新建小说</span>
-    </div>
-  </div>
-  <div class="sidebar-footer">
-    <div class="side-item" id="navArch" data-page="arch">
-      <span class="side-icon">⚙️</span>
-      <span class="side-title">关于 / 系统架构</span>
-    </div>
-  </div>
+  <main class="main">
+    <!-- ═══════ 首页 ═══════ -->
+    <section class="view home active" id="view-home">
+      <img class="mascot" src="/static/xiaoshuomao-awake.svg" alt="小说猫">
+      <h1>小说岛</h1>
+      <p class="sub">你的第二大脑 —— 陪你写完整本书</p>
+      <div class="home-input">
+        <input id="homeInput" placeholder="告诉小说猫你想写什么…">
+        <button class="send" id="homeSend">↑</button>
+      </div>
+      <div class="home-chips">
+        <button class="chip" data-q="帮我创建一本新书">帮我创建一本新书</button>
+        <button class="chip" data-q="卡文了，怎么办">卡文了，怎么办</button>
+        <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
+        <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
+      </div>
+      <div class="recent" id="recentBox" style="display:none">
+        <h2>最近作品</h2>
+        <div class="recent-row" id="recentList"></div>
+      </div>
+      <p class="foot">写不下去的时候，我都在。</p>
+    </section>
+
+    <!-- ═══════ 我的作品 ═══════ -->
+    <section class="view works" id="view-works">
+      <div class="head">
+        <h2>我的作品</h2>
+        <div class="seg" id="genreSeg">
+          <button class="active" data-g="全部">全部</button>
+          <button data-g="奇幻">奇幻</button>
+          <button data-g="都市">都市</button>
+          <button data-g="科幻">科幻</button>
+        </div>
+        <div class="seg" id="statusSeg">
+          <button class="active" data-s="全部">全部</button>
+          <button data-s="连载中">连载中</button>
+          <button data-s="已完结">已完结</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn-pill primary" id="btnNewProjectWorks">＋ 新建小说</button>
+      </div>
+      <div id="worksContent"></div>
+    </section>
+
+    <!-- ═══════ 创作工作台 ═══════ -->
+    <section class="view chat" id="view-chat">
+      <aside class="sidebar" id="sidebar">
+        <div class="side-group hide-when-collapsed">小说项目</div>
+        <div id="projectList"></div>
+        <div class="side-group hide-when-collapsed">灵感库</div>
+        <div class="side-item hide-when-collapsed"><span class="icon">💡</span>人设灵感<span class="meta">12</span></div>
+        <div class="side-item hide-when-collapsed"><span class="icon">📜</span>剧情灵感<span class="meta">8</span></div>
+        <div class="side-item hide-when-collapsed"><span class="icon">✒️</span>金句<span class="meta">5</span></div>
+        <button class="side-new" id="btnNewProjectSide">＋ 新建项目</button>
+      </aside>
+      <button class="side-collapse" id="btnSideCollapse" title="收起/展开侧栏">‹</button>
+
+      <div class="chat-main">
+        <div class="chat-head">
+          <span class="title" id="chatTitle">写作Agent</span>
+          <span class="pill" id="pillWriting">写作中</span>
+          <button class="pill companion" id="pillCompanion">♡ 陪伴模式</button>
+        </div>
+        <div class="sub-tabs" id="subTabs">
+          <button class="sub-tab active" data-subpage="chat">写作</button>
+          <button class="sub-tab" data-subpage="write">写作编辑器</button>
+          <button class="sub-tab" data-subpage="chars">人设卡片</button>
+          <button class="sub-tab" data-subpage="graph">人物关系图</button>
+          <button class="sub-tab" data-subpage="timeline">时间线</button>
+          <button class="sub-tab" data-subpage="outline">大纲</button>
+          <button class="sub-tab" data-subpage="chapter_outline">章纲</button>
+          <button class="sub-tab" data-subpage="backgrounds">背景资料</button>
+        </div>
+
+        <div class="pages">
+          <!-- 对话 -->
+          <div class="page active" id="page-chat">
+            <div class="msgs" id="msgList"></div>
+            <div class="chips-row">
+              <button class="chip" data-q="检查这段逻辑">检查这段逻辑</button>
+              <button class="chip" data-q="人设崩了吗">人设崩了吗</button>
+              <button class="chip" data-q="给我三个灵感">给我三个灵感</button>
+              <button class="chip" data-q="生成章纲">生成章纲</button>
+            </div>
+            <div class="chat-input" id="chatInputWrap">
+              <div id="attachArea" style="display:none"></div>
+              <input id="qaInput" placeholder="告诉小说猫你想写什么…">
+              <button class="send" id="btnAsk">↑</button>
+            </div>
+          </div>
+
+          <!-- 人设卡片 -->
+          <div class="page" id="page-chars">
+            <div class="char-layout">
+              <div class="char-list" id="charList"></div>
+              <div class="char-detail" id="charDetail"></div>
+            </div>
+          </div>
+
+          <!-- 关系图 -->
+          <div class="page" id="page-graph">
+            <div class="graph-wrap">
+              <svg id="graphSvg" viewBox="0 0 800 480"></svg>
+              <div class="graph-hint">拖拽可移动 · 滚轮缩放 · 点击节点查看人设卡片</div>
+            </div>
+          </div>
+
+          <!-- 时间线 -->
+          <div class="page" id="page-timeline">
+            <div class="mm" id="timelineWrap">
+              <div class="mm-line"></div>
+              <div id="timelineList"></div>
+            </div>
+          </div>
+
+          <!-- 章纲 -->
+          <div class="page" id="page-chapter_outline">
+            <div class="mm" id="coWrap">
+              <div class="mm-line"></div>
+              <div id="chapterOutlineMap"></div>
+            </div>
+          </div>
+
+          <!-- 大纲 -->
+          <div class="page" id="page-outline">
+            <div class="outline-wrap">
+              <div class="tab-actions">
+                <h3 style="margin:0">全文大纲</h3>
+                <span class="status" id="outlineSaveResult"></span>
+                <span class="spacer"></span>
+                <button class="btn-pill" id="btnSaveOutline">保存</button>
+              </div>
+              <textarea id="outlineText" placeholder="在这里写你的故事大纲……"></textarea>
+            </div>
+          </div>
+
+          <!-- 背景资料 -->
+          <div class="page" id="page-backgrounds">
+            <div class="tab-pad">
+              <div class="tab-actions">
+                <h3 style="margin:0">背景资料</h3>
+                <span class="spacer"></span>
+                <button class="btn-pill primary" id="btnAddBackground">＋ 新建资料</button>
+              </div>
+              <div id="backgroundList"></div>
+            </div>
+          </div>
+
+          <!-- 写作编辑器 -->
+          <div class="page" id="page-write">
+            <div class="write-wrap">
+              <div class="tab-actions">
+                <h3 style="margin:0">写作编辑器</h3>
+                <span class="status" id="saveResult"></span>
+              </div>
+              <textarea id="chapterText" placeholder="开始写这一章……保存后自动生成章纲、更新知识库"></textarea>
+              <div class="tab-actions" style="margin-top:12px">
+                <button class="btn-pill primary" id="btnSaveChapter">保存章节并更新知识库</button>
+                <span class="status">卡文检测：编辑停顿超 5 分钟会提醒</span>
+              </div>
+              <div class="chapter-list" id="chapterList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ 登录 / 注册 ═══════ -->
+    <section class="view" id="view-login">
+      <div class="login-wrap">
+        <div class="login-card">
+          <img src="/static/xiaoshuomao-awake.svg" alt="小说猫">
+          <h2>小说岛</h2>
+          <p class="sub">你的第二大脑，陪你写完整本书</p>
+          <div id="loginForm">
+            <div class="login-field"><input id="loginEmail" placeholder="请输入邮箱"></div>
+            <div class="login-field"><input id="loginPwd" type="password" placeholder="请输入密码"></div>
+            <div class="login-field" id="loginPwd2Field" style="display:none"><input id="loginPwd2" type="password" placeholder="请再次输入密码"></div>
+            <div class="login-field" id="loginErr" style="display:none"><div class="err">⚠ 邮箱格式不正确</div></div>
+            <button class="login-btn" id="btnLogin">登录</button>
+            <p class="login-switch" id="loginSwitch">还没有账号？<a id="loginToggle">立即注册</a></p>
+          </div>
+          <p class="login-agree">登录即代表同意《用户协议》与《隐私政策》</p>
+        </div>
+      </div>
+    </section>
+  </main>
 </div>
 
-<div class="main">
-  <!-- 二级tab：选中小说后显示（里程碑18顺序：Agent/写作/人设/关系图/时间线/大纲/章纲/背景资料） -->
-  <div class="sub-tabs" id="subTabs">
-    <button class="sub-tab active" data-subpage="chat">Agent</button>
-    <button class="sub-tab" data-subpage="write">写作</button>
-    <button class="sub-tab" data-subpage="chars">人设卡片</button>
-    <button class="sub-tab" data-subpage="graph">人物关系图</button>
-    <button class="sub-tab" data-subpage="timeline">时间线</button>
-    <button class="sub-tab" data-subpage="outline">大纲</button>
-    <button class="sub-tab" data-subpage="chapter_outline">章纲</button>
-    <button class="sub-tab" data-subpage="backgrounds">背景资料</button>
-  </div>
-  <div class="main-content">
-    <div class="container">
-
-  <!-- ===== PAGE: Agent（写作Agent首页：动画+输入框，里程碑18） ===== -->
-  <div class="page active" id="page-chat">
-    <div style="max-width:600px; margin:0 auto; text-align:center;">
-      <h1 id="chatTitle" style="font-size:26px; font-weight:600; margin:12px 0 4px;">写作Agent</h1>
-      <p style="font-size:13px; color:var(--text-2); margin-bottom:8px;">你的小说创作第二大脑 —— 写不下去时，它记得所有情节与人物。</p>
-      <!-- 手写字SVG动画：纸 + 手执笔，从左往右写 -->
-      <div class="writing-stage">
-        <svg viewBox="0 0 480 220" xmlns="http://www.w3.org/2000/svg">
-          <!-- 纸张 -->
-          <rect x="90" y="40" width="300" height="130" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
-          <!-- 手写线（从左往右依次画） -->
-          <path class="ink-line" d="M 120 90 Q 180 70 240 90 T 360 90"/>
-          <path class="ink-line delay-1" d="M 120 115 Q 200 100 280 115 T 360 110"/>
-          <path class="ink-line delay-2" d="M 120 140 Q 180 155 240 140 T 360 150"/>
-          <path class="ink-line delay-3" d="M 130 165 Q 200 150 260 165"/>
-          <!-- 手+笔 -->
-          <g class="pen-tip">
-            <path d="M 380 90 Q 400 80 410 70" stroke="var(--text)" stroke-width="2" fill="none" stroke-linecap="round"/>
-            <path d="M 408 72 L 395 88" stroke="var(--text)" stroke-width="1.4" stroke-linecap="round"/>
-          </g>
-        </svg>
-      </div>
-      <!-- 对话输入框：引导创建新小说 -->
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <input class="qa-input" id="qaInput" style="padding:12px 16px; font-size:14px;" placeholder="输入你想写的故事，或问我任何关于小说的问题…" />
-        <button class="btn btn-primary" id="btnAsk" style="padding:12px 20px;">发送</button>
-      </div>
-      <div id="agentHint" style="margin-top:10px; font-size:12px; color:var(--text-3);">
-        还没有小说？点左侧"＋新建小说"，几秒钟就能创建你的第一部作品。
-      </div>
-      <div class="suggested-q" id="suggestedQ" style="margin-top:14px; justify-content:center;">
-        <span class="q-chip" data-q="唐嘉措的宠物叫什么？">唐嘉措的宠物叫什么？</span>
-        <span class="q-chip" data-q="江观南是做什么的？">江观南是做什么的？</span>
-        <span class="q-chip" data-q="这段剧情有没有逻辑矛盾？">检查逻辑矛盾</span>
-        <span class="q-chip" data-q="唐嘉措的人设崩了吗？">检查人设</span>
-        <span class="q-chip" data-q="后面剧情怎么发展？">找灵感</span>
-      </div>
-      <div class="answer-box" id="answerBox" style="text-align:left;">
-        <div id="answerText"></div>
-        <div class="answer-source" id="answerSource"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 人设卡片 ===== -->
-  <div class="page" id="page-chars">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>人设卡片</h1>
-      <p>从小说文本中自动抽取人物信息，结构化为标准化人设卡片。</p>
-    </div>
-    <div class="char-grid" id="charGrid">
-      <div class="empty-state">该项目还没有人设，先建库或保存章节</div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 大纲（里程碑18：作者自写单文本块） ===== -->
-  <div class="page" id="page-outline">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>大纲</h1>
-      <p>写下你自己的故事大纲（人物线/情节线/伏笔…），Agent 会记住它。</p>
-    </div>
-    <div class="card">
-      <div class="card-title">我的大纲</div>
-      <textarea class="text-input" id="outlineText" style="min-height:260px;" placeholder="在这里写下你小说的整体大纲：主线、人物弧光、关键情节、伏笔安排…"></textarea>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btnSaveOutline">保存大纲</button>
-        <span id="outlineSaveResult" style="font-size:12px; color:var(--text-3); align-self:center;"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 情节时间线 ===== -->
-  <div class="page" id="page-timeline">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>情节时间线</h1>
-      <p id="timelineDesc">按章节顺序记录情节摘要，思维导图式交错排布。</p>
-    </div>
-    <div class="mindmap" id="timelineList">
-      <div class="mm-empty">暂无情节记录，先构建知识库或保存章节</div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 人物关系图 ===== -->
-  <div class="page" id="page-graph">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>人物关系图</h1>
-      <p>以主角为核心展开，展示人物间的关系网络。</p>
-    </div>
-    <div class="graph-container">
-      <svg class="graph-svg" id="graphSvg" viewBox="0 0 1000 400">
-        <text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">该项目还没有人物关系，先建库</text>
-      </svg>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 章纲（里程碑18：每章300字总结，思维导图式） ===== -->
-  <div class="page" id="page-chapter_outline">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>章纲</h1>
-      <p>每保存一章，自动生成约300字的章纲总结，按时间顺序交错排布。</p>
-    </div>
-    <div class="mindmap" id="chapterOutlineMap">
-      <div class="mm-empty">保存章节后，章纲将自动生成并显示在此</div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 背景资料（里程碑18：作者自分类上传） ===== -->
-  <div class="page" id="page-backgrounds">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>背景资料</h1>
-      <p>把收集到的资料按分类存进来（世界观/人物原型/历史考据…），Agent 帮你排版整理。</p>
-    </div>
-    <div class="btn-row" style="margin-bottom:16px;">
-      <button class="btn btn-primary" id="btnAddBackground">＋ 添加背景资料</button>
-    </div>
-    <div id="backgroundList"><div class="empty-state">还没有背景资料，点上方按钮添加</div></div>
-  </div>
-
-  <!-- ===== PAGE: 写作（创作空间） ===== -->
-  <div class="page" id="page-write">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>写作</h1>
-      <p>写新章节，保存后自动增量更新知识库（写完就能查、能检、能进时间线）。</p>
-    </div>
-    <div class="card">
-      <div class="card-title">写新章节</div>
-      <div class="card-desc">保存后自动增量更新知识库，新内容可被问答检索</div>
-      <textarea class="text-input" id="chapterText" placeholder="在这里写新章节..."></textarea>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btnSaveChapter">保存章节并更新知识库</button>
-      </div>
-      <div id="saveResult" style="margin-top:10px;font-size:12px;color:#6b6a65;"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">章节列表</div>
-      <div id="chapterList"><div class="empty-state">保存章节后显示在此</div></div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 成本监控（里程碑17） ===== -->
-  <div class="page" id="page-cost">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>成本监控</h1>
-      <p>每次 LLM 调用的 token 与估算成本（里程碑7的 /api/cost 落地到前端）。</p>
-    </div>
-    <div class="stats-row" id="costStatsRow">
-      <div class="stat-box"><div class="stat-num" id="costCalls">—</div><div class="stat-label">调用次数</div></div>
-      <div class="stat-box"><div class="stat-num" id="costTokens">—</div><div class="stat-label">总Token</div></div>
-      <div class="stat-box"><div class="stat-num" id="costTotal">—</div><div class="stat-label">总成本(元)</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">按任务分布</div>
-      <div id="costByTask"><div class="empty-state">暂无调用记录</div></div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: ARCHITECTURE ===== -->
-  <div class="page" id="page-arch">
-    <div class="hero" style="padding: 32px 0 24px;">
-      <h1>系统架构</h1>
-      <p>LangGraph 状态机编排 · LangChain 工具执行 · LlamaIndex 数据处理 · 四层存储</p>
-    </div>
-
-    <div class="arch-layer" style="background: var(--primary-light); border-color: #cecbf6;">
-      <div class="arch-layer-label">应用层 Application Layer</div>
-      <div class="arch-layer-title">用户交互界面</div>
-      <div class="arch-layer-items">
-        <span class="arch-item">对话界面</span>
-        <span class="arch-item">人设卡片</span>
-        <span class="arch-item">关系图可视化</span>
-        <span class="arch-item">大纲/脉络</span>
-        <span class="arch-item">写作编辑器</span>
-      </div>
-    </div>
-
-    <div class="arch-layer" style="background: var(--amber-light); border-color: #fac775;">
-      <div class="arch-layer-label">编排层 Orchestration Layer</div>
-      <div class="arch-layer-title">LangGraph 状态机</div>
-      <div class="arch-layer-items">
-        <span class="arch-item">IntentRouterNode</span>
-        <span class="arch-item">HybridRetrievalNode</span>
-        <span class="arch-item">RerankNode</span>
-        <span class="arch-item">AgentRouterNode</span>
-        <span class="arch-item">SynthesisNode</span>
-      </div>
-    </div>
-
-    <div class="arch-layer" style="background: var(--teal-light); border-color: #9fe1cb;">
-      <div class="arch-layer-label">执行层 Execution Layer</div>
-      <div class="arch-layer-title">LangChain Agents / Tools</div>
-      <div class="arch-layer-items">
-        <span class="arch-item">FactQANode</span>
-        <span class="arch-item">LogicCritiqueNode</span>
-        <span class="arch-item">InspirationNode</span>
-        <span class="arch-item">CompanionNode</span>
-        <span class="arch-item">HallucinationCritic</span>
-        <span class="arch-item">CharacterCritic</span>
-      </div>
-    </div>
-
-    <div class="arch-layer" style="background: var(--coral-light); border-color: #f5c4b3;">
-      <div class="arch-layer-label">数据层 Data Layer</div>
-      <div class="arch-layer-title">LlamaIndex 数据处理</div>
-      <div class="arch-layer-items">
-        <span class="arch-item">文档解析 (PDF/Word/TXT)</span>
-        <span class="arch-item">文本分块 (Chunking)</span>
-        <span class="arch-item">向量化 (Embedding)</span>
-        <span class="arch-item">实体/关系抽取</span>
-      </div>
-    </div>
-
-    <div class="arch-layer" style="background: var(--surface-2);">
-      <div class="arch-layer-label">存储层 Storage Layer</div>
-      <div class="arch-layer-title">四库协同</div>
-      <div class="arch-layer-items">
-        <span class="arch-item" style="border-left: 3px solid #534ab7;">Qdrant (向量库)</span>
-        <span class="arch-item" style="border-left: 3px solid #0f6e56;">Neo4j (知识图谱)</span>
-        <span class="arch-item" style="border-left: 3px solid #185fa5;">PostgreSQL (关系型)</span>
-        <span class="arch-item" style="border-left: 3px solid #993c1d;">Redis (缓存/短期记忆)</span>
-      </div>
-    </div>
-
-    <div style="margin-top: 24px;">
-      <div class="section-title">实施路线图</div>
-      <div class="section-sub">6个阶段，先跑通RAG闭环，再叠加图谱与Agent编排</div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;">
-        <div class="card" style="margin:0; border-left: 3px solid #185fa5;">
-          <div style="font-size:12px; color:#185FA5; font-weight:500;">Phase 0</div>
-          <div style="font-size:13px; margin-top:4px;">基础设施</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">约1周</div>
-        </div>
-        <div class="card" style="margin:0; border-left: 3px solid #0f6e56;">
-          <div style="font-size:12px; color:#0F6E56; font-weight:500;">Phase 1</div>
-          <div style="font-size:13px; margin-top:4px;">基础RAG (MVP)</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">约2周 · 当前</div>
-        </div>
-        <div class="card" style="margin:0; border-left: 3px solid #534ab7;">
-          <div style="font-size:12px; color:#534AB7; font-weight:500;">Phase 2</div>
-          <div style="font-size:13px; margin-top:4px;">知识图谱构建</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">约3周</div>
-        </div>
-        <div class="card" style="margin:0; border-left: 3px solid #854f0b;">
-          <div style="font-size:12px; color:#854F0B; font-weight:500;">Phase 3</div>
-          <div style="font-size:13px; margin-top:4px;">Agent编排</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">约3-4周</div>
-        </div>
-        <div class="card" style="margin:0; border-left: 3px solid #993c1d;">
-          <div style="font-size:12px; color:#993C1D; font-weight:500;">Phase 4</div>
-          <div style="font-size:13px; margin-top:4px;">前端可视化</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">约2-3周</div>
-        </div>
-        <div class="card" style="margin:0; border-left: 3px solid #3b6d11;">
-          <div style="font-size:12px; color:#3B6D11; font-weight:500;">Phase 5</div>
-          <div style="font-size:13px; margin-top:4px;">商业化运营</div>
-          <div style="font-size:11px; color:#9c9a92; margin-top:2px;">MVP验证后</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ===== 新建小说弹窗（里程碑18） ===== -->
+<!-- ═══════ 新建小说弹窗 ═══════ -->
 <div class="modal-mask" id="newNovelModal">
   <div class="modal">
-    <div class="modal-title">新建小说</div>
-    <div class="modal-field">
-      <label>小说名称</label>
-      <input id="newNovelTitle" placeholder="如：观南嘉措" />
-    </div>
-    <div class="modal-field">
-      <label>预计总字数</label>
-      <input id="newNovelExpectedWords" type="number" placeholder="如：300000" />
-    </div>
-    <div class="modal-field">
-      <label>每章字数</label>
-      <input id="newNovelChapterWords" type="number" placeholder="如：3000" />
-    </div>
+    <div class="modal-title">新建小说 · 填写基本信息，开始你的创作</div>
+    <div class="modal-field"><label>小说名称</label><input id="newNovelTitle" placeholder="给你的故事起个名字…"></div>
+    <div class="modal-field"><label>预计总字数</label><input id="newNovelExpectedWords" placeholder="例：200,000"></div>
+    <div class="modal-field"><label>每章字数</label><input id="newNovelChapterWords" placeholder="例：3,000"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="btnCancelNewNovel">取消</button>
-      <button class="btn btn-primary" id="btnConfirmNewNovel">确认创建</button>
+      <button class="btn-pill" id="btnCancelNewNovel">取消</button>
+      <button class="btn-pill primary" id="btnConfirmNewNovel">创建</button>
     </div>
   </div>
 </div>
 
-<!-- ===== 添加背景资料弹窗（里程碑18） ===== -->
+<!-- ═══════ 背景资料弹窗 ═══════ -->
 <div class="modal-mask" id="bgModal">
   <div class="modal">
     <div class="modal-title">添加背景资料</div>
-    <div class="modal-field">
-      <label>分类（如：世界观 / 人物原型 / 历史考据）</label>
-      <input id="bgCategory" placeholder="世界观" />
-    </div>
-    <div class="modal-field">
-      <label>标题</label>
-      <input id="bgTitle" placeholder="如：望岛的地理设定" />
-    </div>
-    <div class="modal-field">
-      <label>内容</label>
-      <textarea id="bgContent" placeholder="粘贴或写下这段背景资料…"></textarea>
-    </div>
+    <div class="modal-field"><label>分类（如：世界观 / 人物 / 地点 / 物品）</label><input id="bgCategory" placeholder="世界观"></div>
+    <div class="modal-field"><label>标题</label><input id="bgTitle" placeholder="如：第三纪元设定"></div>
+    <div class="modal-field"><label>内容</label><textarea id="bgContent" rows="4" placeholder="粘贴或写下这段背景资料…"></textarea></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="btnCancelBg">取消</button>
-      <button class="btn btn-primary" id="btnConfirmBg">添加</button>
+      <button class="btn-pill" id="btnCancelBg">取消</button>
+      <button class="btn-pill primary" id="btnConfirmBg">保存</button>
     </div>
   </div>
 </div>
 
 <script>
-// ===== CONFIG =====
-const API_BASE = 'http://localhost:8000';  // 指向后端（跨域）
+// ═══════════════════════════════════════════════════════════
+// 小说岛 · 前端（设计系统 v1.0 重构版）
+// ═══════════════════════════════════════════════════════════
+const API_BASE = 'http://localhost:8000';
 
 // ===== STATE =====
-let KB = {
-  chunks: [],
-  entities: [],
-  characters: [],
-  relationships: [],
-  ready: false
-};
+let KB = { chunks: [], entities: [], characters: [], relationships: [], ready: false };
+let currentNovelId = null;
+let currentSubPage = 'chat';
+let companionMode = false;
+let loginMode = 'login'; // login | register
+let messages = [];       // 对话消息列表
 
-// ===== API HELPERS =====
+// ===== API =====
 async function apiCall(path, body) {
   const resp = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   });
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`API ${resp.status}: ${err}`);
-  }
+  if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
+  return resp.json();
+}
+async function apiGet(path) {
+  const resp = await fetch(`${API_BASE}${path}`);
+  if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
 
-// ===== 二级tab切换（选中项目后：对话/人设/大纲/时间线/关系图/写作）=====
-document.querySelectorAll('.sub-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    switchSubPage(tab.dataset.subpage);
-  });
-});
-
-function switchSubPage(subpage) {
-  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const tab = document.querySelector(`.sub-tab[data-subpage="${subpage}"]`);
-  if (tab) tab.classList.add('active');
-  const page = document.getElementById('page-' + subpage);
-  if (page) page.classList.add('active');
-  // 切换到需要拉数据的页面时刷新（里程碑18：新增章纲/大纲/背景资料）
-  if (subpage === 'chars' || subpage === 'graph') refreshKBViews();
-  if (subpage === 'timeline') renderTimeline();
-  if (subpage === 'chapter_outline') renderChapterOutlines();
-  if (subpage === 'outline') loadOutline();
-  if (subpage === 'backgrounds') loadBackgrounds();
-  if (subpage === 'write') loadChapters();
-  if (subpage === 'cost') loadCost();
+// ===== 视图切换 =====
+function showView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+  if (view === 'works') { loadWorks(); }
+  if (view === 'chat') { renderSidebar(); if (currentNovelId) refreshKBViews(); }
+  if (view === 'home') { loadRecent(); }
 }
+document.querySelectorAll('.nav a').forEach(a => a.addEventListener('click', () => {
+  if (a.textContent.trim() === '社区') { alert('社区即将上线'); return; }
+  showView(a.dataset.view === 'works' && a.textContent.trim() === '我的作品' ? 'works' : a.dataset.view);
+}));
 
-// 侧栏底部固定页（成本/架构）：不依赖项目，直接切页面
-document.getElementById('navCost').addEventListener('click', () => {
-  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-cost').classList.add('active');
-  loadCost();
-});
-document.getElementById('navArch').addEventListener('click', () => {
-  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-arch').classList.add('active');
-});
-
-// ===== SAMPLE TEXT =====
-const SAMPLE_TEXT = `林晚在二十三岁那年失去了所有。
-
-她原本是S市最年轻的建筑设计师，拿过国际大奖，公司里的明星员工。那时候她走路带风，说话直来直去，同事们都叫她"林小姐"——带着几分敬畏的那种。
-
-一切从那场事故开始改变。那年冬天，她负责的商场项目在施工中发生了坍塌。虽然最终调查报告显示是施工方偷工减料，但林晚始终觉得，如果自己当时多去一次工地，如果自己没有在那份变更单上签字——三个人受伤，其中一个至今坐在轮椅上。
-
-她辞了职，把自己关在出租屋里整整三个月。那三个月里，她不接电话，不出门，靠着外卖和泡面活着。唯一的社交，是深夜在匿名论坛上发帖。
-
-"有没有人也是，搞砸了一件事之后，就再也站不起来了？"
-
-回复寥寥。但有一条，来自一个ID叫"沈屿"的人。"站不起来就先坐着。坐着也比躺着强。"林晚盯着这句话看了很久，然后鬼使神差地回了一句："然后呢？""然后就坐着呗。等哪天觉得坐着无聊了，自然就想站了。"
-
-这是她和沈屿的第一次对话。后来她才知道，沈屿是一个心理医生——一个自己也经历过至暗时刻的心理医生。
-
-半年后，林晚开始接一些自由职业的设计小单。不是建筑，而是室内设计。一个人的公寓，一对新婚夫妻的婚房。小项目，不起眼，但每次看到客户满意的表情，她觉得自己好像在慢慢找回什么。
-
-沈屿说："这不叫痊愈，这叫带着伤疤活着。大部分人都是这么过来的。"林晚把这句话记在了手机备忘录里。
-
-两年后，她遇到了许言。许言是她的新邻居，一个在幼儿园当老师的男生。第一次见面是在楼道里，许言搬着一箱绘本差点撞上她。"不好意思不好意思！"许言手忙脚乱地捡散落的绘本，"我叫许言，刚搬来的，502的。"
-
-林晚帮他捡起一本绘本，看到封面上画着一只流泪的小熊。"你是幼师？""对呀，你呢？""室内设计。""哇，那很厉害啊！我以后装修就找你！"林晚笑了一下。这是她很久以来第一次笑。
-
-后来的事情发生得很自然。许言会在她加班的晚上敲她的门，端来一碗热汤；她会在周末帮许言的幼儿园画墙绘。他们之间有一种奇异的默契——许言从不追问她的过去，但她知道，许言看出了她眼睛里的那些东西。
-
-有一次，许言带她去幼儿园看小朋友们表演。一个扎着双马尾的小女孩演一棵树，台词只有一句："我会长高的。"林晚突然就哭了。许言什么都没说，只是递给她一张纸巾。
-
-林晚决定重新注册建筑设计师资格。她翻出了积灰两年的专业书，开始备考。许言每天早上会给她带早餐，有时候是一杯豆浆两个包子，有时候是一份三明治。
-
-考试那天，许言送她到考场门口。"加油！"他比了个大拇指。林晚深吸一口气，走进了考场。她不知道结果会怎样。但她知道，无论结果如何，她已经不再是两年前那个把自己关在出租屋里的人了。
-
-走出考场的时候，阳光很好。他们去了一家小面馆。林晚点了一碗红烧牛肉面，许言点了一碗酸辣粉。吃着吃着，许言突然说："林晚，你知道吗？你笑起来的时候，特别好看。"林晚愣了一下，然后低下头，假装专心吃面。但她嘴角翘起来的弧度，许言看得一清二楚。`;
-
-// ===== ENTITY EXTRACTION (MOCK — Phase 2 will use LLM) =====
-async function fetchGraphData() {
-  // 里程碑8：从后端图谱接口拉真实实体和关系，转成前端KB.characters格式
-  // 里程碑14：按当前项目拉图谱（novel_id）
-  try {
-    const params = currentNovelId ? `?novel_id=${currentNovelId}` : '';
-    const resp = await fetch('http://localhost:8000/api/graph' + params);
-    const data = await resp.json();
-    const colors = ['#534ab7', '#0f6e56', '#854f0b', '#993c1d', '#185fa5'];
-    // 实体 → character（里程碑9后端返回 {name, persona} 对象数组，修复前端没同步的bug）
-    const characters = (data.entities || []).map((ent, i) => {
-      const name = typeof ent === 'string' ? ent : (ent.name || '');
-      const persona = (typeof ent === 'object' && ent.persona) ? ent.persona : {};
-      return {
-        name,
-        aliases: [],
-        role: persona['身份'] || '角色',
-        color: colors[i % colors.length],
-        occupation: persona['职业'] || '',
-        personality: persona['性格'] ? [persona['性格']] : [],
-        trauma: '',
-        coreConflict: '',
-        relationships: []
-      };
-    });
-    // 关系 → character.relationships
-    for (const r of data.relations || []) {
-      const src = characters.find(c => c.name === r.source);
-      const tgt = characters.find(c => c.name === r.target);
-      if (src && tgt) {
-        src.relationships.push({ target: tgt.name, type: r.relation, weight: r.weight || 5 });
-      }
-    }
-    return characters;
-  } catch (e) {
-    console.error('图谱接口失败:', e);
-    return [];
-  }
-}
-
-// ===== UI RENDERING =====
-function renderAnswer(answer, sources) {
-  const box = document.getElementById('answerBox');
-  document.getElementById('answerText').textContent = answer;
-  const sourceHtml = sources && sources.length > 0
-    ? '<b>参考来源：</b><br>' + sources.map(s =>
-      `Chunk #${s.chunk_id + 1} (相似度: ${(s.score * 100).toFixed(1)}%)`
-    ).join('<br>')
-    : '无参考来源';
-  document.getElementById('answerSource').innerHTML = sourceHtml;
-  box.classList.add('show');
-}
-
-function renderCharacterCards() {
-  const grid = document.getElementById('charGrid');
-  if (KB.characters.length === 0) {
-    grid.innerHTML = '<div class="empty-state">请先在「知识库」页面构建知识库</div>';
-    return;
-  }
-  grid.innerHTML = KB.characters.map(c => `
-    <div class="char-card fade-in">
-      <div class="char-header">
-        <div class="char-avatar" style="background: ${c.color};">${c.name[0]}</div>
-        <div>
-          <div class="char-name">${c.name}${c.aliases.length > 0 ? '（' + c.aliases.join('/') + '）' : ''}</div>
-          <div class="char-role">${c.role}</div>
+// ===== 首页 =====
+function loadRecent() {
+  apiGet('/api/novels').then(data => {
+    const novels = data.novels || [];
+    const box = document.getElementById('recentBox');
+    if (novels.length === 0) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    document.getElementById('recentList').innerHTML = novels.slice(0, 3).map(n => `
+      <div class="work-row" style="margin-top:0">
+        <div class="cover">📖</div>
+        <div class="info">
+          <div class="tags"><span class="tag">连载中</span></div>
+          <h3>${esc(n.title)}</h3>
+          <div class="desc">${(n.total_words || 0).toLocaleString()} 字 · 上次编辑 ${n.updated_at ? timeAgo(n.updated_at) : '—'}</div>
         </div>
-      </div>
-      <div class="char-body">
-        <div class="char-field">
-          <div class="char-field-label">职业</div>
-          <div class="char-field-value">${c.occupation}</div>
+        <div class="actions">
+          <button class="btn-pill small" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">继续写</button>
         </div>
-        <div class="char-field">
-          <div class="char-field-label">性格特质</div>
-          <div class="char-field-value">${c.personality.map(p => `<span class="char-tag">${p}</span>`).join('')}</div>
-        </div>
-        <div class="char-field">
-          <div class="char-field-label">核心创伤</div>
-          <div class="char-field-value">${c.trauma}</div>
-        </div>
-        <div class="char-field">
-          <div class="char-field-label">核心矛盾</div>
-          <div class="char-field-value">${c.coreConflict}</div>
-        </div>
-        <div class="char-field">
-          <div class="char-field-label">社会关系</div>
-          <div class="char-field-value">${c.relationships.map(r => `<span class="char-tag">${r.target} (${r.type})</span>`).join('')}</div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderRelationshipGraph() {
-  const svg = document.getElementById('graphSvg');
-  if (KB.characters.length === 0) {
-    svg.innerHTML = '<text x="500" y="200" text-anchor="middle" fill="#9c9a92" font-size="13">请先在「知识库」页面构建知识库</text>';
-    return;
-  }
-
-  const cx = 500, cy = 200, r = 140;
-  const main = KB.characters[0];
-  const others = KB.characters.slice(1);
-
-  let html = '';
-
-  for (const char of KB.characters) {
-    for (const rel of char.relationships) {
-      const target = KB.characters.find(c => c.name === rel.target);
-      if (!target) continue;
-      const x1 = char === main ? cx : cx + r * Math.cos((others.indexOf(char) + 1) * 2 * Math.PI / (others.length + 1));
-      const y1 = char === main ? cy : cy + r * Math.sin((others.indexOf(char) + 1) * 2 * Math.PI / (others.length + 1));
-      const x2 = target === main ? cx : cx + r * Math.cos((others.indexOf(target) + 1) * 2 * Math.PI / (others.length + 1));
-      const y2 = target === main ? cy : cy + r * Math.sin((others.indexOf(target) + 1) * 2 * Math.PI / (others.length + 1));
-      const opacity = rel.weight / 10;
-      html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${char.color}" stroke-width="${1 + rel.weight * 0.2}" opacity="${opacity}" />`;
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      html += `<text x="${mx}" y="${my - 4}" text-anchor="middle" fill="#6b6a65" font-size="10" opacity="0.8">${rel.type}</text>`;
-    }
-  }
-
-  for (let i = 0; i < KB.characters.length; i++) {
-    const char = KB.characters[i];
-    const isMain = i === 0;
-    const x = isMain ? cx : cx + r * Math.cos(i * 2 * Math.PI / KB.characters.length);
-    const y = isMain ? cy : cy + r * Math.sin(i * 2 * Math.PI / KB.characters.length);
-    const nodeR = isMain ? 36 : 28;
-    html += `
-      <circle cx="${x}" cy="${y}" r="${nodeR}" fill="${char.color}" opacity="0.15" />
-      <circle cx="${x}" cy="${y}" r="${nodeR - 6}" fill="${char.color}" opacity="0.9" />
-      <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#fff" font-size="13" font-weight="500">${char.name}</text>
-      <text x="${x}" y="${y + nodeR + 14}" text-anchor="middle" fill="#6b6a65" font-size="11">${char.role}</text>
-    `;
-  }
-
-  svg.innerHTML = html;
-}
-
-// 里程碑15：情节时间线（大事年表）— 拉取并渲染
-// 里程碑18：思维导图式渲染（中间竖线，条目左右交错：第1条左、第2条右…）
-function renderMindMap(container, items, labelFn) {
-  if (!container) return;
-  if (!items || items.length === 0) {
-    container.innerHTML = '<div class="mm-empty">暂无内容</div>';
-    return;
-  }
-  container.innerHTML = items.map((item, i) => {
-    const side = i % 2 === 0 ? 'left' : 'right';
-    return `<div class="mm-item ${side} fade-in">
-      <div class="mm-card">
-        <div class="mm-title">${labelFn(item, i)}</div>
-        <div class="mm-text">${item.content || item.summary || item.outline || ''}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function renderTimeline() {
-  const container = document.getElementById('timelineList');
-  const desc = document.getElementById('timelineDesc');
-  if (!container) return;
-  try {
-    const params = currentNovelIdNum() ? `?novel_id=${currentNovelIdNum()}` : '';
-    const resp = await fetch(API_BASE + '/api/timeline' + params);
-    const data = await resp.json();
-    const items = data.timeline || [];
-    if (desc) desc.textContent = `共 ${data.total || 0} 条情节记录` + (currentNovelIdNum() ? '（当前小说）' : '（默认）');
-    if (items.length === 0) {
-      container.innerHTML = '<div class="mm-empty">暂无情节记录，先构建知识库或保存章节</div>';
-      return;
-    }
-    renderMindMap(container, items, (item, i) => {
-      const badge = item.chapter_id != null ? `<span class="timeline-badge">第${item.chapter_id}章</span>` : '';
-      return `#${i + 1}${badge}`;
-    });
-  } catch (e) {
-    container.innerHTML = '<div class="mm-empty">时间线加载失败: ' + e.message + '</div>';
-  }
-}
-
-// 里程碑18：章纲（每章300字总结，思维导图式）
-async function renderChapterOutlines() {
-  const container = document.getElementById('chapterOutlineMap');
-  if (!container) return;
-  if (!currentNovelId) {
-    container.innerHTML = '<div class="mm-empty">请先选择一本小说</div>';
-    return;
-  }
-  try {
-    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/chapter_outlines`);
-    const data = await resp.json();
-    const outlines = data.outlines || [];
-    if (outlines.length === 0) {
-      container.innerHTML = '<div class="mm-empty">保存章节后，章纲将自动生成并显示在此</div>';
-      return;
-    }
-    renderMindMap(container, outlines, (item, i) => {
-      const t = item.title ? ` · ${item.title}` : '';
-      return `第${i + 1}章${t}`;
-    });
-  } catch (e) {
-    container.innerHTML = '<div class="mm-empty">章纲加载失败: ' + e.message + '</div>';
-  }
-}
-
-// 里程碑18：大纲（作者自写单文本块）
-async function loadOutline() {
-  const textarea = document.getElementById('outlineText');
-  if (!textarea || !currentNovelId) return;
-  try {
-    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/outline`);
-    const data = await resp.json();
-    textarea.value = data.content || '';
-  } catch (e) {
-    console.error('大纲加载失败:', e);
-  }
-}
-
-// 里程碑18：背景资料（按分类分组展示）
-async function loadBackgrounds() {
-  const container = document.getElementById('backgroundList');
-  if (!container || !currentNovelId) {
-    if (container) container.innerHTML = '<div class="empty-state">请先选择一本小说</div>';
-    return;
-  }
-  try {
-    const resp = await fetch(API_BASE + `/api/novel/${currentNovelId}/backgrounds`);
-    const data = await resp.json();
-    const grouped = data.backgrounds || {};
-    const keys = Object.keys(grouped);
-    if (keys.length === 0) {
-      container.innerHTML = '<div class="empty-state">还没有背景资料，点上方按钮添加</div>';
-      return;
-    }
-    container.innerHTML = keys.map(cat => `
-      <div class="bg-category">
-        <div class="bg-category-title">${cat}</div>
-        ${grouped[cat].map(bg => `
-          <div class="bg-card">
-            ${bg.title ? `<div class="bg-card-title">${bg.title}</div>` : ''}
-            <div class="bg-card-content">${bg.content}</div>
-            <button class="bg-card-del" onclick="deleteBackground(${bg.id})">删除</button>
-          </div>
-        `).join('')}
       </div>
     `).join('');
-  } catch (e) {
-    container.innerHTML = '<div class="empty-state">背景资料加载失败: ' + e.message + '</div>';
-  }
+  }).catch(() => {});
 }
-
-async function deleteBackground(id) {
-  if (!confirm('删除这条背景资料？')) return;
-  try {
-    await fetch(API_BASE + `/api/background/${id}`, { method: 'DELETE' });
-    loadBackgrounds();
-  } catch (e) {
-    alert('删除失败: ' + e.message);
-  }
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso), now = new Date();
+  const h = Math.floor((now - d) / 3600000);
+  if (h < 1) return Math.max(1, Math.floor((now - d) / 60000)) + ' 分钟前';
+  if (h < 24) return h + ' 小时前';
+  return Math.floor(h / 24) + ' 天前';
 }
-
-// ===== EVENT HANDLERS =====
-
-// 提问 — 调后端API（DeepSeek生成回答）
-// 里程碑17：不再要求 KB.ready（建库已并入新建项目流程，没库也能对话，Agent如实回答）
-document.getElementById('btnAsk').addEventListener('click', async () => {
-  const query = document.getElementById('qaInput').value.trim();
-  if (!query) return;
-
-  const btn = document.getElementById('btnAsk');
-  btn.disabled = true;
-  btn.textContent = '思考中...';
-
-  // 显示加载状态
-  const box = document.getElementById('answerBox');
-  box.classList.add('show');
-  document.getElementById('answerText').innerHTML = '<span class="loading-dots">正在检索知识库并生成回答</span>';
-  document.getElementById('answerSource').textContent = '';
-
-  try {
-    // 里程碑14：按当前项目提问（novel_id）
-    const body = { query, top_k: 5 };
-    if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
-    const data = await apiCall('/api/kb/ask', body);
-    renderAnswer(data.answer, data.sources);
-  } catch (e) {
-    document.getElementById('answerText').textContent = '出错了: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '提问';
-  }
+function enterNovel(id, title) {
+  showView('chat');
+  selectNovel(id, title);
+}
+document.getElementById('homeSend').addEventListener('click', () => {
+  const q = document.getElementById('homeInput').value.trim();
+  if (!q) return;
+  showView('chat');
+  selectDefaultChat();
+  document.getElementById('qaInput').value = q;
+  ask();
 });
-
-document.getElementById('qaInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('btnAsk').click();
-});
-
-document.querySelectorAll('.q-chip').forEach(chip => {
+document.getElementById('homeInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('homeSend').click(); });
+document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    document.getElementById('qaInput').value = chip.dataset.q;
-    document.getElementById('btnAsk').click();
+    const q = chip.dataset.q;
+    if (document.getElementById('view-home').classList.contains('active')) {
+      showView('chat'); selectDefaultChat();
+    }
+    document.getElementById('qaInput').value = q;
+    ask();
   });
 });
 
-// ===== 侧栏项目导航（里程碑17） =====
-let currentNovelId = null;
-let currentSubPage = 'chat';
-
-function currentNovelIdNum() {
-  return currentNovelId || null;
-}
-
-// 切换项目后刷新所有依赖项目数据的视图
-async function refreshKBViews() {
-  KB.characters = await fetchGraphData();
-  renderCharacterCards();
-  renderRelationshipGraph();
-  renderTimeline(); // 里程碑15
-}
-
-// 加载项目列表 → 渲染侧栏（支持重命名✎、拖拽排序）
-async function loadNovels() {
-  try {
-    const resp = await fetch(API_BASE + '/api/novels');
-    const data = await resp.json();
-    const list = document.getElementById('projectList');
+// ===== 我的作品 =====
+function loadWorks() {
+  apiGet('/api/novels').then(data => {
     const novels = data.novels || [];
+    const g = document.querySelector('#genreSeg .active').dataset.g;
+    const s = document.querySelector('#statusSeg .active').dataset.s;
+    const filtered = novels.filter(n =>
+      (g === '全部' || n.genre === g) && (s === '全部' || n.status === s)
+    );
+    const wrap = document.getElementById('worksContent');
+    if (filtered.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><img src="/static/xiaoshuomao-awake.svg"><br>还没有作品，点击「新建小说」开始你的第一本</div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="works-grid">
+        ${filtered.map(n => `
+          <div class="novel-card" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">
+            <div class="tags"><span class="tag">${esc(n.genre || '未分类')}</span><span class="tag">${esc(n.status || '连载中')}</span><span class="date">${esc(n.updated_at ? n.updated_at.slice(5, 10) : '')}</span></div>
+            <h3>${esc(n.title)}</h3>
+            <p>${esc(n.description || '还没有简介，开始写第一章吧。')}</p>
+            <div class="meta">第 ${n.chapter_count || 0} 章 · ${(n.total_words || 0).toLocaleString()} 字</div>
+          </div>`).join('')}
+      </div>
+      ${filtered[0] ? `
+      <div class="work-row">
+        <div class="cover">📖</div>
+        <div class="info">
+          <div class="tags"><span class="tag solid">热门</span><span class="tag">连载</span></div>
+          <h3>${esc(filtered[0].title)}</h3>
+          <div class="desc">第 ${filtered[0].chapter_count || 0} 章 · ${(filtered[0].total_words || 0).toLocaleString()} 字 · 上次编辑 ${timeAgo(filtered[0].updated_at)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn-pill small" onclick="enterNovel(${filtered[0].id}, '${escAttr(filtered[0].title)}')">继续写</button>
+        </div>
+      </div>` : ''}
+    `;
+  }).catch(e => {
+    document.getElementById('worksContent').innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}<br><br>请确认后端已启动（localhost:8000）</div>`;
+  });
+}
+document.querySelectorAll('#genreSeg button, #statusSeg button').forEach(b => b.addEventListener('click', () => {
+  const seg = b.parentElement;
+  seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  loadWorks();
+}));
+
+// ===== 侧栏 =====
+function renderSidebar() {
+  apiGet('/api/novels').then(data => {
+    const novels = data.novels || [];
+    const list = document.getElementById('projectList');
     if (novels.length === 0) {
-      list.innerHTML = '<div style="padding:6px 8px;font-size:12px;color:var(--text-3);">还没有项目，点上方＋新建</div>';
+      list.innerHTML = '<div class="side-item hide-when-collapsed" style="cursor:default;color:var(--text-3)">还没有项目，点下方＋新建</div>';
       return;
     }
     list.innerHTML = novels.map(n => `
       <div class="side-item ${n.id === currentNovelId ? 'active' : ''}" data-novel-id="${n.id}" draggable="true">
-        <span class="side-icon">📘</span>
-        <span class="side-title">${n.title}</span>
-        <span class="side-edit" title="重命名">✎</span>
-      </div>
-    `).join('');
-
-    // 项目点击 → 选中并进入该项目
+        <span class="icon">📘</span>
+        <span class="hide-when-collapsed side-title">${esc(n.title)}</span>
+        <span class="hide-when-collapsed meta">${((n.total_words || 0) / 10000).toFixed(1)}万字</span>
+      </div>`).join('');
     list.querySelectorAll('.side-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+      item.addEventListener('click', e => {
         if (e.target.classList.contains('side-edit')) return;
         selectNovel(Number(item.dataset.novelId), item.querySelector('.side-title').textContent);
       });
-      // 重命名：点✎ → 变成输入框
-      const editBtn = item.querySelector('.side-edit');
-      editBtn.addEventListener('click', () => startRename(item));
-      // 拖拽排序
-      item.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', item.dataset.novelId);
-        item.classList.add('dragging');
-      });
-      item.addEventListener('dragend', () => item.classList.remove('dragging'));
-      item.addEventListener('dragover', (e) => e.preventDefault());
-      item.addEventListener('drop', (e) => {
+      item.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', item.dataset.novelId));
+      item.addEventListener('dragover', e => e.preventDefault());
+      item.addEventListener('drop', e => {
         e.preventDefault();
-        const draggedId = Number(e.dataTransfer.getData('text/plain'));
-        if (!draggedId) return;
-        reorderProjects(draggedId, Number(item.dataset.novelId));
+        reorderProjects(Number(e.dataTransfer.getData('text/plain')), Number(item.dataset.novelId));
       });
     });
-  } catch (e) {
-    console.error('加载项目列表失败:', e);
-  }
+  }).catch(() => {});
 }
-
-// 选中项目：进入该项目上下文，二级tab出现
-async function selectNovel(id, title) {
-  currentNovelId = id;
-  currentSubPage = 'chat';
-  document.getElementById('subTabs').classList.add('visible');
-  document.getElementById('chatTitle').textContent = '写作Agent';
-  document.getElementById('agentHint').textContent =
-    `正在基于《${title}》的知识库工作。可以问我关于设定/逻辑/灵感的问题，或在下方tab查看人设、时间线、章纲。`;
-  // 更新侧栏选中态
-  document.querySelectorAll('#projectList .side-item').forEach(item => {
-    item.classList.toggle('active', Number(item.dataset.novelId) === id);
-  });
-  document.getElementById('navDefaultChat').classList.remove('active');
-  // 切到对话页，刷新所有项目数据
-  switchSubPage('chat');
-  refreshKBViews();
-  loadChapters();
-}
-
-// 默认对话：不选任何项目（里程碑18：改名写作Agent）
-function selectDefaultChat() {
-  currentNovelId = null;
-  currentSubPage = 'chat';
-  document.getElementById('subTabs').classList.remove('visible');
-  document.getElementById('chatTitle').textContent = '写作Agent';
-  document.getElementById('agentHint').textContent =
-    '还没有小说？点左侧"＋新建小说"，几秒钟就能创建你的第一部作品。';
-  document.querySelectorAll('#projectList .side-item').forEach(item => item.classList.remove('active'));
-  document.getElementById('navDefaultChat').classList.add('active');
-  switchSubPage('chat');
-  renderTimeline();
-}
-document.getElementById('navDefaultChat').addEventListener('click', selectDefaultChat);
-
-// 重命名项目
-async function startRename(item) {
-  const titleEl = item.querySelector('.side-title');
-  const oldTitle = titleEl.textContent;
-  const input = document.createElement('input');
-  input.className = 'side-rename-input';
-  input.value = oldTitle;
-  titleEl.replaceWith(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = async (save) => {
-    if (done) return;  // Enter/Escape/blur 可能竞争触发，只处理第一次
-    done = true;
-    const newTitle = input.value.trim();
-    input.replaceWith(titleEl);
-    if (save && newTitle && newTitle !== oldTitle) {
-      try {
-        await apiCall(`/api/novel/${item.dataset.novelId}/rename`, { title: newTitle });
-        titleEl.textContent = newTitle;
-        if (Number(item.dataset.novelId) === currentNovelId) document.getElementById('chatTitle').textContent = newTitle;
-      } catch (e) { alert('重命名失败: ' + e.message); }
-    }
-  };
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') finish(true);
-    if (e.key === 'Escape') finish(false);
-  });
-  input.addEventListener('blur', () => finish(true));
-}
-
-// 拖拽排序
-async function reorderProjects(draggedId, targetId) {
-  const resp = await fetch(API_BASE + '/api/novels');
-  const data = await resp.json();
-  const ids = (data.novels || []).map(n => n.id);
-  const from = ids.indexOf(draggedId);
-  const to = ids.indexOf(targetId);
-  if (from < 0 || to < 0) return;
-  ids.splice(to, 0, ids.splice(from, 1)[0]);
-  try {
-    await apiCall('/api/novels/reorder', { ordered_ids: ids });
-    loadNovels(); // 重新渲染侧栏
-  } catch (e) { alert('排序失败: ' + e.message); }
-}
-
-// 新建小说（里程碑18：弹窗填名称/预计总字数/每章字数）
-document.getElementById('btnNewProject').addEventListener('click', () => {
-  document.getElementById('newNovelModal').classList.add('show');
-  document.getElementById('newNovelTitle').value = '';
-  document.getElementById('newNovelExpectedWords').value = '';
-  document.getElementById('newNovelChapterWords').value = '';
-  document.getElementById('newNovelTitle').focus();
+document.getElementById('btnSideCollapse').addEventListener('click', () => {
+  const sb = document.getElementById('sidebar');
+  const collapsed = sb.classList.toggle('collapsed');
+  document.getElementById('btnSideCollapse').textContent = collapsed ? '›' : '‹';
 });
-document.getElementById('btnCancelNewNovel').addEventListener('click', () => {
-  document.getElementById('newNovelModal').classList.remove('show');
-});
+
+// ===== 新建小说 =====
+function openNewNovel() { document.getElementById('newNovelModal').classList.add('show'); }
+document.getElementById('btnNewProjectWorks').addEventListener('click', openNewNovel);
+document.getElementById('btnNewProjectSide').addEventListener('click', openNewNovel);
+document.getElementById('btnCancelNewNovel').addEventListener('click', () => document.getElementById('newNovelModal').classList.remove('show'));
 document.getElementById('btnConfirmNewNovel').addEventListener('click', async () => {
   const title = document.getElementById('newNovelTitle').value.trim();
   if (!title) { alert('请输入小说名称'); return; }
@@ -1323,149 +757,430 @@ document.getElementById('btnConfirmNewNovel').addEventListener('click', async ()
   try {
     const data = await apiCall('/api/novel', { title, expected_words: expectedWords, chapter_words: chapterWords });
     document.getElementById('newNovelModal').classList.remove('show');
-    await loadNovels();
+    showView('chat');
+    renderSidebar();
     selectNovel(data.novel_id, title);
-    // 里程碑18：新建后引导消息
     showAgentWelcome(title);
-  } catch (e) {
-    alert('创建失败: ' + e.message);
-  }
-});
-// Enter 提交
-document.getElementById('newNovelTitle').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('btnConfirmNewNovel').click();
+  } catch (e) { alert('创建失败: ' + e.message); }
 });
 
-// 里程碑18：添加背景资料弹窗
-document.getElementById('btnAddBackground').addEventListener('click', () => {
-  if (!currentNovelId) { alert('请先选择一本小说'); return; }
-  document.getElementById('bgModal').classList.add('show');
-  document.getElementById('bgCategory').value = '';
-  document.getElementById('bgTitle').value = '';
-  document.getElementById('bgContent').value = '';
-  document.getElementById('bgCategory').focus();
+// ===== 选中小说 / 默认对话 =====
+function selectNovel(id, title) {
+  currentNovelId = id;
+  document.getElementById('subTabs').classList.add('visible');
+  document.getElementById('chatTitle').textContent = title;
+  switchSubPage('chat');
+  renderSidebar();
+  refreshKBViews();
+  loadChapters();
+}
+function selectDefaultChat() {
+  currentNovelId = null;
+  document.getElementById('subTabs').classList.remove('visible');
+  document.getElementById('chatTitle').textContent = '写作Agent';
+  switchSubPage('chat');
+}
+
+// ===== 二级 tab =====
+document.querySelectorAll('.sub-tab').forEach(tab => tab.addEventListener('click', () => switchSubPage(tab.dataset.subpage)));
+function switchSubPage(subpage) {
+  currentSubPage = subpage;
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const tab = document.querySelector(`.sub-tab[data-subpage="${subpage}"]`);
+  if (tab) tab.classList.add('active');
+  const page = document.getElementById('page-' + subpage);
+  if (page) page.classList.add('active');
+  if (subpage === 'chars' || subpage === 'graph') refreshKBViews();
+  if (subpage === 'timeline') renderTimeline();
+  if (subpage === 'chapter_outline') renderChapterOutlines();
+  if (subpage === 'outline') loadOutline();
+  if (subpage === 'backgrounds') loadBackgrounds();
+  if (subpage === 'write') loadChapters();
+}
+
+// ===== 对话 =====
+function appendMsg(role, text, opts = {}) {
+  messages.push({ role, text, ...opts });
+  const list = document.getElementById('msgList');
+  const cls = role === 'user' ? 'msg user' : (opts.companion ? 'msg companion' : 'msg');
+  const avatar = role === 'user' ? '我' : '猫';
+  const src = opts.src ? `<div class="src">来源：${opts.src}</div>` : '';
+  const tag = opts.companion ? `<span class="tag">♡ 陪伴模式</span><br>` : '';
+  const div = document.createElement('div');
+  div.className = cls;
+  div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>`;
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+}
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
+
+let attachedFile = null;
+const inputWrap = document.getElementById('chatInputWrap');
+// 素材拖放
+inputWrap.addEventListener('dragover', e => { e.preventDefault(); inputWrap.classList.add('dragover'); });
+inputWrap.addEventListener('dragleave', () => inputWrap.classList.remove('dragover'));
+inputWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  inputWrap.classList.remove('dragover');
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file && /\.(txt|md)$/i.test(file.name)) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      attachedFile = { name: file.name, size: file.size, text: String(reader.result).slice(0, 50000) };
+      document.getElementById('attachArea').style.display = 'block';
+      document.getElementById('attachArea').innerHTML =
+        `<span class="attach-chip">📎 ${esc(file.name)}（${(file.size / 1024).toFixed(1)}KB）<button onclick="clearAttach()">×</button></span>`;
+    };
+    reader.readAsText(file);
+  } else if (file) {
+    alert('当前支持 .txt / .md 文本素材（.docx/.pdf 二期支持）');
+  }
 });
-document.getElementById('btnCancelBg').addEventListener('click', () => {
-  document.getElementById('bgModal').classList.remove('show');
-});
-document.getElementById('btnConfirmBg').addEventListener('click', async () => {
-  const category = document.getElementById('bgCategory').value.trim();
-  const content = document.getElementById('bgContent').value.trim();
-  if (!category) { alert('请填写分类'); return; }
-  if (!content) { alert('请填写内容'); return; }
-  const title = document.getElementById('bgTitle').value.trim();
+function clearAttach() {
+  attachedFile = null;
+  document.getElementById('attachArea').style.display = 'none';
+  document.getElementById('attachArea').innerHTML = '';
+}
+
+async function ask() {
+  const input = document.getElementById('qaInput');
+  const query = input.value.trim();
+  if (!query && !attachedFile) return;
+  const body = { query: query || '（素材解析）', top_k: 5 };
+  if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
+  if (attachedFile) body.material = attachedFile.text; // 对话式建库：素材随消息发送，后端解析入库
+
+  appendMsg('user', query || `📎 ${attachedFile.name}`);
+  clearAttach();
+  input.value = '';
+
+  const typing = document.createElement('div');
+  typing.className = 'msg typing';
+  typing.innerHTML = '<div class="avatar">猫</div><div class="body">思考中…</div>';
+  document.getElementById('msgList').appendChild(typing);
+  document.getElementById('msgList').scrollTop = 99999;
+
   try {
-    await apiCall(`/api/novel/${currentNovelId}/backgrounds`, { category, title, content });
-    document.getElementById('bgModal').classList.remove('show');
-    loadBackgrounds();
+    const data = await apiCall('/api/kb/ask', body);
+    typing.remove();
+    const isCompanion = companionMode || /抱抱|陪陪|我在|歇一歇|抱抱你/.test(data.answer || '');
+    appendMsg('agent', data.answer, {
+      companion: isCompanion,
+      src: data.sources && data.sources.length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : ''
+    });
   } catch (e) {
-    alert('添加失败: ' + e.message);
+    typing.remove();
+    appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）');
   }
+}
+document.getElementById('btnAsk').addEventListener('click', ask);
+document.getElementById('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+document.getElementById('pillCompanion').addEventListener('click', () => {
+  companionMode = !companionMode;
+  const p = document.getElementById('pillCompanion');
+  p.classList.toggle('active-pill', companionMode);
+  if (companionMode) appendMsg('agent', '陪伴模式已开启。累了就歇一歇，写不下去的时候，我都在。', { companion: true });
 });
 
-// 里程碑18：保存大纲
+// ===== 人设卡片（三区：人物列表 + AI人设图 + 六段式） =====
+async function fetchCharacters() {
+  try {
+    const params = currentNovelIdNum() ? `?novel_id=${currentNovelIdNum()}` : '';
+    const data = await apiGet('/api/graph' + params);
+    return (data.entities || []).map(ent => {
+      const name = typeof ent === 'string' ? ent : (ent.name || '');
+      const persona = (typeof ent === 'object' && ent.persona) ? ent.persona : {};
+      return {
+        name, persona,
+        relations: (data.relations || []).filter(r => r.source === name || r.target === name)
+      };
+    });
+  } catch (e) { return []; }
+}
+let charIndex = 0;
+let charPortraitState = {}; // name -> 'empty' | 'generating' | 'done'
+function renderCharacterCards() {
+  const list = document.getElementById('charList');
+  const detail = document.getElementById('charDetail');
+  if (!KB.characters.length) {
+    list.innerHTML = '<div class="cl-item" style="color:var(--text-3)">暂无人物</div>';
+    detail.innerHTML = '<div class="empty-state">还没有人物数据。在「写作编辑器」保存章节后，Agent 会自动抽取人物。</div>';
+    return;
+  }
+  const sel = KB.characters[Math.min(charIndex, KB.characters.length - 1)];
+  list.innerHTML = KB.characters.map((c, i) =>
+    `<div class="cl-item ${i === charIndex ? 'active' : ''}" onclick="selectChar(${i})">${esc(c.name)}</div>`
+  ).join('') + '<div class="cl-new">＋ 新建人物</div>';
+  const st = charPortraitState[sel.name] || 'empty';
+  const p = sel.persona || {};
+  detail.innerHTML = `
+    <div class="portrait-col">
+      <div class="portrait-card ${st === 'generating' ? 'generating' : st === 'done' ? 'done' : ''}" id="portraitCard">
+        ${st === 'done' ? '<span class="edit-tag">编辑</span><div style="font-size:64px">👤</div><div style="font-size:12px;color:var(--text-2)">已生成 · 全身人像</div>'
+          : st === 'generating' ? '<div class="spinner"></div><div style="font-size:13px;color:var(--text-2)">正在生成…</div>'
+          : `<svg class="silhouette" viewBox="0 0 56 76" fill="none" stroke="#111"><circle cx="28" cy="18" r="12" stroke-width="2"/><path d="M6 72 C6 50 50 50 50 72" stroke-width="2"/></svg>
+             <button class="gen-btn" onclick="genPortrait('${escAttr(sel.name)}')">AI 生成全身人设图</button>
+             <div class="gen-hint">支持接入 AI 生图模型</div>`}
+      </div>
+      <div class="portrait-states">
+        <div class="ps"><div class="ps-card">占位</div>空态</div>
+        <div class="ps"><div class="ps-card"></div>生成中</div>
+        <div class="ps"><div class="ps-card"></div>已生成</div>
+      </div>
+    </div>
+    <div class="info-col">
+      <div class="info-section"><div class="sec-title">基本信息</div><div class="sec-body">姓名 ${esc(sel.name)} · ${esc(p['身份'] || '身份待定')}${p['年龄'] ? ' · ' + esc(p['年龄']) + ' 岁' : ''}</div></div>
+      <div class="info-section"><div class="sec-title">外貌特征</div><div class="sec-body">${esc(p['外貌'] || '暂无记录')}</div></div>
+      <div class="info-section"><div class="sec-title">性格内核</div><div class="sec-body">${esc(p['性格'] || '暂无记录')}</div></div>
+      <div class="info-section"><div class="sec-title">过往经历</div><div class="sec-body">${esc(p['经历'] || p['家庭'] || '暂无记录')}</div></div>
+      <div class="info-section"><div class="sec-title">社会关系</div>
+        <div class="rel-tags">
+          ${sel.relations.length ? sel.relations.map(r => {
+            const other = r.source === sel.name ? r.target : r.source;
+            return `<span class="rel-tag" onclick="switchSubPage('graph')">${esc(other)} · ${esc(r.relation)}</span>`;
+          }).join('') : '<span style="color:var(--text-3);font-size:13px">暂无关系</span>'}
+        </div>
+      </div>
+      <div class="info-section"><div class="sec-title">标志性物品 / 习惯</div><div class="sec-body">${esc(p['物品'] || '暂无记录')}</div></div>
+    </div>`;
+}
+function selectChar(i) { charIndex = i; renderCharacterCards(); }
+function genPortrait(name) {
+  charPortraitState[name] = 'generating';
+  renderCharacterCards();
+  setTimeout(() => { charPortraitState[name] = 'done'; renderCharacterCards(); }, 1600); // mock：真实接入生图模型
+}
+
+// ===== 关系图（黑白风） =====
+function renderRelationshipGraph() {
+  const svg = document.getElementById('graphSvg');
+  if (!KB.characters.length) {
+    svg.innerHTML = '<text x="400" y="240" text-anchor="middle" fill="#9c9c9c" font-size="13">还没有人物数据，保存章节后自动生成</text>';
+    return;
+  }
+  const cx = 400, cy = 240, r = 150;
+  const main = KB.characters[0];
+  const others = KB.characters.slice(1);
+  let html = '';
+  // 连线
+  for (const char of KB.characters) {
+    for (const rel of char.relations || []) {
+      const target = KB.characters.find(c => c.name === rel.target || c.name === rel.source);
+      if (!target || target.name === char.name) continue;
+      const pos = c => c === main ? [cx, cy] : [cx + r * Math.cos((others.indexOf(c) + 1) * 2 * Math.PI / (others.length + 1)), cy + r * Math.sin((others.indexOf(c) + 1) * 2 * Math.PI / (others.length + 1))];
+      const [x1, y1] = pos(char), [x2, y2] = pos(target);
+      const relName = rel.source === char.name ? rel.relation : rel.relation;
+      html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#d0d0d0" stroke-width="${1 + (rel.weight || 3) * 0.15}"/>`;
+      html += `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}" text-anchor="middle" fill="#6b6b6b" font-size="10">${esc(relName)}</text>`;
+    }
+  }
+  // 节点
+  for (let i = 0; i < KB.characters.length; i++) {
+    const char = KB.characters[i];
+    const isMain = i === 0;
+    const [x, y] = isMain ? [cx, cy] : [cx + r * Math.cos(i * 2 * Math.PI / KB.characters.length), cy + r * Math.sin(i * 2 * Math.PI / KB.characters.length)];
+    const nodeR = isMain ? 34 : 24;
+    html += `
+      <circle cx="${x}" cy="${y}" r="${nodeR}" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#111" font-size="${isMain ? 13 : 11}" font-weight="${isMain ? 600 : 400}">${esc(char.name)}</text>`;
+  }
+  svg.innerHTML = html;
+}
+
+// ===== 时间线 / 章纲（思维导图） =====
+function renderMindMap(container, items, labelFn, emptyText) {
+  if (!items || items.length === 0) {
+    container.innerHTML = `<div class="mm-empty">${emptyText || '暂无内容'}</div>`;
+    return;
+  }
+  container.innerHTML = items.map((item, i) => {
+    const side = i % 2 === 0 ? 'left' : 'right';
+    return `<div class="mm-item ${side}">
+      <div class="mm-card">
+        <div class="mm-title">${labelFn(item, i)}</div>
+        <div>${esc(item.content || item.summary || item.outline || '')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function renderTimeline() {
+  const container = document.getElementById('timelineList');
+  try {
+    const params = currentNovelIdNum() ? `?novel_id=${currentNovelIdNum()}` : '';
+    const data = await apiGet('/api/timeline' + params);
+    const items = data.timeline || [];
+    renderMindMap(container, items, (item, i) => {
+      const badge = item.chapter_id != null ? `<span class="timeline-badge">第${item.chapter_id}章</span>` : '';
+      return `#${i + 1}${badge}`;
+    }, '暂无情节记录，先保存章节');
+  } catch (e) {
+    container.innerHTML = '<div class="mm-empty">时间线加载失败: ' + esc(e.message) + '</div>';
+  }
+}
+async function renderChapterOutlines() {
+  const container = document.getElementById('chapterOutlineMap');
+  if (!currentNovelId) { container.innerHTML = '<div class="mm-empty">请先选择一本小说</div>'; return; }
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/chapter_outlines`);
+    const outlines = data.outlines || [];
+    renderMindMap(container, outlines, (item, i) => `第${i + 1}章${item.title ? ' · ' + esc(item.title) : ''}`, '保存章节后，章纲将自动生成');
+  } catch (e) {
+    container.innerHTML = '<div class="mm-empty">章纲加载失败: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ===== 大纲 =====
+async function loadOutline() {
+  const ta = document.getElementById('outlineText');
+  if (!currentNovelId) return;
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/outline`);
+    ta.value = data.content || '';
+  } catch (e) { console.error(e); }
+}
 document.getElementById('btnSaveOutline').addEventListener('click', async () => {
   if (!currentNovelId) { alert('请先选择一本小说'); return; }
-  const content = document.getElementById('outlineText').value.trim();
   try {
-    await apiCall(`/api/novel/${currentNovelId}/outline`, { content });
-    document.getElementById('outlineSaveResult').textContent = '✓ 已保存';
-    setTimeout(() => { document.getElementById('outlineSaveResult').textContent = ''; }, 2000);
+    await apiCall(`/api/novel/${currentNovelId}/outline`, { content: document.getElementById('outlineText').value });
+    const s = document.getElementById('outlineSaveResult');
+    s.textContent = '✓ 已保存';
+    setTimeout(() => s.textContent = '', 2000);
   } catch (e) {
     document.getElementById('outlineSaveResult').textContent = '保存失败: ' + e.message;
   }
 });
 
-// 里程碑18：新建小说后的静态引导消息（渲染在对话区）
-function showAgentWelcome(title) {
-  const box = document.getElementById('answerBox');
-  const text = document.getElementById('answerText');
-  const src = document.getElementById('answerSource');
-  box.classList.add('show');
-  text.textContent = `恭喜创建《${title}》！\n\n接下来可以按这个顺序开始：\n① 在"写作"tab 保存第一章（保存后会自动生成章纲、更新知识库）\n② 在"人设卡片"tab 看 Agent 从正文抽出的角色\n③ 在"大纲"tab 写下你的故事大纲\n④ 在"背景资料"tab 分门别类收藏资料\n⑤ 随时回到这里（Agent），问我任何关于小说的设定、逻辑、灵感问题`;
-  src.textContent = '';
-}
-
-// 成本监控（里程碑17：/api/cost 落地前端）
-async function loadCost() {
+// ===== 背景资料 =====
+async function loadBackgrounds() {
+  const container = document.getElementById('backgroundList');
+  if (!currentNovelId) { container.innerHTML = '<div class="empty-state">请先选择一本小说</div>'; return; }
   try {
-    const resp = await fetch(API_BASE + '/api/cost');
-    const data = await resp.json();
-    document.getElementById('costCalls').textContent = data.total_calls || 0;
-    document.getElementById('costTokens').textContent = (data.total_input_tokens || 0) + (data.total_output_tokens || 0);
-    document.getElementById('costTotal').textContent = (data.total_cost || 0).toFixed(4);
-    const byTask = data.by_task || {};
-    const keys = Object.keys(byTask);
-    const container = document.getElementById('costByTask');
-    if (keys.length === 0) {
-      container.innerHTML = '<div class="empty-state">暂无调用记录</div>';
-      return;
-    }
-    container.innerHTML = keys.map(k => `
-      <div class="chunk-item">
-        <div class="chunk-meta">${k} · ${byTask[k].calls}次</div>
-        成本: ¥${byTask[k].cost.toFixed(4)}
-      </div>
-    `).join('');
+    const data = await apiGet(`/api/novel/${currentNovelId}/backgrounds`);
+    const grouped = data.backgrounds || {};
+    const keys = Object.keys(grouped);
+    if (!keys.length) { container.innerHTML = '<div class="empty-state">还没有背景资料，点右上角添加</div>'; return; }
+    container.innerHTML = keys.map(cat => `
+      <div class="bg-category">
+        <div class="bg-category-title">${esc(cat)}</div>
+        ${grouped[cat].map(bg => `
+          <div class="bg-card">
+            ${bg.title ? `<div class="bg-card-title">${esc(bg.title)}</div>` : ''}
+            <div class="bg-card-content">${esc(bg.content)}</div>
+            <button class="bg-card-del" onclick="deleteBackground(${bg.id})">删除</button>
+          </div>`).join('')}
+      </div>`).join('');
   } catch (e) {
-    document.getElementById('costByTask').innerHTML = '<div class="empty-state">加载失败</div>';
+    container.innerHTML = '<div class="empty-state">加载失败: ' + esc(e.message) + '</div>';
   }
 }
+async function deleteBackground(id) {
+  if (!confirm('删除这条背景资料？')) return;
+  try {
+    await fetch(`${API_BASE}/api/background/${id}`, { method: 'DELETE' });
+    loadBackgrounds();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+document.getElementById('btnAddBackground').addEventListener('click', () => {
+  if (!currentNovelId) { alert('请先选择一本小说'); return; }
+  document.getElementById('bgModal').classList.add('show');
+});
+document.getElementById('btnCancelBg').addEventListener('click', () => document.getElementById('bgModal').classList.remove('show'));
+document.getElementById('btnConfirmBg').addEventListener('click', async () => {
+  const category = document.getElementById('bgCategory').value.trim();
+  const content = document.getElementById('bgContent').value.trim();
+  if (!category || !content) { alert('请填写分类和内容'); return; }
+  try {
+    await apiCall(`/api/novel/${currentNovelId}/backgrounds`, { category, title: document.getElementById('bgTitle').value.trim(), content });
+    document.getElementById('bgModal').classList.remove('show');
+    document.getElementById('bgCategory').value = ''; document.getElementById('bgTitle').value = ''; document.getElementById('bgContent').value = '';
+    loadBackgrounds();
+  } catch (e) { alert('添加失败: ' + e.message); }
+});
 
-// 保存章节 + 增量更新
+// ===== 写作编辑器 =====
 document.getElementById('btnSaveChapter').addEventListener('click', async () => {
   const content = document.getElementById('chapterText').value.trim();
   if (!content) { alert('请先写章节内容'); return; }
   if (!currentNovelId) { alert('请先创建或选择一个作品'); return; }
   const btn = document.getElementById('btnSaveChapter');
-  btn.disabled = true; btn.textContent = '保存并更新中...';
+  btn.disabled = true; btn.textContent = '保存并更新中…';
   try {
     const data = await apiCall('/api/chapter', { novel_id: currentNovelId, content });
-    // 里程碑12+14：展示冲突检测结果
-    let resultText =
-      `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${data.stats.chunks}块`;
+    let result = `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${data.stats?.chunks || 0} 块`;
     const conflicts = data.conflicts || [];
-    if (conflicts.length > 0) {
-      const sev = {'high': '🔴', 'medium': '🟠', 'low': '🟡'};
-      resultText += `\n⚠️ 检测到 ${conflicts.length} 处情节冲突：\n` +
-        conflicts.map(c => `${sev[c.severity] || '⚠️'} ${c.conflict}`).join('\n');
+    const gConflicts = data.graph_conflicts || [];
+    if (conflicts.length) {
+      result += `\n⚠️ 情节冲突 ${conflicts.length} 处：\n` + conflicts.map(c => `· ${c.conflict}`).join('\n');
     }
-    document.getElementById('saveResult').textContent = resultText;
+    if (gConflicts.length) {
+      result += `\n🔍 图谱一致性 ${gConflicts.length} 处：\n` + gConflicts.map(c => `· [${c.dimension}] ${c.conflict}`).join('\n');
+    }
+    document.getElementById('saveResult').textContent = result;
     document.getElementById('chapterText').value = '';
-    loadChapters();
-    renderTimeline(); // 里程碑15：保存章节后刷新时间线
-    renderChapterOutlines(); // 里程碑18：保存章节后刷新章纲
-    // 展示生成的章纲（如果有）
-    if (data.outline) {
-      document.getElementById('saveResult').textContent += `\n\n📝 章纲已生成：\n${data.outline}`;
-    }
+    loadChapters(); renderTimeline(); renderChapterOutlines();
+    if (data.outline) document.getElementById('saveResult').textContent += `\n\n📝 章纲已生成：\n${data.outline}`;
   } catch (e) {
     document.getElementById('saveResult').textContent = '保存失败: ' + e.message;
   } finally {
     btn.disabled = false; btn.textContent = '保存章节并更新知识库';
   }
 });
-
-// 加载章节列表
 async function loadChapters() {
   if (!currentNovelId) return;
-  const resp = await fetch(API_BASE + '/api/novel/' + currentNovelId + '/chapters');
-  const data = await resp.json();
-  const list = document.getElementById('chapterList');
-  if (!data.chapters || data.chapters.length === 0) {
-    list.innerHTML = '<div class="empty-state">保存章节后显示在此</div>';
-    return;
-  }
-  list.innerHTML = data.chapters.map(c =>
-    `<div class="chunk-item">章节#${c.id} ${c.title || ''}</div>`
-  ).join('');
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/chapters`);
+    const list = document.getElementById('chapterList');
+    list.innerHTML = (data.chapters || []).length
+      ? data.chapters.map(c => `<div class="chunk-item">章节#${c.id} ${esc(c.title || '')}</div>`).join('')
+      : '<div class="empty-state" style="padding:24px 0">保存章节后显示在此</div>';
+  } catch (e) {}
 }
 
-// 初始化（里程碑17：加载侧栏项目列表，默认停在默认对话）
+// ===== 数据刷新 =====
+async function refreshKBViews() {
+  KB.characters = await fetchCharacters();
+  renderCharacterCards();
+  renderRelationshipGraph();
+  renderTimeline();
+}
+function currentNovelIdNum() { return currentNovelId || null; }
+
+// ===== 登录 / 注册（UI 先行，接口三期） =====
+document.getElementById('btnLoginHeader').addEventListener('click', () => {
+  document.getElementById('btnLoginHeader').style.display = 'none';
+  document.getElementById('userName').style.display = 'inline';
+  showView('home');
+});
+document.getElementById('loginToggle').addEventListener('click', () => {
+  loginMode = loginMode === 'login' ? 'register' : 'login';
+  document.getElementById('loginPwd2Field').style.display = loginMode === 'register' ? 'block' : 'none';
+  document.getElementById('btnLogin').textContent = loginMode === 'register' ? '注册' : '登录';
+  document.getElementById('loginSwitch').innerHTML = loginMode === 'register'
+    ? '已有账号？<a id="loginToggle">直接登录</a>' : '还没有账号？<a id="loginToggle">立即注册</a>';
+  document.getElementById('loginToggle').addEventListener('click', arguments.callee);
+});
+document.getElementById('btnLogin').addEventListener('click', () => {
+  const email = document.getElementById('loginEmail').value;
+  document.getElementById('loginErr').style.display = email.includes('@') ? 'none' : 'block';
+  if (!email.includes('@')) return;
+  document.getElementById('btnLoginHeader').style.display = 'none';
+  document.getElementById('userName').style.display = 'inline';
+  showView('home');
+});
+
+// ===== 新建引导 =====
+function showAgentWelcome(title) {
+  appendMsg('agent', `恭喜创建《${title}》！知识库已就绪（空库也能问答）。\n\n接下来可以按这个顺序开始：\n① 直接在这里告诉我你的主角是谁、故事发生在哪——我边聊边帮你建库\n② 或在「写作编辑器」保存第一章（自动生成章纲、抽取人物、更新知识库）\n③ 素材也可以直接拖进输入框，我自动解析入库`);
+}
+
+// ===== 初始化 =====
 window.addEventListener('load', () => {
-  loadNovels();
+  showView('home');
+  renderSidebar();
+  loadRecent();
 });
 </script>
-
 </body>
 </html>
