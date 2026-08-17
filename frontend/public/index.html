@@ -1203,9 +1203,13 @@ document.addEventListener('keydown', e => {
   // 自诊断版本徽标（看到它 = JS 正常执行）
   var vb = document.createElement('div');
   vb.id = 'versionBadge';
-  vb.textContent = 'v1 · 457dc95';
   vb.style.cssText = 'position:fixed;right:12px;bottom:8px;font-size:11px;color:#9c9c9c;z-index:9998;font-family:monospace';
   document.body.appendChild(vb);
+  var setBadge = function (t) { vb.textContent = 'v1.1 · ' + t; };
+  setBadge('JS 已启动 · 检测后端…');
+  fetch(API_BASE + '/api/health').then(function (r) { return r.json(); })
+    .then(function (d) { setBadge('✓ 后端已连接 (' + (d.model || 'ok') + ')'); })
+    .catch(function () { setBadge('✗ 后端未连接（检查 localhost:8000）'); });
 // ===== 初始化 =====
 window.addEventListener('load', () => {
   showView('home');
