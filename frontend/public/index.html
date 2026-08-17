@@ -819,7 +819,7 @@ function appendMsg(role, text, opts = {}) {
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }
-function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function esc(s) { return s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 
 let attachedFile = null;
@@ -1114,7 +1114,7 @@ document.getElementById('btnSaveChapter').addEventListener('click', async () => 
   btn.disabled = true; btn.textContent = '保存并更新中…';
   try {
     const data = await apiCall('/api/chapter', { novel_id: currentNovelId, content });
-    let result = `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${data.stats?.chunks || 0} 块`;
+    let result = `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${(data.stats && data.stats.chunks) || 0} 块`;
     const conflicts = data.conflicts || [];
     const gConflicts = data.graph_conflicts || [];
     if (conflicts.length) {
