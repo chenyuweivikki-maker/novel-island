@@ -35,6 +35,15 @@ from .nodes.qa_nodes import IntentRouterNode, CompanionNode
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
+
+@app.middleware("http")
+async def no_cache_html(request, call_next):
+    """开发期：HTML 页面禁用缓存，避免前端迭代时浏览器吃旧版"""
+    resp = await call_next(request)
+    if request.url.path.endswith((".html",)) or request.url.path in ("/",):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
+
 # 启动时加载已持久化的图谱
 if len(graph) == 0:
     graph.load()
@@ -594,5 +603,5 @@ def serve_index():
     """托管前端首页"""
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return FileResponse(index_path, headers={"Cache-Control": "no-store"})
     return HTMLResponse("<h1>frontend not found</h1>", status_code=404)
