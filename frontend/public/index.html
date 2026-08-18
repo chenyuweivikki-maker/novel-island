@@ -2328,9 +2328,13 @@ async function loadInspCats() {
 }
 async function loadInspItems() {
   const list = document.getElementById('inspItems');
+  // 输入框/分类中提示只在「自动分类」tab 显示（其他分类是确定类目，直接浏览）
+  const isAuto = inspCategory === 'auto';
+  document.getElementById('inspInputBox').style.display = isAuto ? 'flex' : 'none';
+  document.getElementById('inspClassifying').style.display = 'none';
   try {
     // 「自动分类」tab：显示所有书 + 默认收件库的全部灵感；具体分类 tab：只看该分类（所有书）
-    const cat = inspCategory === 'auto' ? '' : inspCategory;
+    const cat = isAuto ? '' : inspCategory;
     const url = `/api/inspirations?category=${encodeURIComponent(cat)}`;
     const data = await apiGet(url);
     const items = data.inspirations || [];
@@ -2341,11 +2345,13 @@ async function loadInspItems() {
       (ns.novels || []).forEach(n => { novelTitles[n.id] = n.title; });
     } catch (e) {}
     if (!items.length) {
-      list.innerHTML = `
-        <div class="insp-item add-card" onclick="openNewInsp()">
-          <div><div class="plus">＋</div><div class="sub">记一条灵感</div></div>
-        </div>
-        <div class="empty-state" style="grid-column:1/-1">还没有灵感。想到什么就写什么，AI 会自动帮你分类整理。</div>`;
+      // 自动分类 tab：加号卡片引导记灵感；具体分类 tab：直接空状态
+      list.innerHTML = isAuto
+        ? `<div class="insp-item add-card" onclick="openNewInsp()">
+             <div><div class="plus">＋</div><div class="sub">记一条灵感</div></div>
+           </div>
+           <div class="empty-state" style="grid-column:1/-1">还没有灵感。想到什么就写什么，AI 会自动帮你分类整理。</div>`
+        : `<div class="empty-state" style="grid-column:1/-1">这个分类还没有灵感。</div>`;
       return;
     }
     list.innerHTML = items.map(it => {
@@ -2365,10 +2371,10 @@ async function loadInspItems() {
           <button class="share-btn" data-insp-id="${it.id}" data-insp-content="${escAttr(it.content)}">分享</button>
           <button class="del" onclick="deleteInsp(${it.id})">删除</button>
         </div>
-      </div>`;}).join('') + `
+      </div>`;}).join('') + (isAuto ? `
       <div class="insp-item add-card" onclick="openNewInsp()">
         <div><div class="plus">＋</div><div class="sub">添加分类</div></div>
-      </div>`;
+      </div>` : '');
   } catch (e) {
     list.innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}</div>`;
   }
