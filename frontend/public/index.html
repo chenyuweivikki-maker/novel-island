@@ -788,6 +788,10 @@ function selectNovel(id, title) {
   renderSidebar();
   refreshKBViews();
   loadChapters();
+  // 进入小说：对话区空则给欢迎语，避免「没反应」的错觉
+  if (document.getElementById('msgList').children.length === 0) {
+    appendMsg('agent', '正在基于《' + title + '》工作。可以问我关于设定、逻辑、灵感的问题，或把素材拖进输入框，我自动解析入库。');
+  }
 }
 function selectDefaultChat() {
   currentNovelId = null;
@@ -871,6 +875,10 @@ async function ask() {
   clearAttach();
   input.value = '';
 
+  var askBtn = document.getElementById('btnAsk');
+  var askOrig = askBtn.textContent;
+  askBtn.textContent = '…';
+  askBtn.disabled = true;
   const typing = document.createElement('div');
   typing.className = 'msg typing';
   typing.innerHTML = '<div class="avatar">猫</div><div class="body">思考中…</div>';
@@ -888,6 +896,9 @@ async function ask() {
   } catch (e) {
     typing.remove();
     appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）');
+  } finally {
+    askBtn.textContent = askOrig;
+    askBtn.disabled = false;
   }
 }
 document.getElementById('btnAsk').addEventListener('click', ask);
