@@ -66,13 +66,23 @@ input, textarea { font-family: inherit; }
 .view.active { display: block; }
 
 /* ── 首页 ── */
-.home {
-  height: 100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 80px 24px 48px;
+.home { height: 100%; display: flex; flex-direction: column; position: relative; }
+.view.active.home { display: flex; }
+.home-msgs {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 48px 24px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
 }
-.home .mascot { width: 240px; max-width: 90vw; margin-bottom: 12px; }
-.home h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: 0.5px; margin: 16px 0 8px; }
-.home .sub { color: var(--text-2); font-size: 15px; margin-bottom: 36px; text-align: center; }
+.home-msgs .msg { max-width: 640px; width: 100%; }
+.home-welcome { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.home-welcome .mascot { width: 200px; max-width: 90vw; margin-bottom: 8px; }
+.home-welcome h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: 0.5px; margin: 12px 0 8px; }
+.home-welcome .sub { color: var(--text-2); font-size: 15px; margin-bottom: 28px; }
+.home-input-bar {
+  flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg);
+  padding: 16px 24px 18px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.home-input-bar .home-input { max-width: 640px; }
+.home-input-bar .foot { color: var(--text-3); font-size: 12px; letter-spacing: 1px; }
 .home-input {
   width: 100%; max-width: 640px; display: flex; align-items: center; gap: 12px;
   background: var(--surface); border: 1.5px solid var(--text); border-radius: var(--radius-pill);
@@ -88,9 +98,7 @@ input, textarea { font-family: inherit; }
 .chip:hover { border-color: var(--text); color: var(--text); }
 .home .recent { margin-top: 48px; width: 100%; max-width: 880px; }
 .home .recent h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-.home-msgs { margin-top: 32px; width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
 .recent-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
-.home .foot { margin-top: 56px; color: var(--text-3); font-size: 12px; letter-spacing: 1px; }
 
 /* ── 我的作品 ── */
 .works { height: 100%; overflow-y: auto; padding: 40px 48px; }
@@ -370,7 +378,8 @@ window.addEventListener('error', function (e) {
   <header class="header">
     <div class="logo"><img src="/static/xiaoshuomao-official.svg" alt="小说猫"><span>小说岛</span></div>
     <nav class="nav">
-      <a data-view="chat" class="active">创作</a>
+      <a data-view="home" class="active">首页</a>
+      <a data-view="chat">创作</a>
       <a data-view="works">灵感库</a>
       <a data-view="works">我的作品</a>
       <a title="即将上线">社区</a>
@@ -384,25 +393,30 @@ window.addEventListener('error', function (e) {
   <main class="main">
     <!-- ═══════ 首页 ═══════ -->
     <section class="view home active" id="view-home">
-      <img class="mascot" src="/static/xiaoshuomao-official.svg" alt="小说猫">
-      <h1>小说岛</h1>
-      <p class="sub">你的第二大脑 —— 陪你写完整本书</p>
-      <div class="home-input">
-        <input id="homeInput" placeholder="告诉小说猫你想写什么…">
-        <button class="send" id="homeSend">↑</button>
+      <div class="home-msgs" id="homeMsgList">
+        <div class="home-welcome" id="homeWelcome">
+          <img class="mascot" src="/static/xiaoshuomao-official.svg" alt="小说猫">
+          <h1>小说岛</h1>
+          <p class="sub">你的第二大脑 —— 陪你写完整本书</p>
+          <div class="home-chips">
+            <button class="chip" data-q="帮我创建一本新书">帮我创建一本新书</button>
+            <button class="chip" data-q="卡文了，怎么办">卡文了，怎么办</button>
+            <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
+            <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
+          </div>
+          <div class="recent" id="recentBox" style="display:none">
+            <h2>最近作品</h2>
+            <div class="recent-row" id="recentList"></div>
+          </div>
+        </div>
       </div>
-      <div class="home-chips">
-        <button class="chip" data-q="帮我创建一本新书">帮我创建一本新书</button>
-        <button class="chip" data-q="卡文了，怎么办">卡文了，怎么办</button>
-        <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
-        <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
+      <div class="home-input-bar">
+        <div class="home-input">
+          <input id="homeInput" placeholder="告诉小说猫你想写什么…">
+          <button class="send" id="homeSend">↑</button>
+        </div>
+        <p class="foot">写不下去的时候，我都在。</p>
       </div>
-      <div class="home-msgs" id="homeMsgList" style="display:none"></div>
-      <div class="recent" id="recentBox" style="display:none">
-        <h2>最近作品</h2>
-        <div class="recent-row" id="recentList"></div>
-      </div>
-      <p class="foot">写不下去的时候，我都在。</p>
     </section>
 
     <!-- ═══════ 我的作品 ═══════ -->
@@ -644,7 +658,7 @@ function showView(view) {
     var el = document.getElementById('view-' + names[i]);
     if (!el) continue;
     var show = names[i] === view;
-    el.style.display = show ? (names[i] === 'chat' ? 'flex' : 'block') : 'none';
+    el.style.display = show ? (names[i] === 'chat' || names[i] === 'home' ? 'flex' : 'block') : 'none';
   }
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
   if (view === 'works') { loadWorks(); }
@@ -704,7 +718,6 @@ function enterNovel(id, title) {
 }
 function homeAsk(q) {
   if (!q) return;
-  document.getElementById('homeMsgList').style.display = 'block';
   document.getElementById('homeInput').value = '';
   appendMsg('user', q, null, 'homeMsgList');
   const typing = document.createElement('div');
@@ -894,7 +907,7 @@ function appendMsg(role, text, opts, containerId) {
   div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>`;
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
-  if (containerId === 'homeMsgList') document.getElementById('homeMsgList').style.display = 'block';
+  if (containerId === 'homeMsgList') { var hw = document.getElementById('homeWelcome'); if (hw) hw.style.display = 'none'; }
 }
 function esc(s) { return s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
