@@ -138,7 +138,8 @@ input, textarea { font-family: inherit; }
   overflow: hidden; background: var(--surface);
 }
 .app-sidebar.collapsed { width: 48px; padding: 8px 0; }
-.app-sidebar.collapsed .side-nav .side-item span:not(.icon), .app-sidebar.collapsed .side-projects { display: none; }
+.app-sidebar.collapsed .side-nav .side-item { justify-content: center; font-size: 12px; gap: 0; }
+.app-sidebar.collapsed .side-nav .side-item span.meta, .app-sidebar.collapsed .side-projects { display: none; }
 .side-nav { display: flex; flex-direction: column; }
 .side-nav .side-item { margin-bottom: 2px; }
 .side-projects { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
@@ -149,16 +150,14 @@ input, textarea { font-family: inherit; }
 }
 .side-item:hover { background: var(--surface-2); color: var(--text); }
 .side-item.active { background: var(--text); color: var(--on-primary); }
-.side-item .icon { font-size: 13px; width: 20px; text-align: center; flex-shrink: 0; }
 .side-item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
 .side-item.active .meta { color: rgba(255,255,255,.7); }
 .side-new {
-  margin-top: auto; border: 1px dashed var(--border-strong); background: transparent;
-  color: var(--text-2); font-size: 13px; padding: 9px; border-radius: var(--radius-sm);
+  margin: 4px 8px; align-self: flex-start; border: 1px dashed var(--border-strong); background: transparent;
+  color: var(--text-2); font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 .side-new:hover { border-color: var(--text); color: var(--text); }
-.sidebar.collapsed .side-new { border: none; padding: 8px 0; }
 .app-collapse {
   position: absolute; left: 224px; top: 50%; transform: translateY(-50%);
   width: 20px; height: 40px; border: 1px solid var(--border); border-left: none;
@@ -580,20 +579,20 @@ window.addEventListener('error', function (e) {
     <!-- ═══════ 全局侧边栏（导航 + 项目区）═══════ -->
     <aside class="app-sidebar" id="appSidebar">
       <div class="side-nav" id="sideNav">
-        <div class="side-item" data-nav="home"><span class="icon">🏠</span><span>首页</span></div>
-        <div class="side-item" data-nav="chat"><span class="icon">✍️</span><span>创作</span></div>
-        <div class="side-item" data-nav="inspiration"><span class="icon">💡</span><span>灵感库</span></div>
-        <div class="side-item" data-nav="works"><span class="icon">📚</span><span>我的作品</span></div>
-        <div class="side-item" data-nav="community"><span class="icon">🌐</span><span>社区</span></div>
+        <div class="side-item" data-nav="home"><span>首页</span></div>
+        <div class="side-item" data-nav="chat"><span>创作</span></div>
+        <div class="side-item" data-nav="inspiration"><span>灵感库</span></div>
+        <div class="side-item" data-nav="works"><span>我的作品</span></div>
+        <div class="side-item" data-nav="community"><span>社区</span></div>
       </div>
       <div class="side-projects" id="sideProjects" style="display:none">
         <div class="side-group">小说项目</div>
         <div id="projectList"></div>
-        <div class="side-group">灵感库</div>
-        <div class="side-item"><span class="icon">💡</span>人设灵感<span class="meta">12</span></div>
-        <div class="side-item"><span class="icon">📜</span>剧情灵感<span class="meta">8</span></div>
-        <div class="side-item"><span class="icon">✒️</span>金句<span class="meta">5</span></div>
         <button class="side-new" id="btnNewProjectSide">＋ 新建项目</button>
+        <div class="side-group">灵感库</div>
+        <div class="side-item">人设灵感<span class="meta">12</span></div>
+        <div class="side-item">剧情灵感<span class="meta">8</span></div>
+        <div class="side-item">金句<span class="meta">5</span></div>
       </div>
     </aside>
     <button class="app-collapse" id="btnSideCollapse" title="收起/展开侧栏">‹</button>
@@ -1101,7 +1100,6 @@ function renderSidebar() {
     }
     list.innerHTML = novels.map(n => `
       <div class="side-item ${n.id === currentNovelId ? 'active' : ''}" data-novel-id="${n.id}" draggable="true">
-        <span class="icon">📘</span>
         <span class="hide-when-collapsed side-title">${esc(n.title)}</span>
         <span class="hide-when-collapsed meta">${((n.total_words || 0) / 10000).toFixed(1)}万字</span>
       </div>`).join('');
