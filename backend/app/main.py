@@ -367,9 +367,6 @@ NEW_BOOK_KEYWORDS = ["创建一本新书", "创建新书", "新建小说", "开�
 # 题材提示词：无项目时用户已给出题材信息 → 直接引导建书（而不是反复问）
 GENRE_HINTS = ["都市", "奇幻", "悬疑", "古风", "科幻", "言情", "武侠", "末世", "穿越", "电竞", "校园", "职场", "修仙", "刑侦", "年代", "重生", "娱乐圈"]
 
-# 会话内去重：无项目时只发一次完整引导，之后简短追问（避免两条重复长引导堆叠）
-_last_no_novel_brief = False
-
 # 创作型动词：命中即视为「创作/续写/描写」意图，不走精确属性检索短路
 # （否则"写一段她在宴会上看到江观南的内心活动"会被属性检索截胡成设定文本）
 CREATIVE_VERBS = [
@@ -388,58 +385,126 @@ def _is_new_book_intent(query: str) -> bool:
     return any(kw in query for kw in NEW_BOOK_KEYWORDS)
 
 
-def general_opening() -> str:
-    """无项目时的开场引导（第一次完整，之后简短）"""
-    global _last_no_novel_brief
-    if _last_no_novel_brief:
-        return ("还在等你的书名和题材呢——直接告诉我，比如「都市，主角是个离婚律师」。"
-                "或者点左侧「＋ 新建项目」，我陪你从头把书搭起来。")
-    _last_no_novel_brief = True
-    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品，我们先从开一本新书开始：\n"
-            "书名想叫什么？什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？\n"
-            "定了之后，我会顺着人设、配角、大纲一步步帮你把这本书的骨架搭起来——"
-            "有零散素材也可以直接拖进对话框，我帮你整理入库。")
+# ===== 无项目对话：LLM 建书引导（不硬编码，所有对话都走模型）=====
+NO_PROJECT_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫」，正在陪一位作者开启一本新书。
+
+当前状态：作者还没有创建任何作品，也没有上传任何素材。你的任务是自然地把对话推进到「建书」：
+1. 如果作者还没说书名/题材 → 温和地问书名和题材（都市/奇幻/悬疑/古风/科幻…），一次只问一个，别列清单
+2. 如果作者已经说了书名/题材 → 接住他说的话（引用书名/题材），肯定他的想法，然后顺着问下一个人设问题（主角是谁？主角是什么样的人？），保持自然的创作对话
+3. 如果作者提到"建书/开新书/创建" → 回应并引导，可以提示点左侧「＋ 新建项目」创建
+4. 如果作者在倾诉情绪/卡文 → 先接住情绪（温柔共情），再轻轻引导
+5. 语气：像朋友一样自然、简短（1-3 句话），不要机械，不要说"根据设定""作为AI"这类话
+6. 不要编造作者没说的书名或题材，不要重复刚才已经说过的话
+
+之前的对话（可能有）：
+{history}"""
 
 
-def material_without_novel() -> str:
-    return ("素材我收到了，但它需要属于某本书才能入库。先告诉我书名（或点「帮我创建一本新书」创建），"
-            "再把素材拖进来，我会把它解析进那本书的知识库。")
+def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False) -> str:
+    """无项目对话统一走 LLM（带短期记忆，记住书名/题材等上下文）"""
+    memory = memory_manager.get_memory(novel_id)
+    history = memory.get_context()
+    history_text = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in history[-6:]  # 最近几轮，避免超长
+    ) or "（无）"
+    user_prompt = f"作者说：{query}\n\n请以小说猫的口吻回应。"
+    try:
+        reply = chat(
+            NO_PROJECT_SYSTEM_PROMPT.format(history=history_text),
+            user_prompt,
+            temperature=0.8,
+            max_tokens=300,
+            task="companion",
+        ).strip()
+    except Exception as e:
+        print(f"[ask] 无项目 LLM 引导失败: {e}")
+        reply = general_opening_fallback(query)
+    # 记忆该轮（无项目也记，让后续能接住书名/题材）
+    memory.add_turn(query, reply)
+    return reply
+
+
+def general_opening_fallback(query: str) -> str:
+    """LLM 故障时的降级引导（仅兜底，正常全走模型）"""
+    if any(g in query for g in GENRE_HINTS) or ("叫" in query and len(query) >= 6):
+        return "好呀，书名和题材我记下了！点左侧「＋ 新建项目」创建这本书，我把这些信息直接入库，再陪你搭人设和大纲。"
+    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品，我们先从开一本新书开始："
+            "书名想叫什么？什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？"
+            "定了之后，我陪你把人设、配角、大纲一步步搭起来——有零散素材也可以直接拖进来，我帮你整理入库。")
+
+
+# ===== 空库对话：LLM 引导建库（带图谱进度上下文，不硬编码）=====
+EMPTY_KB_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫」，正陪作者给一本书建知识库。
+
+当前这本书的建库进度：
+- 已有人物：{entities}
+- 已有关系：{relations}
+- 已有事件：{events}
+
+你的任务：根据作者刚说的话，自然地推进建库流程：
+1. 作者在补人设/设定 → 回应并接住，存入知识的意图，问下一个必要信息
+2. 作者问问题 → 如果知识库还是空的，说明"这本书的库还在建，先把主角/关键设定告诉我，或把素材拖进来"
+3. 按进度引导：主角（没有人）→ 配角与关系（有主角没配角）→ 大纲方向（有角色没事件）→ 可以开写了
+4. 语气自然简短（1-3 句），像朋友聊天，不要列清单，不要机械
+
+之前对话：
+{history}"""
+
+
+def _llm_empty_kb_reply(query: str, novel_id: int | None) -> str:
+    """空库对话走 LLM（图谱进度 + 记忆上下文）"""
+    g = get_graph_for(novel_id)
+    entities = ", ".join(g.all_entities()[:8]) if g else "（无）"
+    rels = ", ".join(f"{r.get('source')}-{r.get('relation')}->{r.get('target')}" for r in (g.all_relations() if g else [])[:8]) or "（无）"
+    evts = ", ".join(e.get("summary", "")[:20] for e in (g.get_timeline() if g else [])[-5:]) or "（无）"
+    memory = memory_manager.get_memory(novel_id)
+    history = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in memory.get_context()[-6:]
+    ) or "（无）"
+    prompt = EMPTY_KB_SYSTEM_PROMPT.format(entities=entities or "（无）", relations=rels, events=evts, history=history)
+    try:
+        reply = chat(prompt, f"作者说：{query}", temperature=0.8, max_tokens=300, task="companion").strip()
+    except Exception as e:
+        print(f"[ask] 空库 LLM 引导失败: {e}")
+        reply = next_guide_question(novel_id)  # 降级：回到规则引导
+    memory.add_turn(query, reply)
+    return reply
 
 
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
-    # ===== 对话式建库：素材解析入库（仅项目上下文；无项目走 material_without_novel）=====
+    # ===== 对话式建库：素材解析入库（仅项目上下文；无项目走 LLM 引导）=====
     if req.material and req.material.strip():
         if req.novel_id is None:
-            return {"answer": material_without_novel(), "sources": []}
+            # 无项目收到素材：LLM 说明需要先建书（不硬编码）
+            return {"answer": _llm_no_project_reply(f"我拖了一段素材进来：{req.material[:80]}…"), "sources": []}
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
 
     # ===== 建书意图 =====
     if _is_new_book_intent(req.query):
         if req.novel_id is not None:
-            # 已在作品里：不打断当前创作，引导侧栏新建
-            return {"answer": "想开新书？点左侧项目栏下方的「＋ 新建项目」，我马上陪你从书名聊起。", "sources": []}
-        return {"answer": general_opening(), "sources": []}
+            # 已在作品里：不打断当前创作，LLM 引导侧栏新建
+            return {"answer": _llm_no_project_reply(req.query, req.novel_id, brief=True), "sources": []}
+        return {"answer": _llm_no_project_reply(req.query), "sources": []}
 
-    # ===== 无项目（首页/默认对话）：通用助手，不读任何项目库 =====
+    # ===== 无项目（首页/默认对话）：全部走 LLM（不硬编码）=====
     if req.novel_id is None:
         intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
         # 情感低落 → 纯陪伴优先（即使提到题材也不机械引导）
         if intent == "companion":
             comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
             return {"answer": comp["agent_response"], "sources": []}
-        # 用户已给出题材/书名信息 → 引导建书（点新建项目）
-        if any(g in req.query for g in GENRE_HINTS) or ("叫" in req.query and len(req.query) >= 6):
-            return {"answer": ("题材记下了！现在点左侧「＋ 新建项目」创建这本书，"
-                               "创建后我把这些信息直接入库，再陪你顺着人设、配角、大纲把骨架搭起来。"), "sources": []}
-        return {"answer": general_opening(), "sources": []}
+        # 其余（含已给题材/书名）→ LLM 建书引导，接住作者的话
+        return {"answer": _llm_no_project_reply(req.query), "sources": []}
 
     # 里程碑17：按项目取 TF-IDF 检索器
     r = get_retriever_for(req.novel_id)
 
-    # ===== 空库：不硬报错，进入建库引导（对话式建库）=====
+    # ===== 空库：不硬报错，LLM 引导建库（对话式建库）=====
     if not r.is_ready:
         # 情感低落 → 纯陪伴（CompanionNode 空库路径）
         intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
@@ -450,8 +515,8 @@ def ask(req: AskRequest):
         if len(req.query) > 60:
             answer = ingest_material(req.query, req.novel_id)
             return {"answer": answer, "sources": []}
-        # 否则 → 引导提问（按图谱已有内容推断下一步）
-        return {"answer": next_guide_question(req.novel_id), "sources": []}
+        # 否则 → LLM 引导（带图谱进度上下文，自然推进建库）
+        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id), "sources": []}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
     #    创作型提问（写/描写/生成等）不走精确属性短路——"写一段X的内心活动"
@@ -486,11 +551,21 @@ def ask(req: AskRequest):
         results = r.search(req.query, req.top_k)
 
     if not results:
-        return {
-            "answer": "在当前知识库中未找到与问题相关的内容。",
-            "sources": [],
-            "retrieval": [],
-        }
+        # 检索无结果：LLM 说明未找到并引导（不硬编码一句空话）
+        try:
+            g = get_graph_for(req.novel_id)
+            entities = ", ".join(g.all_entities()[:8]) if g and g.all_entities() else "（还没有）"
+            answer = chat(
+                f"你是「小说岛」写作搭子。作者问了：{req.query}\n\n"
+                f"当前这本书的知识库里已有人物：{entities}\n"
+                "知识库中检索不到与该问题相关的内容。请用 1-2 句话说明暂时没找到相关信息，"
+                "并引导作者：要么补全相关设定（直接说给我听，我会入库），要么换个问法。语气自然。",
+                "请回应作者。", temperature=0.8, max_tokens=200, task="qa",
+            ).strip()
+        except Exception as e:
+            print(f"[ask] 无结果 LLM 回复失败: {e}")
+            answer = "在知识库中暂时没找到相关内容。可以把相关设定直接告诉我，我帮你整理入库。"
+        return {"answer": answer, "sources": [], "retrieval": []}
 
     # 2. 构建prompt
     user_prompt = build_rag_prompt(req.query, results)
