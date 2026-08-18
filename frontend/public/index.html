@@ -133,14 +133,18 @@ input, textarea { font-family: inherit; }
 
 /* ── 创作工作台（对话页） ── */
 .chat { display: flex; height: 100%; position: relative; }
-.view.active.chat { display: flex; } /* 覆盖 .view.active 的 display:block，保证侧栏+主区横排 */
-.sidebar {
+.view.active.chat { display: flex; } /* 覆盖 .view.active 的 display:block */
+.app-body { display: flex; flex: 1; min-height: 0; position: relative; }
+.app-sidebar {
   width: 224px; flex-shrink: 0; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 8px 10px; transition: width .2s;
-  overflow: hidden;
+  overflow: hidden; background: var(--surface);
 }
-.sidebar.collapsed { width: 48px; padding: 8px 0; }
-.sidebar.collapsed .hide-when-collapsed { display: none; }
+.app-sidebar.collapsed { width: 48px; padding: 8px 0; }
+.app-sidebar.collapsed .side-nav .side-item span:not(.icon), .app-sidebar.collapsed .side-projects { display: none; }
+.side-nav { display: flex; flex-direction: column; }
+.side-nav .side-item { margin-bottom: 2px; }
+.side-projects { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
 .side-group { font-size: 11px; color: var(--text-3); letter-spacing: 1.5px; padding: 14px 8px 6px; white-space: nowrap; }
 .side-item {
   display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-sm);
@@ -158,13 +162,13 @@ input, textarea { font-family: inherit; }
 }
 .side-new:hover { border-color: var(--text); color: var(--text); }
 .sidebar.collapsed .side-new { border: none; padding: 8px 0; }
-.side-collapse {
+.app-collapse {
   position: absolute; left: 224px; top: 50%; transform: translateY(-50%);
   width: 20px; height: 40px; border: 1px solid var(--border); border-left: none;
   background: var(--surface); border-radius: 0 8px 8px 0; color: var(--text-2);
-  font-size: 11px; z-index: 5; transition: left .2s;
+  font-size: 11px; z-index: 5; transition: left .2s; cursor: pointer;
 }
-.sidebar.collapsed ~ .side-collapse, .sidebar.collapsed + .side-collapse { left: 48px; }
+.app-sidebar.collapsed ~ .app-collapse, .app-sidebar.collapsed + .app-collapse { left: 48px; }
 
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .chat-head {
@@ -374,21 +378,36 @@ window.addEventListener('error', function (e) {
 </head>
 <body>
 <div class="app">
-  <!-- ═══════ 全局 Header ═══════ -->
+  <!-- ═══════ 全局 Header（只留 Logo + 用户）═══════ -->
   <header class="header">
     <div class="logo"><img src="/static/xiaoshuomao-official.svg" alt="小说猫"><span>小说岛</span></div>
-    <nav class="nav">
-      <a data-view="home" class="active">首页</a>
-      <a data-view="chat">创作</a>
-      <a data-view="works">灵感库</a>
-      <a data-view="works">我的作品</a>
-      <a title="即将上线">社区</a>
-    </nav>
     <div class="user">
       <span class="user-name" id="userName" style="display:none">林晓岚</span>
       <button class="btn-pill" id="btnLoginHeader">登录</button>
     </div>
   </header>
+
+  <div class="app-body">
+    <!-- ═══════ 全局侧边栏（导航 + 项目区）═══════ -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="side-nav" id="sideNav">
+        <div class="side-item" data-nav="home"><span class="icon">🏠</span><span>首页</span></div>
+        <div class="side-item" data-nav="chat"><span class="icon">✍️</span><span>创作</span></div>
+        <div class="side-item" data-nav="inspiration"><span class="icon">💡</span><span>灵感库</span></div>
+        <div class="side-item" data-nav="works"><span class="icon">📚</span><span>我的作品</span></div>
+        <div class="side-item" data-nav="community"><span class="icon">🌐</span><span>社区</span></div>
+      </div>
+      <div class="side-projects" id="sideProjects" style="display:none">
+        <div class="side-group">小说项目</div>
+        <div id="projectList"></div>
+        <div class="side-group">灵感库</div>
+        <div class="side-item"><span class="icon">💡</span>人设灵感<span class="meta">12</span></div>
+        <div class="side-item"><span class="icon">📜</span>剧情灵感<span class="meta">8</span></div>
+        <div class="side-item"><span class="icon">✒️</span>金句<span class="meta">5</span></div>
+        <button class="side-new" id="btnNewProjectSide">＋ 新建项目</button>
+      </div>
+    </aside>
+    <button class="app-collapse" id="btnSideCollapse" title="收起/展开侧栏">‹</button>
 
   <main class="main">
     <!-- ═══════ 首页 ═══════ -->
@@ -442,17 +461,6 @@ window.addEventListener('error', function (e) {
 
     <!-- ═══════ 创作工作台 ═══════ -->
     <section class="view chat" id="view-chat">
-      <aside class="sidebar" id="sidebar">
-        <div class="side-group hide-when-collapsed">小说项目</div>
-        <div id="projectList"></div>
-        <div class="side-group hide-when-collapsed">灵感库</div>
-        <div class="side-item hide-when-collapsed"><span class="icon">💡</span>人设灵感<span class="meta">12</span></div>
-        <div class="side-item hide-when-collapsed"><span class="icon">📜</span>剧情灵感<span class="meta">8</span></div>
-        <div class="side-item hide-when-collapsed"><span class="icon">✒️</span>金句<span class="meta">5</span></div>
-        <button class="side-new" id="btnNewProjectSide">＋ 新建项目</button>
-      </aside>
-      <button class="side-collapse" id="btnSideCollapse" title="收起/展开侧栏">‹</button>
-
       <div class="chat-main">
         <div class="chat-head">
           <span class="title" id="chatTitle">写作Agent</span>
@@ -591,6 +599,7 @@ window.addEventListener('error', function (e) {
       </div>
     </section>
   </main>
+  </div><!-- /app-body -->
 </div>
 
 <!-- ═══════ 新建小说弹窗 ═══════ -->
@@ -660,7 +669,11 @@ function showView(view) {
     var show = names[i] === view;
     el.style.display = show ? (names[i] === 'chat' || names[i] === 'home' ? 'flex' : 'block') : 'none';
   }
-  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+  document.querySelectorAll('#sideNav .side-item').forEach(function (i) {
+    i.classList.toggle('active', NAV_VIEW[i.dataset.nav] === view);
+  });
+  // 项目区：仅创作视图显示（点击项目即进入项目侧边栏）
+  document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
   if (view === 'works') { loadWorks(); }
   if (view === 'chat') {
     if (!currentNovelId) selectDefaultChat();
@@ -677,10 +690,14 @@ function updateBadge() {
   if (vb) vb.textContent = 'v1.2 · ' + badgeView + badgeBackend;
 }
 document.querySelector('.logo').addEventListener('click', () => showView('home'));
-document.querySelectorAll('.nav a').forEach(a => a.addEventListener('click', () => {
-  if (a.textContent.trim() === '社区') { alert('社区即将上线'); return; }
-  showView(a.dataset.view === 'works' && a.textContent.trim() === '我的作品' ? 'works' : a.dataset.view);
-}));
+var NAV_VIEW = { home: 'home', chat: 'chat', inspiration: 'works', works: 'works', community: 'community' };
+document.querySelectorAll('#sideNav .side-item').forEach(function (item) {
+  item.addEventListener('click', function () {
+    var nav = item.dataset.nav;
+    if (nav === 'community') { alert('社区即将上线'); return; }
+    showView(NAV_VIEW[nav]);
+  });
+});
 
 // ===== 首页 =====
 function loadRecent() {
@@ -829,7 +846,7 @@ function renderSidebar() {
   }).catch(() => {});
 }
 document.getElementById('btnSideCollapse').addEventListener('click', () => {
-  const sb = document.getElementById('sidebar');
+  const sb = document.getElementById('appSidebar');
   const collapsed = sb.classList.toggle('collapsed');
   document.getElementById('btnSideCollapse').textContent = collapsed ? '›' : '‹';
 });
