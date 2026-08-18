@@ -223,15 +223,18 @@ input, textarea { font-family: inherit; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .chips-row { max-width: 780px; margin: 0 auto 8px; display: flex; gap: 8px; overflow-x: auto; padding: 0 28px; }
+/* 创作页对话输入框：与首页（.home-input）完全一致——黑色粗边框、16px 字体、42px 大按钮 */
 .chat-input {
   max-width: 780px; margin: 0 auto 20px; display: flex; align-items: center; gap: 12px;
-  border: 1.5px solid var(--border-strong); border-radius: var(--radius-pill); padding: 6px 6px 6px 20px; background: var(--surface);
+  border: 1.5px solid var(--text); border-radius: var(--radius-pill); padding: 14px 14px 14px 24px; background: var(--surface);
+  transition: box-shadow .15s;
 }
-.chat-input:focus-within { border-color: var(--text); }
-.chat-input.dragover { border-color: var(--text); box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
-.chat-input input { flex: 1; border: none; outline: none; font-size: 14.5px; padding: 8px 0; background: transparent; }
+.chat-input:focus-within { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
+.chat-input.dragover { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
+.chat-input input { flex: 1; border: none; outline: none; font-size: 16px; padding: 8px 0; background: transparent; }
 .chat-input input::placeholder { color: var(--text-3); }
-.chat-input .send { width: 38px; height: 38px; border-radius: var(--radius-sm); border: none; background: var(--text); color: #fff; font-size: 16px; flex-shrink: 0; }
+.chat-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
+.chat-input .send:hover { transform: scale(1.05); }
 .attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; color: var(--text-2); }
 .attach-chip button { border: none; background: none; color: var(--text-3); font-size: 12px; }
 
