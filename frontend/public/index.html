@@ -191,6 +191,11 @@ input, textarea { font-family: inherit; }
 .pages { flex: 1; min-height: 0; position: relative; }
 .page { display: none; height: 100%; overflow-y: auto; }
 .page.active { display: block; }
+/* 对话页：消息区滚动，输入框固定在底部（不随内容流滚动） */
+#page-chat { display: flex; flex-direction: column; overflow: hidden; }
+#page-chat.active { display: flex; }
+#page-chat .msgs { flex: 1; min-height: 0; overflow-y: auto; }
+#page-chat .chips-row, #page-chat .chat-input { flex-shrink: 0; }
 
 /* 对话气泡 */
 .msgs { padding: 28px; display: flex; flex-direction: column; gap: 18px; max-width: 780px; margin: 0 auto; scrollbar-gutter: stable; }
