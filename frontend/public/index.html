@@ -607,17 +607,31 @@ async function apiGet(path) {
 }
 
 // ===== 视图切换 =====
+var VIEW_NAMES = { home: '首页', works: '我的作品', chat: '创作', login: '登录' };
 function showView(view) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-' + view).classList.add('active');
+  // 内联样式强制切换：不再依赖 .active 类，杜绝 CSS 层叠失效
+  var names = ['home', 'works', 'chat', 'login'];
+  for (var i = 0; i < names.length; i++) {
+    var el = document.getElementById('view-' + names[i]);
+    if (!el) continue;
+    var show = names[i] === view;
+    el.style.display = show ? (names[i] === 'chat' ? 'flex' : 'block') : 'none';
+  }
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
   if (view === 'works') { loadWorks(); }
   if (view === 'chat') {
-    if (!currentNovelId) selectDefaultChat(); // 无选中小说时初始化默认对话态
+    if (!currentNovelId) selectDefaultChat();
     renderSidebar();
     if (currentNovelId) refreshKBViews();
   }
   if (view === 'home') { loadRecent(); }
+  setBadge(VIEW_NAMES[view] ? '视图:' + VIEW_NAMES[view] + ' · ' : '');
+}
+var badgeView = '', badgeBackend = '检测后端…';
+function setBadge(t) { badgeView = t; updateBadge(); }
+function updateBadge() {
+  var vb = document.getElementById('versionBadge');
+  if (vb) vb.textContent = 'v1.2 · ' + badgeView + badgeBackend;
 }
 document.querySelector('.logo').addEventListener('click', () => showView('home'));
 document.querySelectorAll('.nav a').forEach(a => a.addEventListener('click', () => {
@@ -1219,11 +1233,10 @@ document.addEventListener('keydown', e => {
   vb.id = 'versionBadge';
   vb.style.cssText = 'position:fixed;right:12px;bottom:8px;font-size:11px;color:#9c9c9c;z-index:9998;font-family:monospace';
   document.body.appendChild(vb);
-  var setBadge = function (t) { vb.textContent = 'v1.1 · ' + t; };
-  setBadge('JS 已启动 · 检测后端…');
+  updateBadge();
   fetch(API_BASE + '/api/health').then(function (r) { return r.json(); })
-    .then(function (d) { setBadge('✓ 后端已连接 (' + (d.model || 'ok') + ')'); })
-    .catch(function () { setBadge('✗ 后端未连接（检查 localhost:8000）'); });
+    .then(function (d) { badgeBackend = '✓ 后端已连接 (' + (d.model || 'ok') + ')'; updateBadge(); })
+    .catch(function () { badgeBackend = '✗ 后端未连接'; updateBadge(); });
 // ===== 初始化 =====
 window.addEventListener('load', () => {
   showView('home');
