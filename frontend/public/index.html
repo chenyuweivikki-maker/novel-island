@@ -300,6 +300,13 @@ input, textarea { font-family: inherit; }
 .write-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .we-top { display: flex; align-items: center; gap: 12px; padding: 20px 32px 4px; font-size: 15px; font-weight: 600; }
 .we-top .status { margin-left: auto; }
+.we-chapter-label { font-weight: 600; }
+.we-chapter-input {
+  width: 240px; border: none; border-bottom: 1px solid var(--border-strong);
+  font-size: 15px; font-weight: 600; padding: 2px 4px; outline: none; background: transparent; color: var(--text);
+}
+.we-chapter-input:focus { border-bottom-color: var(--text); }
+.we-chapter-input::placeholder { color: var(--text-3); font-weight: 400; }
 #chapterText {
   flex: 1; border: none; outline: none; resize: none; padding: 12px 32px 24px;
   font-size: 15px; line-height: 1.9; background: transparent; color: var(--text);
@@ -532,7 +539,8 @@ window.addEventListener('error', function (e) {
               </div>
               <div class="write-editor">
                 <div class="we-top">
-                  <span>写作编辑器</span>
+                  <label for="chapterTitle" class="we-chapter-label">章节：</label>
+                  <input id="chapterTitle" class="we-chapter-input" placeholder="如：第一章 / 重逢" autocomplete="off">
                   <span class="status" id="saveResult"></span>
                 </div>
                 <textarea id="chapterText" placeholder="开始写这一章……"></textarea>
@@ -1196,7 +1204,7 @@ document.getElementById('btnSaveChapter').addEventListener('click', async () => 
   const btn = document.getElementById('btnSaveChapter');
   btn.disabled = true; btn.textContent = '保存并更新中…';
   try {
-    var saveBody = { novel_id: currentNovelId, content: content };
+    var saveBody = { novel_id: currentNovelId, content: content, title: document.getElementById('chapterTitle').value.trim() };
     if (currentChapterId) saveBody.chapter_id = currentChapterId;
     const data = await apiCall('/api/chapter', saveBody);
     let result = `✓ 已保存（章节#${data.chapter_id}），知识库更新${data.knowledge_updated ? '成功' : '失败'}，新增${(data.stats && data.stats.chunks) || 0} 块`;
@@ -1242,6 +1250,7 @@ async function openChapter(id) {
     if (data.error) { alert(data.error); return; }
     currentChapterId = id;
     document.getElementById('chapterText').value = data.content || '';
+    document.getElementById('chapterTitle').value = data.title || '';
     updateWordCount();
     loadChapters(); // 刷新选中态
     document.getElementById('saveResult').textContent = '已载入' + (data.title ? '《' + data.title + '》' : '');
