@@ -685,6 +685,8 @@ document.getElementById('homeInput').addEventListener('keydown', e => { if (e.ke
 document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const q = chip.dataset.q;
+    // 「帮我创建一本新书」→ 直接走建书流程（新建小说弹窗 → 创建后 Agent 引导建库）
+    if (q && q.indexOf('创建一本新书') >= 0) { openNewNovel(); return; }
     if (document.getElementById('view-home').classList.contains('active')) {
       showView('chat'); selectDefaultChat();
     }

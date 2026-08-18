@@ -240,6 +240,21 @@ def next_guide_question(novel_id: int | None) -> str:
             "保存后我会自动抽取人物、生成章纲、更新知识库。随时问我设定、逻辑或灵感的问题。")
 
 
+# ===== 建书意图（对话式建库开场）=====
+NEW_BOOK_KEYWORDS = ["创建一本新书", "创建新书", "新建小说", "开新书", "开坑", "写一本", "新书", "开始创作"]
+
+
+def _is_new_book_intent(query: str) -> bool:
+    return any(kw in query for kw in NEW_BOOK_KEYWORDS)
+
+
+def new_book_opening() -> str:
+    return ("好呀，我们开一本新书！先告诉我两件事：\n"
+            "① 书名想叫什么？\n"
+            "② 什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？\n"
+            "定了之后，我会顺着人设、配角、大纲一步步帮你把这本书的骨架搭起来——素材也可以直接拖进对话框，我自动解析入库。")
+
+
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
@@ -247,6 +262,10 @@ def ask(req: AskRequest):
     if req.material and req.material.strip():
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
+
+    # ===== 建书意图：走建书开场（问书名/题材），不落通用引导 =====
+    if _is_new_book_intent(req.query):
+        return {"answer": new_book_opening(), "sources": []}
 
     # 里程碑17：按项目取 TF-IDF 检索器（不选项目时用全局单例）
     r = get_retriever_for(req.novel_id)
