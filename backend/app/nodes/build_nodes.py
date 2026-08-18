@@ -59,14 +59,46 @@ EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读
 4. 只输出 JSON，不要其他文字。"""
 
 
-# 里程碑18：章纲 prompt —— 每章300字总结（梗概）
-CHAPTER_OUTLINE_PROMPT = """你是「小说岛」的编辑，负责给一章小说写"章纲"（该章的内容梗概）。
+# 里程碑18：章纲 prompt —— 结构化 JSON（P2-3 伏笔管理系统：summary + foreshadowing + setup）
+CHAPTER_OUTLINE_PROMPT = """你是「小说岛」的编辑，负责给一章小说写结构化"章纲"。
+
+输出严格 JSON，格式：
+{
+  "summary": "这一章发生了什么，200-300字：主要事件、人物行动、转折点、情感变化",
+  "foreshadowing": ["本章埋下的伏笔描述（至少一句；确实没有则为空数组）"],
+  "setup": "本章为后续情节做的铺垫/预设（一句话；没有则为空字符串）"
+}
 
 规则：
-1. 总结这一章发生了什么：主要事件、人物行动、转折点、情感变化。
-2. 控制在300字左右。
-3. 只总结原文明确发生的内容，不推测、不评论、不剧透后续。
-4. 直接输出章纲文本，不要任何格式标记。"""
+1. 只总结原文明确发生的内容，不推测、不评论、不剧透后续。
+2. 伏笔指本章埋下、但尚未在文中兑现的线索（物品、台词、异常、疑问）。
+3. 只输出 JSON，不要任何其他文字。"""
+
+
+def parse_outline_json(llm_output: str) -> tuple[str, list, str]:
+    """解析章纲 JSON → (summary, foreshadowing列表, setup)。容错：解析失败回退纯文本"""
+    import json as _json
+    text = (llm_output or "").strip()
+    # 剥离可能的 ```json 围栏
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+    try:
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            data = _json.loads(text[start:end + 1])
+            summary = str(data.get("summary", "")).strip()
+            fh = data.get("foreshadowing", [])
+            if isinstance(fh, str):
+                fh = [fh]
+            fh = [str(x).strip() for x in fh if str(x).strip()]
+            setup = str(data.get("setup", "")).strip()
+            return summary or text, fh, setup
+    except Exception:
+        pass
+    # 回退：整段文本当 summary
+    return text, [], ""
 
 # 里程碑15：整章情节摘要 prompt —— 情节大事年表的抽取源
 CHAPTER_SUMMARY_EXTRACT_PROMPT = """你是「小说岛」的编辑，负责把小说片段浓缩成"情节大事年表"条目。

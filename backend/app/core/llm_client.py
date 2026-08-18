@@ -264,6 +264,15 @@ def chat_with_tools(
                     except Exception as e:
                         result = f"工具执行失败：{e}"
 
+                # PRD 埋点：tool_usage
+                try:
+                    from .tracking import tracking
+                    tracking.record("tool_usage", tool_name=tool_name,
+                                    output_success=not str(result).startswith(("错误", "工具执行失败")),
+                                    novel_id=(tool_context or {}).get("novel_id"))
+                except Exception:
+                    pass
+
                 # 工具执行结果作为新消息还回给 LLM
                 messages.append({
                     "role": "tool",

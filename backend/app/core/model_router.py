@@ -109,6 +109,15 @@ def record_llm_cost(model: str, task: str, input_tokens: int, output_tokens: int
         "output_tokens": output_tokens,
         "cost": round(cost, 6),
     })
+    # PRD 埋点：api_call_llm + cost_attribution
+    try:
+        from .tracking import tracking
+        tracking.record("api_call_llm", model_name=model, task=task, input_tokens=input_tokens,
+                        output_tokens=output_tokens, total_cost=round(cost, 6))
+        tracking.record("cost_attribution", cost_type="llm", cost_units="tokens",
+                        input_tokens=input_tokens, output_tokens=output_tokens, estimated_cost=round(cost, 6))
+    except Exception:
+        pass
     return cost
 
 
@@ -120,6 +129,11 @@ def record_model_fallback(original_model: str, fallback_model: str, reason: str 
         "fallback_model": fallback_model,
         "reason": reason,
     })
+    try:
+        from .tracking import tracking
+        tracking.record("model_fallback", original_model=original_model, fallback_model=fallback_model, reason=reason)
+    except Exception:
+        pass
 
 
 def get_cost_summary() -> Dict[str, Any]:

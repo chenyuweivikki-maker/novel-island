@@ -488,12 +488,60 @@ input, textarea { font-family: inherit; }
 /* 卡文弹窗 */
 .kawen-em { font-size: 15px; margin-bottom: 8px; }
 
+/* ── 气泡操作条（重新生成 / 反馈） ── */
+.msg { position: relative; }
+.msg-actions {
+  position: absolute; top: -12px; right: 8px; display: none; gap: 2px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  padding: 2px 4px; box-shadow: 0 2px 12px rgba(0,0,0,.08); z-index: 3;
+}
+.msg:hover .msg-actions { display: flex; }
+.msg-actions button {
+  border: none; background: none; font-size: 12px; padding: 3px 7px; border-radius: var(--radius-pill);
+  color: var(--text-2); cursor: pointer;
+}
+.msg-actions button:hover { background: var(--surface-2); color: var(--text); }
+.msg-actions button.feedback-on { color: var(--text); background: var(--surface-2); }
+.msg.user .msg-actions { display: none; }
+
+/* ── 数据面板弹窗 ── */
+.stats-modal { width: 680px; max-width: 94vw; max-height: 86vh; overflow-y: auto; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.stats-block h4 { font-size: 12px; color: var(--text-3); letter-spacing: 1px; margin-bottom: 10px; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 12px; }
+.bar-row .bar-label { width: 64px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+.bar-row .bar-track { flex: 1; height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar-row .bar-fill { height: 100%; background: var(--text); border-radius: 4px; min-width: 2px; }
+.bar-row .bar-val { width: 40px; color: var(--text-3); text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.word-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+.word-cloud .w { border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; font-size: 12px; color: var(--text-2); background: var(--surface); }
+.word-cloud .w b { color: var(--text); }
+.stats-sum { display: flex; gap: 20px; margin-bottom: 18px; font-size: 12px; color: var(--text-3); }
+
+/* ── 伏笔看板（章纲页顶部） ── */
+.fh-board { padding: 16px 32px 4px; max-width: 880px; margin: 0 auto; }
+.fh-stats { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+.fh-stats .fh-count { font-size: 12px; color: var(--text-3); }
+.fh-stats .fh-count b { color: var(--text); font-size: 15px; }
+.fh-list { display: flex; flex-direction: column; gap: 8px; }
+.fh-item {
+  display: flex; align-items: center; gap: 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; background: var(--surface);
+}
+.fh-item.resolved { opacity: .55; }
+.fh-item .fh-text { flex: 1; min-width: 0; line-height: 1.6; }
+.fh-item .fh-from { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.fh-item button { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--radius-pill); font-size: 11px; padding: 3px 12px; color: var(--text-2); cursor: pointer; flex-shrink: 0; }
+.fh-item button:hover { border-color: var(--text); color: var(--text); }
+.fh-empty { font-size: 12px; color: var(--text-3); padding: 6px 0 14px; }
+
 @media (max-width: 900px) {
   .nav { gap: 16px; }
   .char-layout { flex-direction: column; }
   .char-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 4px; overflow-x: auto; padding-bottom: 12px; }
   .write-ai { display: none; }
   .polish-compare { flex-direction: column; }
+  .stats-grid { grid-template-columns: 1fr; }
 }
 </style>
 
@@ -595,6 +643,7 @@ window.addEventListener('error', function (e) {
           <span class="pill" id="pillWriting">写作中</span>
           <button class="pill companion" id="pillCompanion">♡ 陪伴模式</button>
           <span class="spacer" style="flex:1"></span>
+          <button class="btn-pill small" id="btnStats" style="display:none">📈 数据面板</button>
           <button class="btn-pill small" id="btnReport" style="display:none">📊 策略报告</button>
         </div>
         <div class="sub-tabs" id="subTabs">
@@ -649,8 +698,14 @@ window.addEventListener('error', function (e) {
             </div>
           </div>
 
-          <!-- 章纲 -->
+          <!-- 章纲（+ 伏笔看板 P2-3） -->
           <div class="page" id="page-chapter_outline">
+            <div class="fh-board" id="fhBoard" style="display:none">
+              <div class="fh-stats">
+                <span class="fh-count">🔗 伏笔看板：未解决 <b id="fhPending">0</b> · 已解决 <b id="fhResolved">0</b></span>
+              </div>
+              <div class="fh-list" id="fhList"></div>
+            </div>
             <div class="mm" id="coWrap">
               <div class="mm-line"></div>
               <div id="chapterOutlineMap"></div>
@@ -836,6 +891,14 @@ window.addEventListener('error', function (e) {
   </div>
 </div>
 
+<!-- ═══════ 写作数据面板弹窗（Tool 7） ═══════ -->
+<div class="modal-mask" id="statsModal">
+  <div class="modal stats-modal">
+    <div class="modal-title" id="statsTitle">📈 写作数据面板</div>
+    <div id="statsBody" style="font-size:13px;color:var(--text-3)">正在统计…</div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // 小说岛 · 前端（设计系统 v1.0 重构版）
@@ -849,6 +912,22 @@ let currentSubPage = 'chat';
 let companionMode = false;
 let loginMode = 'login'; // login | register
 let messages = [];       // 对话消息列表
+// 会话 ID（埋点 session_start/end）
+const sessionId = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+trackSessionStart();
+function trackSessionStart() {
+  try {
+    fetch(`${API_BASE}/api/track`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'session_start', session_id: sessionId, props: { entry_point: 'web' } })
+    }).catch(() => {});
+  } catch (e) {}
+}
+window.addEventListener('beforeunload', () => {
+  try {
+    navigator.sendBeacon(`${API_BASE}/api/track`, JSON.stringify({ event: 'session_end', session_id: sessionId, props: { entry_point: 'web' } }));
+  } catch (e) {}
+});
 
 // ===== API =====
 async function apiCall(path, body) {
@@ -1054,6 +1133,7 @@ document.getElementById('btnConfirmNewNovel').addEventListener('click', async ()
     renderSidebar();
     selectNovel(data.novel_id, title);
     showAgentWelcome(title);
+    trackEvent('create_book', { book_genre: '', has_outline: false }); // PRD 埋点
   } catch (e) { alert('创建失败: ' + e.message); }
 });
 
@@ -1063,6 +1143,7 @@ function selectNovel(id, title) {
   document.getElementById('subTabs').classList.add('visible');
   document.getElementById('chatTitle').textContent = title;
   document.getElementById('btnReport').style.display = 'inline-block';
+  document.getElementById('btnStats').style.display = 'inline-block';
   switchSubPage('chat');
   renderSidebar();
   refreshKBViews();
@@ -1077,6 +1158,7 @@ function selectDefaultChat() {
   document.getElementById('subTabs').classList.remove('visible');
   document.getElementById('chatTitle').textContent = '写作Agent';
   document.getElementById('btnReport').style.display = 'none';
+  document.getElementById('btnStats').style.display = 'none';
   switchSubPage('chat');
 }
 
@@ -1099,90 +1181,198 @@ function switchSubPage(subpage) {
 }
 
 // ===== 对话 =====
+let msgIdSeq = 0;
 function appendMsg(role, text, opts, containerId) {
   opts = opts || {}; containerId = containerId || 'msgList';
-  messages.push({ role: role, text: text });
+  const mid = ++msgIdSeq;
+  messages.push({ id: mid, role: role, text: text, query: opts.query || '' });
   const list = document.getElementById(containerId);
   const cls = role === 'user' ? 'msg user' : (opts.companion ? 'msg companion' : 'msg');
   const avatar = role === 'user' ? '我' : '<img src="/static/xiaoshuomao-official.svg" alt="猫">';
   const src = opts.src ? `<div class="src">来源：${opts.src}</div>` : '';
   const tag = opts.companion ? `<span class="tag">♡ 陪伴模式</span><br>` : '';
+  const actions = (role === 'agent' && containerId === 'msgList' && !opts.noActions)
+    ? `<div class="msg-actions">
+        <button title="重新生成" onclick="regenerateMsg(${mid}, event)">↻</button>
+        <button title="有帮助" id="fbGood${mid}" onclick="feedbackMsg(${mid}, 'good', event)">👍</button>
+        <button title="不满意" id="fbBad${mid}" onclick="feedbackMsg(${mid}, 'bad', event)">👎</button>
+      </div>` : '';
   const div = document.createElement('div');
   div.className = cls;
-  div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>`;
+  div.dataset.mid = mid;
+  div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>${actions}`;
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
   if (containerId === 'homeMsgList') { var hw = document.getElementById('homeWelcome'); if (hw) hw.style.display = 'none'; }
+  return mid;
+}
+// 重新生成：删除该条之后的消息，用同一问题重新问（流式）
+async function regenerateMsg(mid, ev) {
+  if (ev) ev.stopPropagation();
+  const idx = messages.findIndex(m => m.id === mid);
+  if (idx < 0) return;
+  const target = messages[idx];
+  if (!target.query) return;
+  // 删除该条 AI 及其后的所有消息
+  const list = document.getElementById('msgList');
+  const all = list.querySelectorAll('.msg');
+  for (let i = idx; i < messages.length; i++) {
+    const el = list.querySelector(`.msg[data-mid="${messages[i].id}"]`);
+    if (el) el.remove();
+  }
+  messages = messages.slice(0, idx);
+  document.getElementById('qaInput').value = target.query;
+  trackEvent('click_regenerate', { agent_type: 'qa', retry_count: 1 });
+  askStreaming(containerId = 'msgList', target.query);
+}
+// 反馈：好评/差评（埋点 accept_suggestion / reject_suggestion）
+function feedbackMsg(mid, kind, ev) {
+  if (ev) ev.stopPropagation();
+  const goodBtn = document.getElementById('fbGood' + mid);
+  const badBtn = document.getElementById('fbBad' + mid);
+  if (kind === 'good') {
+    goodBtn.classList.add('feedback-on'); badBtn.classList.remove('feedback-on');
+    trackEvent('accept_suggestion', { suggestion_type: 'qa', agent_source: 'fact_qa' });
+  } else {
+    badBtn.classList.add('feedback-on'); goodBtn.classList.remove('feedback-on');
+    trackEvent('reject_suggestion', { feedback_reason: 'user_feedback', agent_source: 'fact_qa' });
+  }
+}
+// 前端埋点统一入口
+function trackEvent(event, props) {
+  try {
+    fetch(`${API_BASE}/api/track`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, props: props || {}, session_id: sessionId })
+    }).catch(() => {});
+  } catch (e) {}
 }
 function esc(s) { return s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 
 let attachedFile = null;
 const inputWrap = document.getElementById('chatInputWrap');
-// 素材拖放
+// 素材拖放（.txt/.md 直接读；.docx/.pdf 走后端解析接口）
 inputWrap.addEventListener('dragover', e => { e.preventDefault(); inputWrap.classList.add('dragover'); });
 inputWrap.addEventListener('dragleave', () => inputWrap.classList.remove('dragover'));
 inputWrap.addEventListener('drop', e => {
   e.preventDefault();
   inputWrap.classList.remove('dragover');
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (file && /\.(txt|md)$/i.test(file.name)) {
+  if (!file) return;
+  if (/\.(txt|md)$/i.test(file.name)) {
     const reader = new FileReader();
     reader.onload = () => {
       attachedFile = { name: file.name, size: file.size, text: String(reader.result).slice(0, 50000) };
-      document.getElementById('attachArea').style.display = 'block';
-      document.getElementById('attachArea').innerHTML =
-        `<span class="attach-chip">📎 ${esc(file.name)}（${(file.size / 1024).toFixed(1)}KB）<button onclick="clearAttach()">×</button></span>`;
+      showAttachChip(file.name, file.size);
     };
     reader.readAsText(file);
+  } else if (/\.(docx|pdf)$/i.test(file.name)) {
+    // 多模态：发后端解析为文本，再走素材入库
+    const fd = new FormData();
+    fd.append('file', file);
+    document.getElementById('attachArea').style.display = 'block';
+    document.getElementById('attachArea').innerHTML = '<span class="attach-chip">⏳ 正在解析 ' + esc(file.name) + '…</span>';
+    fetch(`${API_BASE}/api/material/parse`, { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { document.getElementById('attachArea').innerHTML = ''; document.getElementById('attachArea').style.display = 'none'; alert('解析失败: ' + d.error); return; }
+        attachedFile = { name: file.name, size: file.size, text: d.text.slice(0, 50000) };
+        showAttachChip(file.name, file.size);
+      })
+      .catch(err => { document.getElementById('attachArea').innerHTML = ''; document.getElementById('attachArea').style.display = 'none'; alert('解析失败: ' + err.message); });
   } else if (file) {
-    alert('当前支持 .txt / .md 文本素材（.docx/.pdf 二期支持）');
+    alert('支持 .txt / .md / .docx / .pdf 素材');
   }
 });
+function showAttachChip(name, size) {
+  document.getElementById('attachArea').style.display = 'block';
+  document.getElementById('attachArea').innerHTML =
+    `<span class="attach-chip">📎 ${esc(name)}（${(size / 1024).toFixed(1)}KB）<button onclick="clearAttach()">×</button></span>`;
+}
 function clearAttach() {
   attachedFile = null;
   document.getElementById('attachArea').style.display = 'none';
   document.getElementById('attachArea').innerHTML = '';
 }
 
-async function ask(containerId) {
-  containerId = containerId || 'msgList';
+// ===== 流式对话（打字机效果） =====
+async function askStreaming(containerId, presetQuery) {
   const input = document.getElementById('qaInput');
-  const query = input.value.trim();
+  const query = (presetQuery != null ? presetQuery : input.value).trim();
   if (!query && !attachedFile) return;
-  const body = { query: query || '（素材解析）', top_k: 5 };
+  const body = { query: query || '（素材解析）', top_k: 5, stream: true };
   if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
-  if (attachedFile) body.material = attachedFile.text; // 对话式建库：素材随消息发送，后端解析入库
+  if (attachedFile) body.material = attachedFile.text;
 
   appendMsg('user', query || '📎 ' + attachedFile.name, null, containerId);
   clearAttach();
-  input.value = '';
+  if (presetQuery == null) input.value = '';
 
   var askBtn = document.getElementById('btnAsk');
   var askOrig = askBtn.textContent;
   askBtn.textContent = '…';
   askBtn.disabled = true;
-  const typing = document.createElement('div');
-  typing.className = 'msg typing';
-  typing.innerHTML = '<div class="avatar"><img src="/static/xiaoshuomao-official.svg" alt="猫"></div><div class="body">思考中…</div>';
-  document.getElementById(containerId).appendChild(typing);
-  document.getElementById(containerId).scrollTop = 99999;
 
+  // 创建打字气泡
+  const list = document.getElementById(containerId);
+  const bubble = document.createElement('div');
+  bubble.className = 'msg typing';
+  bubble.innerHTML = '<div class="avatar"><img src="/static/xiaoshuomao-official.svg" alt="猫"></div><div class="body"></div>';
+  list.appendChild(bubble);
+  list.scrollTop = 99999;
+
+  let full = '', srcLine = '';
   try {
-    const data = await apiCall('/api/kb/ask', body);
-    typing.remove();
-    const isCompanion = companionMode || /抱抱|陪陪|我在|歇一歇|抱抱你/.test(data.answer || '');
-    appendMsg('agent', data.answer, {
-      companion: isCompanion,
-      src: data.sources && data.sources.length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : ''
-    }, containerId);
+    const resp = await fetch(`${API_BASE}/api/kb/ask`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // SSE：按空行切分事件
+      let sep;
+      while ((sep = buf.indexOf('\n\n')) >= 0) {
+        const raw = buf.slice(0, sep); buf = buf.slice(sep + 2);
+        if (!raw.startsWith('data: ')) continue;
+        let payload;
+        try { payload = JSON.parse(raw.slice(6)); } catch (e) { continue; }
+        if (payload.type === 'retrieval') {
+          srcLine = (payload.data || []).slice(0, 3).map(s => '片段#' + (s.chunk_id + 1)).join(' · #');
+        } else if (payload.type === 'token') {
+          full += payload.data;
+          bubble.classList.remove('typing');
+          bubble.querySelector('.body').innerHTML = esc(full).replace(/\n/g, '<br>');
+          list.scrollTop = list.scrollHeight;
+        } else if (payload.type === 'done') {
+          break;
+        }
+      }
+    }
+    bubble.remove();
+    if (!full) {
+      // 流式没输出（可能是缓存/降级路径）→ 用非流式兜底
+      const data = await apiCall('/api/kb/ask', { query: query, top_k: 5, novel_id: body.novel_id || null });
+      full = data.answer || '（无回答）';
+      srcLine = (data.sources || []).length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : '';
+    }
+    const isCompanion = companionMode || /抱抱|陪陪|我在|歇一歇|抱抱你/.test(full);
+    const mid = appendMsg('agent', full, { companion: isCompanion, src: srcLine, query: query }, containerId);
   } catch (e) {
-    typing.remove();
+    bubble.remove();
     appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）', null, containerId);
   } finally {
     askBtn.textContent = askOrig;
     askBtn.disabled = false;
   }
+}
+async function ask(containerId) {
+  return askStreaming(containerId || 'msgList');
 }
 document.getElementById('btnAsk').addEventListener('click', ask);
 document.getElementById('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
@@ -1533,6 +1723,7 @@ async function renderTimeline() {
 async function renderChapterOutlines() {
   const container = document.getElementById('chapterOutlineMap');
   if (!currentNovelId) { container.innerHTML = '<div class="mm-empty">请先选择一本小说</div>'; return; }
+  renderForeshadowBoard(); // P2-3：伏笔看板同步刷新
   try {
     const data = await apiGet(`/api/novel/${currentNovelId}/chapter_outlines`);
     const outlines = data.outlines || [];
@@ -1831,6 +2022,80 @@ document.getElementById('btnReport').addEventListener('click', async () => {
   }
 });
 document.getElementById('reportModal').addEventListener('click', e => { if (e.target === document.getElementById('reportModal')) e.target.classList.remove('show'); });
+
+// ===== 写作数据面板（Tool 7） =====
+document.getElementById('btnStats').addEventListener('click', async () => {
+  if (!currentNovelId) return;
+  const mask = document.getElementById('statsModal');
+  mask.classList.add('show');
+  document.getElementById('statsBody').innerHTML = '正在统计…';
+  try {
+    const d = await apiGet(`/api/novel/${currentNovelId}/stats`);
+    if (d.error) { document.getElementById('statsBody').innerHTML = '统计失败: ' + esc(d.error); return; }
+    const maxWords = Math.max(1, ...(d.chapters || []).map(c => c.words));
+    const maxHour = Math.max(1, ...(d.hour_distribution || []).map(h => h.count));
+    const maxMention = Math.max(1, ...(d.character_mentions || []).map(c => c.mentions));
+    const bar = (label, val, max, unit) => `
+      <div class="bar-row">
+        <span class="bar-label" title="${esc(label)}">${esc(label)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, Math.round(val / max * 100))}%"></div></div>
+        <span class="bar-val">${val}${unit || ''}</span>
+      </div>`;
+    const chaptersBars = (d.chapters || []).length
+      ? d.chapters.slice(-12).map(c => bar(c.title || ('第' + c.order + '章'), c.words, maxWords, '字')).join('')
+      : '<div style="color:var(--text-3)">还没有章节</div>';
+    const hoursBars = (d.hour_distribution || []).map(h => bar(h.hour + '时', h.count, maxHour, '章')).join('');
+    const mentionBars = (d.character_mentions || []).slice(0, 8).map(c => bar(c.name, c.mentions, maxMention, '次')).join('') || '<div style="color:var(--text-3)">暂无</div>';
+    const words = (d.top_words || []).map(w => `<span class="w"><b>${esc(w.word)}</b> ×${w.count}</span>`).join('');
+    document.getElementById('statsBody').innerHTML = `
+      <div class="stats-sum">
+        <span>📖 ${d.total_chapters || 0} 章</span>
+        <span>✍️ ${(d.total_words || 0).toLocaleString()} 字</span>
+        <span>平均每章 ${(d.avg_words_per_chapter || 0).toLocaleString()} 字</span>
+        ${d.longest_chapter ? `<span>最长：${esc(d.longest_chapter.title)}（${d.longest_chapter.words} 字）</span>` : ''}
+      </div>
+      <div class="stats-grid">
+        <div class="stats-block"><h4>章节字数趋势</h4>${chaptersBars}</div>
+        <div class="stats-block"><h4>人物出场统计</h4>${mentionBars}</div>
+        <div class="stats-block"><h4>创作时段分布</h4>${hoursBars}</div>
+        <div class="stats-block"><h4>高频词（双字）</h4><div class="word-cloud">${words || '<span style="color:var(--text-3)">暂无</span>'}</div></div>
+      </div>`;
+  } catch (e) {
+    document.getElementById('statsBody').innerHTML = '统计失败: ' + esc(e.message);
+  }
+});
+document.getElementById('statsModal').addEventListener('click', e => { if (e.target === document.getElementById('statsModal')) e.target.classList.remove('show'); });
+
+// ===== 伏笔看板（P2-3） =====
+async function renderForeshadowBoard() {
+  const board = document.getElementById('fhBoard');
+  if (!currentNovelId) { board.style.display = 'none'; return; }
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/foreshadowings`);
+    const st = data.stats || { pending: 0, resolved: 0 };
+    document.getElementById('fhPending').textContent = st.pending || 0;
+    document.getElementById('fhResolved').textContent = st.resolved || 0;
+    const items = data.foreshadowings || [];
+    const list = document.getElementById('fhList');
+    if (!items.length) {
+      board.style.display = 'none';
+      return;
+    }
+    board.style.display = 'block';
+    list.innerHTML = items.slice(0, 20).map(f => `
+      <div class="fh-item ${f.status === 'resolved' ? 'resolved' : ''}">
+        <span class="fh-text">${esc(f.text)}</span>
+        <span class="fh-from">${f.chapter_title ? '第' + f.chapter_title.replace('第','').replace('章','') + '章' : ''}${f.status === 'resolved' ? ' ✓已解决' : ''}</span>
+        ${f.status === 'pending' ? `<button onclick="resolveFh(${f.id})">标记已解决</button>` : ''}
+      </div>`).join('');
+  } catch (e) { board.style.display = 'none'; }
+}
+async function resolveFh(id) {
+  try {
+    await fetch(`${API_BASE}/api/foreshadowing/${id}`, { method: 'PATCH' });
+    renderForeshadowBoard();
+  } catch (e) { alert('操作失败: ' + e.message); }
+}
 
 // ===== 灵感库（P12）=====
 const INSP_NOVEL = 0; // 灵感库为全局收件箱（不绑定具体小说）

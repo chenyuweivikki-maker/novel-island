@@ -390,6 +390,15 @@ class HallucinationCriticNode:
             # 解析失败 = 质检不可靠，宁可放行（避免因质检故障卡死流程）
             passed, issues = True, ["质检输出解析失败，已放行"]
 
+        # PRD 埋点：critic_node_intercept（质检驳回）
+        if not passed:
+            try:
+                from ..core.tracking import tracking
+                tracking.record("critic_node_intercept", critic_type="hallucination",
+                                intercept_reason=str(issues)[:200], original_agent="fact_qa")
+            except Exception:
+                pass
+
         return {
             "critic_pass": passed,
             "critic_issues": issues,

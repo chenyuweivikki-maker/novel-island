@@ -10,7 +10,7 @@ FastAPI 入口 — 小说岛后端 API
 """
 import json
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,13 +25,18 @@ from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph, graph_manager, get_graph_for
 from .core.novel_store import novel_store
 from .core.inspiration_store import inspiration_store
+from .core.semantic_cache import semantic_cache
+from .core.tracking import tracking, new_session_id
+from .core.fallback_templates import fallback_inspiration
+from .core.writing_report import generate_writing_report
+from .core.doc_parser import parse_text_file
 from .core.hybrid_retriever import hybrid_search
 from .core.hybrid_retriever import precise_attribute_search
 from .core.vector_store import vector_store, vector_store_manager
 from .tools.consistency_tools import check_plot_consistency
 from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
-from .nodes.build_nodes import CHAPTER_OUTLINE_PROMPT
+from .nodes.build_nodes import CHAPTER_OUTLINE_PROMPT, parse_outline_json
 from .nodes.qa_nodes import IntentRouterNode, CompanionNode
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
@@ -396,7 +401,7 @@ def ask(req: AskRequest):
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
     precise = precise_attribute_search(req.query, req.novel_id)
-    if precise:
+    if precise and not req.stream:
         return {
             "answer": precise["answer"],
             "sources": [],
@@ -435,6 +440,14 @@ def ask(req: AskRequest):
 
     # 3. 流式 or 非流式
     if req.stream:
+        # 流式模式下精确属性命中 → 也走 SSE（整段作为单个 token，前端打字机统一处理）
+        if precise:
+            def generate_precise():
+                yield "data: " + json.dumps({"type": "retrieval", "data": []}) + "\n\n"
+                yield "data: " + json.dumps({"type": "token", "data": precise["answer"]}, ensure_ascii=False) + "\n\n"
+                yield "data: " + json.dumps({"type": "done"}) + "\n\n"
+            return StreamingResponse(generate_precise(), media_type="text/event-stream")
+
         def generate():
             # 先发检索结果
             retrieval_data = [
@@ -450,17 +463,48 @@ def ask(req: AskRequest):
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
+    # 非流式 — 先查语义缓存（PRD：相似问题直接复用答案，省 LLM 成本）
+    try:
+        hit = semantic_cache.lookup(req.query, req.novel_id)
+    except Exception as e:
+        hit = None
+        print(f"[semantic_cache] 查询失败: {e}")
+    if hit:
+        tracking.record("cache_hit", query=req.query[:60], similarity=hit.get("similarity"))
+        return {
+            "answer": hit["answer"],
+            "sources": hit["sources"],
+            "retrieval": [],
+            "cached": True,
+            "similarity": hit.get("similarity"),
+        }
+
     # 非流式 — 走状态机（里程碑1）
     # 把请求参数放进 State（背包），让状态机跑完整个流程（novel_id 穿透）
-    result = qa_app.invoke({
-        "user_query": req.query,
-        "top_k": req.top_k,
-        "novel_id": req.novel_id,
-    })
+    try:
+        result = qa_app.invoke({
+            "user_query": req.query,
+            "top_k": req.top_k,
+            "novel_id": req.novel_id,
+        })
+    except Exception as e:
+        # 降级策略（PRD）：LLM 链路故障时不硬报错
+        print(f"[ask] 状态机执行失败: {e}")
+        intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
+        if intent == "inspiration":
+            return {"answer": fallback_inspiration(req.query), "sources": [], "degraded": True}
+        return {"answer": "知识库服务暂时不可用，回答可能不准确。请稍后再试，或换个问法。", "sources": [], "degraded": True}
 
     # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
     # 里程碑17：按 novel_id 存（切换项目历史不串）
     memory_manager.get_memory(req.novel_id).add_turn(req.query, result["agent_response"])
+
+    # 写入语义缓存（只缓存有检索依据的回答，降低幻觉扩散）
+    if result["retrieved_chunks"]:
+        try:
+            semantic_cache.store(req.query, req.novel_id, result["agent_response"], result["sources"])
+        except Exception as e:
+            print(f"[semantic_cache] 写入失败: {e}")
 
     return {
         "answer": result["agent_response"],
@@ -590,23 +634,30 @@ def save_chapter(req: ChapterSaveRequest):
         conflicts = []
         print(f"冲突检测失败: {e}")
 
-    # 里程碑18：生成章纲（300字章节总结），与冲突检测并行，用户无感
+    # 里程碑18+P2-3：生成结构化章纲（summary + 伏笔 + 预设），与冲突检测并行，用户无感
+    foreshadowing_list, setup = [], ""
     try:
-        outline = chat(CHAPTER_OUTLINE_PROMPT, req.content, temperature=0.0, max_tokens=600, task="creative")
-        outline = outline.strip()
+        raw_outline = chat(CHAPTER_OUTLINE_PROMPT, req.content, temperature=0.0, max_tokens=800, task="creative")
+        outline, foreshadowing_list, setup = parse_outline_json(raw_outline)
     except Exception as e:
         outline = ""
         print(f"章纲生成失败: {e}")
+    import json as _json
+    foreshadowing_json = _json.dumps(foreshadowing_list, ensure_ascii=False)
 
     # 1. 保存章节（有 chapter_id 则更新，无则新增）；更新时章纲也重新生成覆盖
     if req.chapter_id:
         # 更新：先删旧数据（向量/图谱），再加新内容
         vs.remove_by_chapter(req.chapter_id)
         g.remove_by_chapter(req.chapter_id)
-        novel_store.update_chapter(req.chapter_id, req.content, req.title, outline)
+        novel_store.update_chapter(req.chapter_id, req.content, req.title, outline, foreshadowing_json, setup)
         chapter_id = req.chapter_id
     else:
-        chapter_id = novel_store.add_chapter(req.novel_id, req.content, req.title, outline)
+        chapter_id = novel_store.add_chapter(req.novel_id, req.content, req.title, outline, foreshadowing_json, setup)
+
+    # P2-3：伏笔登记入看板（去重；仅新增章节登记，更新章节不重复累计）
+    if not req.chapter_id and foreshadowing_list:
+        novel_store.add_foreshadowings(req.novel_id, chapter_id, foreshadowing_list)
 
     # 2. 增量更新知识库（build 状态机 + 向量），新内容打上章节标记
     try:
@@ -631,6 +682,17 @@ def save_chapter(req: ChapterSaveRequest):
         updated = False
         print(f"增量更新失败: {e}")
 
+        g.save()
+        vs.save()
+        updated = True
+        # 埋点：知识库增量更新
+        tracking.record("knowledge_graph_update", update_type="incremental",
+                        entities_added=len(result["final_output"].get("entities", [])),
+                        consistency_violations=len((result.get("consistency_report") or {}).get("conflicts", [])))
+    except Exception as e:
+        updated = False
+        print(f"增量更新失败: {e}")
+
     return {
         "chapter_id": chapter_id,
         "knowledge_updated": updated,
@@ -642,6 +704,8 @@ def save_chapter(req: ChapterSaveRequest):
             "entities": result["final_output"]["entities"] if updated else [],
         },
         "outline": outline,  # 里程碑18：章纲
+        "foreshadowing": foreshadowing_list,  # P2-3：本章伏笔
+        "setup": setup,  # P2-3：本章预设
     }
 
 
@@ -914,6 +978,84 @@ def analysis_report(req: AnalysisReportRequest):
         len((novel_store.get_chapter(c["id"]) or {}).get("content", "")) for c in chapters
     )
     return {"report": report}
+
+
+# ===== 写作数据面板 API（Tool 7: generate_writing_report）=====
+
+@app.get("/api/novel/{novel_id}/stats")
+def novel_stats(novel_id: int):
+    """写作数据面板：字数趋势/章节节奏/高频词/人物出场/创作时段"""
+    try:
+        return generate_writing_report(novel_id)
+    except Exception as e:
+        return {"error": f"数据面板生成失败: {e}"}
+
+
+# ===== 伏笔看板 API（P2-3：伏笔管理 / 未填坑提醒）=====
+
+@app.get("/api/novel/{novel_id}/foreshadowings")
+def list_foreshadowings(novel_id: int, status: str = ""):
+    """伏笔看板：全部伏笔 + 统计（status: pending/resolved/空=全部）"""
+    items = novel_store.list_foreshadowings(novel_id, status)
+    for it in items:
+        it["created_at"] = it["created_at"]
+    return {
+        "foreshadowings": items,
+        "stats": novel_store.foreshadowing_stats(novel_id),
+        "total": len(items),
+    }
+
+
+@app.patch("/api/foreshadowing/{fh_id}")
+def resolve_foreshadowing(fh_id: int):
+    """标记伏笔已解决（填坑）"""
+    novel_store.resolve_foreshadowing(fh_id)
+    tracking.record("foreshadowing_resolved", fh_id=fh_id)
+    return {"success": True}
+
+
+# ===== 埋点 API（PRD 5.6）=====
+
+class TrackRequest(BaseModel):
+    event: str
+    props: dict = {}
+    session_id: str = ""
+
+
+@app.post("/api/track")
+def track_event(req: TrackRequest):
+    """前端/任意端埋点上报"""
+    tracking.record(req.event, session_id=req.session_id, **req.props)
+    return {"success": True}
+
+
+@app.get("/api/tracking/stats")
+def tracking_stats():
+    """埋点统计（按事件计数 + 最近事件）"""
+    return tracking.stats()
+
+
+@app.post("/api/tracking/clear")
+def tracking_clear():
+    tracking.clear()
+    return {"success": True}
+
+
+# ===== 多模态文档解析 API（P2-5：word / pdf / 文本上传）=====
+
+@app.post("/api/material/parse")
+async def parse_material(file: UploadFile):
+    """解析上传的文档（.txt/.md/.docx/.pdf）→ 提取文本，供前端走素材入库流程"""
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        return {"error": "文件超过 20MB 限制"}
+    try:
+        text = parse_text_file(content, file.filename or "")
+    except ValueError as e:
+        return {"error": str(e)}
+    tracking.record("upload_content", content_type=file.filename.split(".")[-1] if file.filename else "text",
+                    file_size=len(content))
+    return {"text": text[:100000], "filename": file.filename, "chars": len(text)}
 
 
 # ===== 启动 =====

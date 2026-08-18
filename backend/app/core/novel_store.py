@@ -55,6 +55,15 @@ class NovelStore:
             created_at REAL NOT NULL,
             FOREIGN KEY (novel_id) REFERENCES novels(id)
         );
+        CREATE TABLE IF NOT EXISTS foreshadowings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            novel_id INTEGER NOT NULL,
+            chapter_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at REAL NOT NULL,
+            FOREIGN KEY (novel_id) REFERENCES novels(id)
+        );
         """)
         conn.commit()
         # 里程碑17：给老库补 sort_order 列（拖拽排序），新库建表时不会带这列，用迁移方式加
@@ -77,6 +86,11 @@ class NovelStore:
         ch_cols = [row[1] for row in conn.execute("PRAGMA table_info(chapters)").fetchall()]
         if "outline" not in ch_cols:
             conn.execute("ALTER TABLE chapters ADD COLUMN outline TEXT DEFAULT ''")
+        # P2-3：章纲结构化（伏笔/预设列）
+        if "foreshadowing" not in ch_cols:
+            conn.execute("ALTER TABLE chapters ADD COLUMN foreshadowing TEXT DEFAULT '[]'")
+        if "setup" not in ch_cols:
+            conn.execute("ALTER TABLE chapters ADD COLUMN setup TEXT DEFAULT ''")
         conn.commit()
         conn.close()
 
@@ -109,37 +123,48 @@ class NovelStore:
         conn.commit()
         conn.close()
 
-    def add_chapter(self, novel_id: int, content: str, title: str = "", outline: str = "") -> int:
-        """保存章节，返回 chapter_id（里程碑18：可带章纲 outline）"""
+    def add_chapter(self, novel_id: int, content: str, title: str = "", outline: str = "",
+                    foreshadowing: str = "[]", setup: str = "") -> int:
+        """保存章节，返回 chapter_id（里程碑18：可带章纲 outline；P2-3：伏笔/预设）"""
         conn = self._get_conn()
         cur = conn.execute(
-            "INSERT INTO chapters (novel_id, title, content, created_at, outline) VALUES (?, ?, ?, ?, ?)",
-            (novel_id, title, content, time.time(), outline),
+            "INSERT INTO chapters (novel_id, title, content, created_at, outline, foreshadowing, setup) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (novel_id, title, content, time.time(), outline, foreshadowing, setup),
         )
         conn.commit()
         chapter_id = cur.lastrowid
         conn.close()
         return chapter_id
 
-    def update_chapter(self, chapter_id: int, content: str, title: str = "", outline: str = ""):
-        """更新章节正文（里程碑10：作者改旧章节；里程碑18：可更新章纲）"""
+    def update_chapter(self, chapter_id: int, content: str, title: str = "", outline: str = "",
+                       foreshadowing: str = "[]", setup: str = ""):
+        """更新章节正文（里程碑10：作者改旧章节；里程碑18：可更新章纲；P2-3：伏笔/预设）"""
         conn = self._get_conn()
         conn.execute(
-            "UPDATE chapters SET content = ?, title = ?, outline = ? WHERE id = ?",
-            (content, title, outline, chapter_id),
+            "UPDATE chapters SET content = ?, title = ?, outline = ?, foreshadowing = ?, setup = ? WHERE id = ?",
+            (content, title, outline, foreshadowing, setup, chapter_id),
         )
         conn.commit()
         conn.close()
 
     def list_chapters(self, novel_id: int) -> List[Dict[str, Any]]:
-        """列出某作品的所有章节（不含正文，含章纲 outline，里程碑18）"""
+        """列出某作品的所有章节（不含正文，含章纲/伏笔/预设，里程碑18/P2-3）"""
         conn = self._get_conn()
         rows = conn.execute(
-            "SELECT id, title, created_at, outline FROM chapters WHERE novel_id = ? ORDER BY id",
+            "SELECT id, title, created_at, outline, foreshadowing, setup FROM chapters WHERE novel_id = ? ORDER BY id",
             (novel_id,),
         ).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            try:
+                import json as _json
+                d["foreshadowing_list"] = _json.loads(d.get("foreshadowing") or "[]")
+            except Exception:
+                d["foreshadowing_list"] = []
+            result.append(d)
+        return result
 
     def get_chapter(self, chapter_id: int) -> Optional[Dict[str, Any]]:
         """读取章节全文"""
@@ -201,6 +226,66 @@ class NovelStore:
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+    # ===== 伏笔管理（P2-3：伏笔看板 / 未填坑提醒） =====
+    def add_foreshadowings(self, novel_id: int, chapter_id: int, texts: List[str]) -> int:
+        """批量登记伏笔（同文本去重：同一本书同一伏笔只记一次）"""
+        added = 0
+        if not texts:
+            return 0
+        conn = self._get_conn()
+        existing = {
+            r["text"] for r in conn.execute(
+                "SELECT text FROM foreshadowings WHERE novel_id = ?", (novel_id,)
+            ).fetchall()
+        }
+        for t in texts:
+            t = t.strip()
+            if not t or t in existing:
+                continue
+            conn.execute(
+                "INSERT INTO foreshadowings (novel_id, chapter_id, text, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+                (novel_id, chapter_id, t, time.time()),
+            )
+            existing.add(t)
+            added += 1
+        conn.commit()
+        conn.close()
+        return added
+
+    def list_foreshadowings(self, novel_id: int, status: str = "") -> List[Dict[str, Any]]:
+        """伏笔列表（status: pending/resolved/空=全部）"""
+        conn = self._get_conn()
+        sql = "SELECT f.*, c.title AS chapter_title FROM foreshadowings f LEFT JOIN chapters c ON c.id = f.chapter_id WHERE f.novel_id = ?"
+        args: list = [novel_id]
+        if status:
+            sql += " AND f.status = ?"
+            args.append(status)
+        sql += " ORDER BY f.id"
+        rows = conn.execute(sql, args).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def resolve_foreshadowing(self, fh_id: int) -> None:
+        """标记伏笔已解决（填坑）"""
+        conn = self._get_conn()
+        conn.execute("UPDATE foreshadowings SET status = 'resolved' WHERE id = ?", (fh_id,))
+        conn.commit()
+        conn.close()
+
+    def foreshadowing_stats(self, novel_id: int) -> Dict[str, int]:
+        """伏笔统计：总数/未解决/已解决"""
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS n FROM foreshadowings WHERE novel_id = ? GROUP BY status",
+            (novel_id,),
+        ).fetchall()
+        conn.close()
+        stats = {"total": 0, "pending": 0, "resolved": 0}
+        for r in rows:
+            stats[r["status"]] = r["n"]
+            stats["total"] += r["n"]
+        return stats
 
 
 # 全局单例
