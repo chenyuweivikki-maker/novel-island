@@ -25,6 +25,7 @@ from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph, graph_manager, get_graph_for
 from .core.novel_store import novel_store
 from .core.inspiration_store import inspiration_store
+from .core.community_store import community_store
 from .core.semantic_cache import semantic_cache
 from .core.tracking import tracking, new_session_id
 from .core.fallback_templates import fallback_inspiration
@@ -205,6 +206,20 @@ class InspCategoryMoveRequest(BaseModel):
     novel_id: int
     name: str
     direction: str  # up | down
+
+
+# ===== 社区请求模型（作者互动：帖子/点赞/收藏/评论）=====
+class PostCreateRequest(BaseModel):
+    title: str
+    content: str
+    post_type: str = "post"        # post=分享 / inspiration=灵感分享 / idea=使用心得 / question=提问
+    novel_id: int = 0              # 关联作品（0=通用）
+    inspiration_id: int = 0        # 来源灵感（灵感分享时）
+
+
+class CommentCreateRequest(BaseModel):
+    post_id: int
+    content: str
 
 
 # ===== 润色请求模型（P5 润色 Review 弹窗）=====
@@ -1097,6 +1112,74 @@ async def parse_material(file: UploadFile):
     tracking.record("upload_content", content_type=file.filename.split(".")[-1] if file.filename else "text",
                     file_size=len(content))
     return {"text": text[:100000], "filename": file.filename, "chars": len(text)}
+
+
+# ===== 社区 API（作者互动：帖子 / 点赞 / 收藏 / 评论）=====
+@app.post("/api/community/post")
+def community_create_post(req: PostCreateRequest):
+    """发帖（分享 / 灵感分享 / 使用心得 / 提问）"""
+    if not req.title.strip() or not req.content.strip():
+        return {"error": "标题和内容不能为空"}
+    pid = community_store.create_post(
+        title=req.title, content=req.content, post_type=req.post_type,
+        novel_id=req.novel_id, inspiration_id=req.inspiration_id,
+    )
+    tracking.record("community_post", post_type=req.post_type, post_id=pid)
+    return {"success": True, "post_id": pid}
+
+
+@app.get("/api/community/posts")
+def community_list_posts(post_type: str | None = None, limit: int = 50, offset: int = 0):
+    """帖子流（最新在前；可按类型过滤）"""
+    posts = community_store.list_posts(post_type, min(limit, 100), max(offset, 0))
+    # 补充关联信息：书名 / 灵感内容
+    novel_titles = {n["id"]: n["title"] for n in novel_store.list_novels()}
+    all_insp = inspiration_store.list_inspirations(novel_id=None, category=None)
+    insp_texts = {it["id"]: it.get("content", "") for it in all_insp}
+    for p in posts:
+        p["novel_title"] = novel_titles.get(p["novel_id"], "")
+        p["inspiration_content"] = insp_texts.get(p["inspiration_id"], "")
+    return {"posts": posts, "total": len(posts)}
+
+
+@app.get("/api/community/post/{post_id}")
+def community_get_post(post_id: int):
+    """帖子详情 + 评论"""
+    post = community_store.get_post(post_id)
+    if not post:
+        return {"error": "帖子不存在"}
+    comments = community_store.list_comments(post_id)
+    return {"post": post, "comments": comments}
+
+
+@app.delete("/api/community/post/{post_id}")
+def community_delete_post(post_id: int):
+    community_store.delete_post(post_id)
+    return {"success": True}
+
+
+@app.post("/api/community/post/{post_id}/like")
+def community_toggle_like(post_id: int):
+    return community_store.toggle_like(post_id)
+
+
+@app.post("/api/community/post/{post_id}/favorite")
+def community_toggle_favorite(post_id: int):
+    return community_store.toggle_favorite(post_id)
+
+
+@app.post("/api/community/comment")
+def community_add_comment(req: CommentCreateRequest):
+    if not req.content.strip():
+        return {"error": "评论内容不能为空"}
+    cid = community_store.add_comment(req.post_id, req.content)
+    return {"success": True, "comment_id": cid}
+
+
+@app.delete("/api/community/comment/{comment_id}")
+def community_delete_comment(comment_id: int):
+    community_store.delete_comment(comment_id)
+    return {"success": True}
 
 
 # ===== 启动 =====

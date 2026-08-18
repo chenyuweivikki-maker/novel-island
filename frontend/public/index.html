@@ -174,6 +174,8 @@ input, textarea { font-family: inherit; }
 .pill { font-size: 11px; padding: 3px 10px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); color: var(--text-2); background: var(--surface); }
 .pill.companion { border-color: var(--text); color: var(--text); background: var(--surface-2); }
 .pill.active-pill { background: var(--text); color: #fff; border-color: var(--text); }
+/* 纯状态文本（非可点击按钮）：写作中/已完结等 */
+.status-label { font-size: 11px; color: var(--text-3); letter-spacing: .5px; user-select: none; }
 
 .sub-tabs {
   display: flex; align-items: stretch; padding: 0 32px; height: 46px;
@@ -433,6 +435,11 @@ input, textarea { font-family: inherit; }
 }
 .insp-item .del { margin-left: auto; border: none; background: none; color: var(--text-3); font-size: 13px; cursor: pointer; }
 .insp-item .del:hover { color: var(--text); }
+.insp-item .share-btn {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill);
+  font-size: 11px; padding: 2px 10px; color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.insp-item .share-btn:hover { border-color: var(--text); color: var(--text); }
 /* 加号卡片：自动添加分类 */
 .insp-item.add-card {
   border: 1.5px dashed var(--border-strong); background: transparent; cursor: pointer;
@@ -444,6 +451,83 @@ input, textarea { font-family: inherit; }
 .insp-item.add-card .sub { font-size: 12px; }
 .insp-foot { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
 .insp-foot .hint { font-size: 12px; color: var(--text-3); }
+
+/* ── 社区（作者互动） ── */
+.comm-layout { display: flex; flex-direction: column; height: 100%; }
+.comm-head {
+  display: flex; align-items: center; gap: 16px; padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+}
+.comm-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.comm-tabs { display: flex; gap: 8px; }
+.comm-tab {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill);
+  padding: 6px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.comm-tab:hover { border-color: var(--text); color: var(--text); }
+.comm-tab.active { background: var(--text); color: var(--on-primary); border-color: var(--text); font-weight: 500; }
+.comm-posts { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 860px; margin: 0 auto; width: 100%; }
+.comm-post {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; transition: border-color .12s;
+}
+.comm-post:hover { border-color: var(--border-strong); }
+.comm-post .p-head { display: flex; align-items: center; gap: 10px; }
+.comm-post .p-type {
+  font-size: 11px; padding: 2px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+}
+.comm-post .p-title { font-size: 15px; font-weight: 600; cursor: pointer; }
+.comm-post .p-title:hover { text-decoration: underline; }
+.comm-post .p-content { font-size: 13.5px; line-height: 1.7; color: var(--text-2); white-space: pre-wrap; overflow-wrap: break-word; cursor: pointer; }
+.comm-post .p-insp-quote {
+  border-left: 3px solid var(--text); background: var(--surface-2); border-radius: var(--radius-sm);
+  padding: 8px 12px; font-size: 12.5px; color: var(--text-2); font-style: italic;
+}
+.comm-post .p-meta { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--text-3); }
+.comm-post .p-meta .author { font-weight: 500; color: var(--text-2); }
+.comm-post .p-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.comm-post .p-act {
+  display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: var(--radius-pill); padding: 3px 12px;
+  font-size: 12px; color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.comm-post .p-act:hover { border-color: var(--text); color: var(--text); }
+.comm-post .p-act.on { border-color: var(--text); color: var(--text); background: var(--surface-2); }
+/* 发帖弹窗 */
+.post-type-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.post-type {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill);
+  padding: 6px 14px; font-size: 13px; color: var(--text-2); cursor: pointer;
+}
+.post-type:hover { border-color: var(--text); }
+.post-type.active { background: var(--text); color: var(--on-primary); border-color: var(--text); }
+.post-input {
+  width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 14px; outline: none; margin-bottom: 12px; box-sizing: border-box;
+}
+.post-input:focus { border-color: var(--text); }
+.post-textarea {
+  width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 14px; outline: none; min-height: 120px; resize: vertical;
+  font-family: inherit; line-height: 1.7; box-sizing: border-box;
+}
+.post-textarea:focus { border-color: var(--text); }
+.post-insp-src { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 10px; }
+.post-insp-src .tag { flex-shrink: 0; }
+.post-insp-src span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-lg { width: 560px; max-width: 92vw; }
+/* 帖子详情评论 */
+.pd-post { border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 12px; }
+.pd-post .pd-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.pd-post .pd-content { font-size: 14px; line-height: 1.7; color: var(--text-2); white-space: pre-wrap; }
+.pd-comments { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+.pd-comment { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; }
+.pd-comment .c-author { font-size: 11px; color: var(--text-3); margin-bottom: 4px; font-weight: 600; }
+.pd-comment .c-time { font-weight: 400; margin-left: 8px; }
+.pd-comment .c-content { line-height: 1.6; color: var(--text-2); }
+.pd-empty { text-align: center; color: var(--text-3); font-size: 13px; padding: 24px 0; }
+
 .insp-menu {
   position: fixed; z-index: 200; background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm); box-shadow: 0 4px 24px rgba(0,0,0,.1); padding: 4px; min-width: 130px;
@@ -671,7 +755,7 @@ window.addEventListener('error', function (e) {
       <div class="chat-main">
         <div class="chat-head">
           <span class="title" id="chatTitle">写作Agent</span>
-          <span class="pill" id="pillWriting">写作中</span>
+          <span class="status-label" id="pillWriting">写作中</span>
           <button class="pill companion" id="pillCompanion">♡ 陪伴模式</button>
           <span class="spacer" style="flex:1"></span>
           <button class="btn-pill small" id="btnStats" style="display:none">📈 数据面板</button>
@@ -831,6 +915,61 @@ window.addEventListener('error', function (e) {
       </div>
     </section>
 
+    <!-- ═══════ 社区（作者互动：帖子 / 点赞 / 收藏 / 评论）═══════ -->
+    <section class="view" id="view-community">
+      <div class="comm-layout">
+        <div class="comm-head">
+          <h2>社区</h2>
+          <div class="comm-tabs" id="commTabs">
+            <button class="comm-tab active" data-type="">全部</button>
+            <button class="comm-tab" data-type="inspiration">灵感分享</button>
+            <button class="comm-tab" data-type="idea">使用心得</button>
+            <button class="comm-tab" data-type="question">提问</button>
+          </div>
+          <span class="spacer"></span>
+          <button class="btn-pill primary" id="btnNewPost">＋ 发帖</button>
+        </div>
+        <div class="comm-posts" id="commPosts"></div>
+      </div>
+    </section>
+
+    <!-- 发帖弹窗 -->
+    <div class="modal-mask" id="postModal">
+      <div class="modal" style="width:520px;max-width:94vw">
+        <div class="modal-title">发布到社区</div>
+        <div class="modal-field">
+          <div class="post-type-row" id="postTypeRow">
+            <button class="post-type active" data-type="post">📝 分享</button>
+            <button class="post-type" data-type="inspiration">💡 灵感分享</button>
+            <button class="post-type" data-type="idea">✨ 使用心得</button>
+            <button class="post-type" data-type="question">❓ 提问</button>
+          </div>
+        </div>
+        <div class="modal-field"><input id="postTitle" class="post-input" placeholder="标题（一句话说清楚）" maxlength="80" style="margin-bottom:0"></div>
+        <div class="modal-field"><textarea id="postContent" class="post-textarea" placeholder="正文…分享灵感、心得或提问"></textarea></div>
+        <div class="post-insp-src" id="postInspSrc" style="display:none">
+          <span class="tag">来源灵感</span>
+          <span id="postInspPreview"></span>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-pill" id="btnCancelPost">取消</button>
+          <button class="btn-pill primary" id="btnSubmitPost">发布</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 帖子详情弹窗（评论） -->
+    <div class="modal-mask" id="postDetailModal">
+      <div class="modal modal-lg">
+        <div class="modal-title">帖子详情</div>
+        <div class="modal-field"><div id="postDetailBody" style="width:100%"></div></div>
+        <div class="modal-actions" style="display:flex;gap:10px">
+          <input id="commentInput" class="post-input" placeholder="写下你的评论…" maxlength="200" style="flex:1;margin-bottom:0">
+          <button class="btn-pill primary" id="btnSubmitComment">评论</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══════ 登录 / 注册 ═══════ -->
     <section class="view" id="view-login">
       <div class="login-wrap">
@@ -978,10 +1117,10 @@ async function apiGet(path) {
 }
 
 // ===== 视图切换 =====
-var VIEW_NAMES = { home: '首页', works: '我的作品', chat: '创作', inspiration: '灵感库', login: '登录' };
+var VIEW_NAMES = { home: '首页', works: '我的作品', chat: '创作', inspiration: '灵感库', community: '社区', login: '登录' };
 function showView(view) {
   // 内联样式强制切换：不再依赖 .active 类，杜绝 CSS 层叠失效
-  var names = ['home', 'works', 'chat', 'inspiration', 'login'];
+  var names = ['home', 'works', 'chat', 'inspiration', 'community', 'login'];
   for (var i = 0; i < names.length; i++) {
     var el = document.getElementById('view-' + names[i]);
     if (!el) continue;
@@ -995,6 +1134,7 @@ function showView(view) {
   document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
   if (view === 'works') { loadWorks(); }
   if (view === 'inspiration') { loadInspiration(); }
+  if (view === 'community') { loadCommunity(); }
   if (view === 'chat') {
     if (!currentNovelId) selectDefaultChat();
     renderSidebar();
@@ -1012,9 +1152,7 @@ document.querySelector('.logo').addEventListener('click', () => showView('home')
 var NAV_VIEW = { home: 'home', chat: 'chat', inspiration: 'inspiration', works: 'works', community: 'community' };
 document.querySelectorAll('#sideNav .side-item').forEach(function (item) {
   item.addEventListener('click', function () {
-    var nav = item.dataset.nav;
-    if (nav === 'community') { alert('社区即将上线'); return; }
-    showView(NAV_VIEW[nav]);
+    showView(NAV_VIEW[item.dataset.nav]);
   });
 });
 
@@ -2225,6 +2363,7 @@ async function loadInspItems() {
             ${inspCatNames.map(n => `<option ${n === it.category ? 'selected' : ''}>${esc(n)}</option>`).join('')}
             <option>其他</option>
           </select>
+          <button class="share-btn" data-insp-id="${it.id}" data-insp-content="${escAttr(it.content)}">分享</button>
           <button class="del" onclick="deleteInsp(${it.id})">删除</button>
         </div>
       </div>`;}).join('') + `
@@ -2409,6 +2548,169 @@ document.addEventListener('keydown', e => {
   fetch(API_BASE + '/api/health').then(function (r) { return r.json(); })
     .then(function (d) { badgeBackend = '✓ 后端已连接 (' + (d.model || 'ok') + ')'; updateBadge(); })
     .catch(function () { badgeBackend = '✗ 后端未连接'; updateBadge(); });
+// ===== 社区（作者互动：帖子 / 点赞 / 收藏 / 评论）=====
+var commFilter = '';
+var pendingShareInsp = null; // { id, content } 灵感分享来源
+
+function postTypeName(t) {
+  return { post: '📝 分享', inspiration: '💡 灵感分享', idea: '✨ 使用心得', question: '❓ 提问' }[t] || '📝 分享';
+}
+async function loadCommunity() {
+  try {
+    const data = await apiGet(`/api/community/posts?post_type=${encodeURIComponent(commFilter)}`);
+    const list = document.getElementById('commPosts');
+    const posts = data.posts || [];
+    if (!posts.length) {
+      list.innerHTML = `<div class="pd-empty">社区还空着，来发第一条帖子吧 —— 分享灵感、使用心得或提问。</div>`;
+      return;
+    }
+    list.innerHTML = posts.map(p => `
+      <div class="comm-post" data-id="${p.id}">
+        <div class="p-head">
+          <span class="p-type">${postTypeName(p.post_type)}</span>
+          ${p.novel_title ? `<span class="p-type">📕 ${esc(p.novel_title)}</span>` : ''}
+          <span class="p-meta"><span class="author">${esc(p.author)}</span></span>
+          <span class="p-meta">${timeAgo(p.created_at * 1000)}</span>
+          <span class="p-actions">
+            <button class="p-act" onclick="togglePostLike(${p.id}, this)">👍 <span>${p.like_count}</span></button>
+            <button class="p-act" onclick="togglePostFav(${p.id}, this)">⭐ <span>${p.favorite_count}</span></button>
+            <button class="p-act" onclick="openPostDetail(${p.id})">💬 <span>${p.comment_count}</span></button>
+          </span>
+        </div>
+        <div class="p-title" onclick="openPostDetail(${p.id})">${esc(p.title)}</div>
+        <div class="p-content" onclick="openPostDetail(${p.id})">${esc(p.content)}</div>
+        ${p.inspiration_content ? `<div class="p-insp-quote">💡 ${esc(p.inspiration_content)}</div>` : ''}
+      </div>`).join('');
+  } catch (e) {
+    document.getElementById('commPosts').innerHTML = `<div class="pd-empty">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+async function togglePostLike(id, btn) {
+  try {
+    const d = await apiCall(`/api/community/post/${id}/like`, {});
+    btn.classList.toggle('on', d.liked);
+    btn.querySelector('span').textContent = d.like_count;
+  } catch (e) { alert('操作失败: ' + e.message); }
+}
+async function togglePostFav(id, btn) {
+  try {
+    const d = await apiCall(`/api/community/post/${id}/favorite`, {});
+    btn.classList.toggle('on', d.favorited);
+    btn.querySelector('span').textContent = d.favorite_count;
+  } catch (e) { alert('操作失败: ' + e.message); }
+}
+async function openPostDetail(id) {
+  try {
+    const d = await apiGet(`/api/community/post/${id}`);
+    const p = d.post;
+    const cs = d.comments || [];
+    document.getElementById('postDetailBody').innerHTML = `
+      <div class="pd-post">
+        <div class="p-type" style="margin-bottom:6px">${postTypeName(p.post_type)}</div>
+        <div class="pd-title">${esc(p.title)}</div>
+        <div class="pd-content">${esc(p.content)}</div>
+        ${p.inspiration_content ? `<div class="p-insp-quote" style="margin-top:8px">💡 ${esc(p.inspiration_content)}</div>` : ''}
+        <div class="p-meta" style="margin-top:8px">${esc(p.author)} · ${timeAgo(p.created_at * 1000)} · 👍 ${p.like_count} · ⭐ ${p.favorite_count}</div>
+      </div>
+      <div class="pd-comments" id="pdComments">
+        ${cs.length ? cs.map(c => `
+          <div class="pd-comment">
+            <div class="c-author">${esc(c.author)}<span class="c-time">${timeAgo(c.created_at * 1000)}</span></div>
+            <div class="c-content">${esc(c.content)}</div>
+          </div>`).join('') : `<div class="pd-empty">还没有评论，来抢沙发～</div>`}
+      </div>`;
+    document.getElementById('commentInput').value = '';
+    document.getElementById('commentInput').dataset.postId = id;
+    document.getElementById('postDetailModal').classList.add('show');
+  } catch (e) { alert('加载失败: ' + e.message); }
+}
+async function submitComment() {
+  const input = document.getElementById('commentInput');
+  const postId = input.dataset.postId;
+  const text = input.value.trim();
+  if (!postId || !text) return;
+  try {
+    await apiCall('/api/community/comment', { post_id: parseInt(postId), content: text });
+    openPostDetail(parseInt(postId));
+  } catch (e) { alert('评论失败: ' + e.message); }
+}
+// 灵感卡片「分享到社区」：事件委托（避免内联中文转义问题）
+document.getElementById('inspItems').addEventListener('click', e => {
+  const btn = e.target.closest('.share-btn');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.inspId) || 0;
+  const content = btn.dataset.inspContent || '';
+  openPostModal({ id, content });
+});
+// 发帖弹窗
+function openPostModal(shareInsp) {
+  pendingShareInsp = shareInsp || null;
+  document.getElementById('postTitle').value = '';
+  document.getElementById('postContent').value = '';
+  if (pendingShareInsp) {
+    // 灵感分享：预填内容和类型
+    document.querySelectorAll('#postTypeRow .post-type').forEach(b => b.classList.remove('active'));
+    document.querySelector('#postTypeRow .post-type[data-type="inspiration"]').classList.add('active');
+    document.getElementById('postTitle').value = '分享一条灵感';
+    document.getElementById('postContent').value = pendingShareInsp.content;
+    document.getElementById('postInspSrc').style.display = 'flex';
+    document.getElementById('postInspPreview').textContent = pendingShareInsp.content;
+  } else {
+    document.getElementById('postInspSrc').style.display = 'none';
+  }
+  document.getElementById('postModal').classList.add('show');
+}
+function getSelectedPostType() {
+  const el = document.querySelector('#postTypeRow .post-type.active');
+  return el ? el.dataset.type : 'post';
+}
+async function submitPost() {
+  const title = document.getElementById('postTitle').value.trim();
+  const content = document.getElementById('postContent').value.trim();
+  if (!title || !content) { alert('标题和内容都要填'); return; }
+  try {
+    await apiCall('/api/community/post', {
+      title, content,
+      post_type: getSelectedPostType(),
+      inspiration_id: pendingShareInsp ? pendingShareInsp.id : 0,
+    });
+    document.getElementById('postModal').classList.remove('show');
+    pendingShareInsp = null;
+    loadCommunity();
+  } catch (e) { alert('发布失败: ' + e.message); }
+}
+// 事件绑定
+document.getElementById('commTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.comm-tab');
+  if (!btn) return;
+  document.querySelectorAll('#commTabs .comm-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  commFilter = btn.dataset.type;
+  loadCommunity();
+});
+document.getElementById('btnNewPost').addEventListener('click', () => openPostModal(null));
+document.getElementById('btnCancelPost').addEventListener('click', () => {
+  document.getElementById('postModal').classList.remove('show');
+  pendingShareInsp = null;
+});
+document.getElementById('btnSubmitPost').addEventListener('click', submitPost);
+document.getElementById('postTypeRow').addEventListener('click', e => {
+  const btn = e.target.closest('.post-type');
+  if (!btn) return;
+  document.querySelectorAll('#postTypeRow .post-type').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+document.getElementById('btnSubmitComment').addEventListener('click', submitComment);
+document.getElementById('commentInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitComment();
+});
+document.getElementById('postModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('postModal')) document.getElementById('postModal').classList.remove('show');
+});
+document.getElementById('postDetailModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('postDetailModal')) document.getElementById('postDetailModal').classList.remove('show');
+});
+
 // ===== 初始化 =====
 window.addEventListener('load', () => {
   showView('home');
