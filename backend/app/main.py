@@ -248,6 +248,17 @@ def _is_new_book_intent(query: str) -> bool:
     return any(kw in query for kw in NEW_BOOK_KEYWORDS)
 
 
+def general_opening() -> str:
+    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品——我们可以先从开一本新书开始：\n"
+            "书名想叫什么？什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？\n"
+            "定了之后我会顺着人设、配角、大纲帮你把书搭起来；有零散素材也可以直接拖进对话框，我帮你整理。")
+
+
+def material_without_novel() -> str:
+    return ("素材我收到了，但它需要属于某本书才能入库。先告诉我书名（或点「帮我创建一本新书」创建），"
+            "再把素材拖进来，我会把它解析进那本书的知识库。")
+
+
 def new_book_opening() -> str:
     return ("好呀，我们开一本新书！先告诉我两件事：\n"
             "① 书名想叫什么？\n"
@@ -258,8 +269,10 @@ def new_book_opening() -> str:
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
-    # ===== 对话式建库：素材解析入库（拖入/粘贴的文本，随时可入）=====
+    # ===== 对话式建库：素材解析入库（仅项目上下文；无项目走 material_without_novel）=====
     if req.material and req.material.strip():
+        if req.novel_id is None:
+            return {"answer": material_without_novel(), "sources": []}
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
 
@@ -267,7 +280,17 @@ def ask(req: AskRequest):
     if _is_new_book_intent(req.query):
         return {"answer": new_book_opening(), "sources": []}
 
-    # 里程碑17：按项目取 TF-IDF 检索器（不选项目时用全局单例）
+    # ===== 无项目（首页/默认对话）：通用助手，不读任何项目库 =====
+    if req.novel_id is None:
+        if req.material and req.material.strip():
+            return {"answer": material_without_novel(), "sources": []}
+        intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
+        if intent == "companion":
+            comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
+            return {"answer": comp["agent_response"], "sources": []}
+        return {"answer": general_opening(), "sources": []}
+
+    # 里程碑17：按项目取 TF-IDF 检索器
     r = get_retriever_for(req.novel_id)
 
     # ===== 空库：不硬报错，进入建库引导（对话式建库）=====

@@ -88,6 +88,7 @@ input, textarea { font-family: inherit; }
 .chip:hover { border-color: var(--text); color: var(--text); }
 .home .recent { margin-top: 48px; width: 100%; max-width: 880px; }
 .home .recent h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.home-msgs { margin-top: 32px; width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
 .recent-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .home .foot { margin-top: 56px; color: var(--text-3); font-size: 12px; letter-spacing: 1px; }
 
@@ -389,6 +390,7 @@ window.addEventListener('error', function (e) {
         <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
         <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
       </div>
+      <div class="home-msgs" id="homeMsgList" style="display:none"></div>
       <div class="recent" id="recentBox" style="display:none">
         <h2>最近作品</h2>
         <div class="recent-row" id="recentList"></div>
@@ -692,13 +694,26 @@ function enterNovel(id, title) {
   showView('chat');
   selectNovel(id, title);
 }
-document.getElementById('homeSend').addEventListener('click', () => {
-  const q = document.getElementById('homeInput').value.trim();
+function homeAsk(q) {
   if (!q) return;
-  showView('chat');
-  selectDefaultChat();
-  document.getElementById('qaInput').value = q;
-  ask();
+  document.getElementById('homeMsgList').style.display = 'block';
+  document.getElementById('homeInput').value = '';
+  appendMsg('user', q, null, 'homeMsgList');
+  const typing = document.createElement('div');
+  typing.className = 'msg typing';
+  typing.innerHTML = '<div class="avatar">猫</div><div class="body">思考中…</div>';
+  document.getElementById('homeMsgList').appendChild(typing);
+  document.getElementById('homeMsgList').scrollTop = 99999;
+  apiCall('/api/kb/ask', { query: q, top_k: 5 }).then(function (data) {
+    typing.remove();
+    appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
+  }).catch(function (e) {
+    typing.remove();
+    appendMsg('agent', '出错了：' + e.message, null, 'homeMsgList');
+  });
+}
+document.getElementById('homeSend').addEventListener('click', () => {
+  homeAsk(document.getElementById('homeInput').value.trim());
 });
 document.getElementById('homeInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('homeSend').click(); });
 document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => {
@@ -707,10 +722,11 @@ document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => 
     // 「帮我创建一本新书」→ 直接走建书流程（新建小说弹窗 → 创建后 Agent 引导建库）
     if (q && q.indexOf('创建一本新书') >= 0) { openNewNovel(); return; }
     if (document.getElementById('view-home').classList.contains('active')) {
-      showView('chat'); selectDefaultChat();
+      homeAsk(q);
+    } else {
+      document.getElementById('qaInput').value = q;
+      ask();
     }
-    document.getElementById('qaInput').value = q;
-    ask();
   });
 });
 
@@ -857,9 +873,10 @@ function switchSubPage(subpage) {
 }
 
 // ===== 对话 =====
-function appendMsg(role, text, opts = {}) {
-  messages.push({ role, text, ...opts });
-  const list = document.getElementById('msgList');
+function appendMsg(role, text, opts, containerId) {
+  opts = opts || {}; containerId = containerId || 'msgList';
+  messages.push({ role: role, text: text });
+  const list = document.getElementById(containerId);
   const cls = role === 'user' ? 'msg user' : (opts.companion ? 'msg companion' : 'msg');
   const avatar = role === 'user' ? '我' : '猫';
   const src = opts.src ? `<div class="src">来源：${opts.src}</div>` : '';
@@ -869,6 +886,7 @@ function appendMsg(role, text, opts = {}) {
   div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>`;
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
+  if (containerId === 'homeMsgList') document.getElementById('homeMsgList').style.display = 'block';
 }
 function esc(s) { return s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
@@ -901,7 +919,8 @@ function clearAttach() {
   document.getElementById('attachArea').innerHTML = '';
 }
 
-async function ask() {
+async function ask(containerId) {
+  containerId = containerId || 'msgList';
   const input = document.getElementById('qaInput');
   const query = input.value.trim();
   if (!query && !attachedFile) return;
@@ -909,7 +928,7 @@ async function ask() {
   if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
   if (attachedFile) body.material = attachedFile.text; // 对话式建库：素材随消息发送，后端解析入库
 
-  appendMsg('user', query || `📎 ${attachedFile.name}`);
+  appendMsg('user', query || '📎 ' + attachedFile.name, null, containerId);
   clearAttach();
   input.value = '';
 
@@ -920,8 +939,8 @@ async function ask() {
   const typing = document.createElement('div');
   typing.className = 'msg typing';
   typing.innerHTML = '<div class="avatar">猫</div><div class="body">思考中…</div>';
-  document.getElementById('msgList').appendChild(typing);
-  document.getElementById('msgList').scrollTop = 99999;
+  document.getElementById(containerId).appendChild(typing);
+  document.getElementById(containerId).scrollTop = 99999;
 
   try {
     const data = await apiCall('/api/kb/ask', body);
@@ -930,10 +949,10 @@ async function ask() {
     appendMsg('agent', data.answer, {
       companion: isCompanion,
       src: data.sources && data.sources.length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : ''
-    });
+    }, containerId);
   } catch (e) {
     typing.remove();
-    appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）');
+    appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）', null, containerId);
   } finally {
     askBtn.textContent = askOrig;
     askBtn.disabled = false;
