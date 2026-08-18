@@ -316,7 +316,13 @@ def next_guide_question(novel_id: int | None) -> str:
 
 
 # ===== 建书意图（对话式建库开场）=====
-NEW_BOOK_KEYWORDS = ["创建一本新书", "创建新书", "新建小说", "开新书", "开坑", "写一本", "新书", "开始创作"]
+# 注意：关键词要精确，不能宽泛到「写一本」「新书」——否则「想写一本都市文」会被误判成建书意图
+NEW_BOOK_KEYWORDS = ["创建一本新书", "创建新书", "新建小说", "开新书", "开坑", "开始创作", "一本新书", "写一本新书"]
+# 题材提示词：无项目时用户已给出题材信息 → 直接引导建书（而不是反复问）
+GENRE_HINTS = ["都市", "奇幻", "悬疑", "古风", "科幻", "言情", "武侠", "末世", "穿越", "电竞", "校园", "职场", "修仙", "刑侦", "年代", "重生", "娱乐圈"]
+
+# 会话内去重：无项目时只发一次完整引导，之后简短追问（避免两条重复长引导堆叠）
+_last_no_novel_brief = False
 
 
 def _is_new_book_intent(query: str) -> bool:
@@ -324,21 +330,21 @@ def _is_new_book_intent(query: str) -> bool:
 
 
 def general_opening() -> str:
-    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品——我们可以先从开一本新书开始：\n"
+    """无项目时的开场引导（第一次完整，之后简短）"""
+    global _last_no_novel_brief
+    if _last_no_novel_brief:
+        return ("还在等你的书名和题材呢——直接告诉我，比如「都市，主角是个离婚律师」。"
+                "或者点左侧「＋ 新建项目」，我陪你从头把书搭起来。")
+    _last_no_novel_brief = True
+    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品，我们先从开一本新书开始：\n"
             "书名想叫什么？什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？\n"
-            "定了之后我会顺着人设、配角、大纲帮你把书搭起来；有零散素材也可以直接拖进对话框，我帮你整理。")
+            "定了之后，我会顺着人设、配角、大纲一步步帮你把这本书的骨架搭起来——"
+            "有零散素材也可以直接拖进对话框，我帮你整理入库。")
 
 
 def material_without_novel() -> str:
     return ("素材我收到了，但它需要属于某本书才能入库。先告诉我书名（或点「帮我创建一本新书」创建），"
             "再把素材拖进来，我会把它解析进那本书的知识库。")
-
-
-def new_book_opening() -> str:
-    return ("好呀，我们开一本新书！先告诉我两件事：\n"
-            "① 书名想叫什么？\n"
-            "② 什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？\n"
-            "定了之后，我会顺着人设、配角、大纲一步步帮你把这本书的骨架搭起来——素材也可以直接拖进对话框，我自动解析入库。")
 
 
 @app.post("/api/kb/ask")
@@ -351,18 +357,24 @@ def ask(req: AskRequest):
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
 
-    # ===== 建书意图：走建书开场（问书名/题材），不落通用引导 =====
+    # ===== 建书意图 =====
     if _is_new_book_intent(req.query):
-        return {"answer": new_book_opening(), "sources": []}
+        if req.novel_id is not None:
+            # 已在作品里：不打断当前创作，引导侧栏新建
+            return {"answer": "想开新书？点左侧项目栏下方的「＋ 新建项目」，我马上陪你从书名聊起。", "sources": []}
+        return {"answer": general_opening(), "sources": []}
 
     # ===== 无项目（首页/默认对话）：通用助手，不读任何项目库 =====
     if req.novel_id is None:
-        if req.material and req.material.strip():
-            return {"answer": material_without_novel(), "sources": []}
         intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
+        # 情感低落 → 纯陪伴优先（即使提到题材也不机械引导）
         if intent == "companion":
             comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
             return {"answer": comp["agent_response"], "sources": []}
+        # 用户已给出题材/书名信息 → 引导建书（点新建项目）
+        if any(g in req.query for g in GENRE_HINTS) or ("叫" in req.query and len(req.query) >= 6):
+            return {"answer": ("题材记下了！现在点左侧「＋ 新建项目」创建这本书，"
+                               "创建后我把这些信息直接入库，再陪你顺着人设、配角、大纲把骨架搭起来。"), "sources": []}
         return {"answer": general_opening(), "sources": []}
 
     # 里程碑17：按项目取 TF-IDF 检索器
