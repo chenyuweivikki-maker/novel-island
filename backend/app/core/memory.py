@@ -55,6 +55,11 @@ def _history_conn() -> sqlite3.Connection:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_chat_scope_session ON chat_history (scope, session_id, id)"
     )
+    # 迁移：老库补 title 列（会话重命名 v2.1）
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(chat_history)").fetchall()]
+    if "title" not in cols:
+        conn.execute("ALTER TABLE chat_history ADD COLUMN title TEXT DEFAULT ''")
+        conn.commit()
     return conn
 
 
@@ -76,9 +81,17 @@ class ConversationMemory:
         try:
             conn = _history_conn()
             now = time.time()
+            # 首次写入时自动生成默认标题（取首条用户消息前12字）
+            title = ""
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM chat_history WHERE scope = ? AND session_id = ?",
+                (self.scope, self.session_id),
+            ).fetchone()
+            if row and row[0] == 0:
+                title = (user_msg or "新对话")[:12]
             conn.execute(
-                "INSERT INTO chat_history (scope, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (self.scope, self.session_id, "user", user_msg, now),
+                "INSERT INTO chat_history (scope, session_id, role, content, created_at, title) VALUES (?, ?, ?, ?, ?, ?)",
+                (self.scope, self.session_id, "user", user_msg, now, title),
             )
             conn.execute(
                 "INSERT INTO chat_history (scope, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -185,6 +198,7 @@ class MemoryManager:
             conn = _history_conn()
             rows = conn.execute(
                 "SELECT scope, session_id, COUNT(*) AS n, MAX(created_at) AS last_at, "
+                "MAX(title) AS title, "
                 "(SELECT content FROM chat_history h2 WHERE h2.scope = h.scope AND h2.session_id = h.session_id "
                 " ORDER BY h2.id DESC LIMIT 1) AS last_msg "
                 "FROM chat_history h GROUP BY scope, session_id ORDER BY last_at DESC"
@@ -196,13 +210,27 @@ class MemoryManager:
                     "session_id": r[1],
                     "messages": r[2],
                     "last_at": r[3],
-                    "last_msg": (r[4] or "")[:80],
+                    "title": r[4] or "",
+                    "last_msg": (r[5] or "")[:80],
                 }
                 for r in rows
             ]
         except Exception as e:
             print(f"[memory] 会话列表失败: {e}")
             return []
+
+    def rename_session(self, scope: str, session_id: str, title: str) -> None:
+        """重命名会话组（把新标题写进该会话所有行的 title 字段）"""
+        try:
+            conn = _history_conn()
+            conn.execute(
+                "UPDATE chat_history SET title = ? WHERE scope = ? AND session_id = ?",
+                (title, scope, session_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[memory] 会话重命名失败: {e}")
 
     def get_session_history(self, scope: str, session_id: str, limit: int = 100) -> List[Dict[str, str]]:
         """读取某个对话组的完整历史（供前端查看/对比）"""

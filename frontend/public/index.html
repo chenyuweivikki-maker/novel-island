@@ -249,6 +249,15 @@ input, textarea { font-family: inherit; }
 .msg.companion .tag { display: inline-block; font-size: 11px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill); margin-bottom: 6px; }
 .msg.typing .body::after { content: '…'; animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+/* 停止生成按钮 */
+.stop-gen {
+  display: inline-block; margin-top: 8px; border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text-2); border-radius: var(--radius-pill);
+  font-size: 11px; padding: 2px 10px; cursor: pointer; transition: all .12s;
+}
+.stop-gen:hover { border-color: var(--text); color: var(--text); }
+.msg.typing .body::after { content: ''; } /* 有停止按钮时隐藏思考省略号 */
+.msg.typing .stop-gen + * { display: none; }
 
 .chips-row { max-width: 640px; margin: 0 auto 8px; display: flex; gap: 8px; overflow-x: auto; padding: 0 28px; }
 /* 创作页对话输入框：与首页（.home-input）完全一致——宽度拉伸 + 640px 上限、黑色粗边框、16px 字体、42px 大按钮 */
@@ -1268,7 +1277,7 @@ function homeAsk(q) {
   if (!q) return;
   document.getElementById('homeInput').value = '';
   appendMsg('user', q, null, 'homeMsgList');
-  // 流式打字机（与创作页一致）：SSE 逐 token 渲染
+  // 流式打字机（与创作页一致）：SSE 逐 token 渲染；支持停止生成
   const list = document.getElementById('homeMsgList');
   const bubble = document.createElement('div');
   bubble.className = 'msg typing';
@@ -1280,6 +1289,15 @@ function homeAsk(q) {
   sendBtn.textContent = '…';
   sendBtn.disabled = true;
   let full = '';
+  const ctrl = new AbortController();
+  if (window.__homeAbort) { try { window.__homeAbort.abort(); } catch (e) {} }
+  window.__homeAbort = ctrl;
+  // 停止按钮：生成中可点，停止后保留已生成部分
+  const stopBtn = document.createElement('button');
+  stopBtn.className = 'stop-gen';
+  stopBtn.textContent = '■ 停止';
+  stopBtn.addEventListener('click', function () { try { ctrl.abort(); } catch (e) {} });
+  bubble.querySelector('.body').appendChild(stopBtn);
   function finish() {
     sendBtn.textContent = btnOrig;
     sendBtn.disabled = false;
@@ -1287,14 +1305,15 @@ function homeAsk(q) {
     if (!full) {
       // 流式无输出（降级路径）→ 非流式兜底
       return apiCall('/api/kb/ask', Object.assign({ query: q, top_k: 5, session_id: sessionId }, agentSettingsBody())).then(function (data) {
-        appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
+        appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || ''), query: q }, 'homeMsgList');
       });
     }
-    appendMsg('agent', full, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(full) }, 'homeMsgList');
+    appendMsg('agent', full, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(full), query: q }, 'homeMsgList');
   }
   fetch(API_BASE + '/api/kb/ask', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.assign({ query: q, top_k: 5, stream: true, session_id: sessionId }, agentSettingsBody()))
+    body: JSON.stringify(Object.assign({ query: q, top_k: 5, stream: true, session_id: sessionId }, agentSettingsBody())),
+    signal: ctrl.signal
   }).then(function (resp) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const reader = resp.body.getReader();
@@ -1325,6 +1344,11 @@ function homeAsk(q) {
     sendBtn.textContent = btnOrig;
     sendBtn.disabled = false;
     bubble.remove();
+    // 用户主动停止不算错误：保留已生成内容
+    if (e && e.name === 'AbortError') {
+      if (full) { appendMsg('agent', full, { query: q }, 'homeMsgList'); }
+      return;
+    }
     appendMsg('agent', '出错了：' + e.message, null, 'homeMsgList');
   });
 }
@@ -1545,13 +1569,13 @@ let msgIdSeq = 0;
 function appendMsg(role, text, opts, containerId) {
   opts = opts || {}; containerId = containerId || 'msgList';
   const mid = ++msgIdSeq;
-  messages.push({ id: mid, role: role, text: text, query: opts.query || '' });
+  messages.push({ id: mid, role: role, text: text, query: opts.query || '', container: containerId });
   const list = document.getElementById(containerId);
   const cls = role === 'user' ? 'msg user' : (opts.companion ? 'msg companion' : 'msg');
   const avatar = role === 'user' ? '我' : '<img src="/static/xiaoshuomao-official.svg" alt="猫">';
   const src = opts.src ? `<div class="src">来源：${opts.src}</div>` : '';
   const tag = opts.companion ? `<span class="tag">♡ 陪伴模式</span><br>` : '';
-  const actions = (role === 'agent' && containerId === 'msgList' && !opts.noActions)
+  const actions = (role === 'agent' && !opts.noActions && opts.query)
     ? `<div class="msg-actions">
         <button title="重新生成" onclick="regenerateMsg(${mid}, event)">↻</button>
         <button title="有帮助" id="fbGood${mid}" onclick="feedbackMsg(${mid}, 'good', event)">👍</button>
@@ -1573,17 +1597,25 @@ async function regenerateMsg(mid, ev) {
   if (idx < 0) return;
   const target = messages[idx];
   if (!target.query) return;
-  // 删除该条 AI 及其后的所有消息
-  const list = document.getElementById('msgList');
-  const all = list.querySelectorAll('.msg');
-  for (let i = idx; i < messages.length; i++) {
-    const el = list.querySelector(`.msg[data-mid="${messages[i].id}"]`);
+  const containerId = target.container || 'msgList';
+  // 删除该条 AI 及其后（同一容器内）的所有消息
+  const list = document.getElementById(containerId);
+  const mine = messages.filter(m => m.container === containerId);
+  const mineIdx = mine.findIndex(m => m.id === mid);
+  if (mineIdx < 0) return;
+  for (let i = mineIdx; i < mine.length; i++) {
+    const el = list ? list.querySelector(`.msg[data-mid="${mine[i].id}"]`) : null;
     if (el) el.remove();
   }
-  messages = messages.slice(0, idx);
-  document.getElementById('qaInput').value = target.query;
+  messages = messages.filter(m => !(m.container === containerId && mine.findIndex(x => x.id === m.id) >= mineIdx));
   trackEvent('click_regenerate', { agent_type: 'qa', retry_count: 1 });
-  askStreaming(containerId = 'msgList', target.query);
+  if (containerId === 'homeMsgList') {
+    // 首页：直接重新流式
+    homeAsk(target.query);
+  } else {
+    document.getElementById('qaInput').value = target.query;
+    askStreaming(containerId, target.query);
+  }
 }
 // 反馈：好评/差评（埋点 accept_suggestion / reject_suggestion）
 function feedbackMsg(mid, kind, ev) {
@@ -1683,9 +1715,18 @@ async function askStreaming(containerId, presetQuery) {
   list.scrollTop = 99999;
 
   let full = '', srcLine = '';
+  // 停止生成（AbortController）
+  const ctrl = new AbortController();
+  if (window.__askAbort) { try { window.__askAbort.abort(); } catch (e) {} }
+  window.__askAbort = ctrl;
+  const stopBtn = document.createElement('button');
+  stopBtn.className = 'stop-gen';
+  stopBtn.textContent = '■ 停止';
+  stopBtn.addEventListener('click', function () { try { ctrl.abort(); } catch (e) {} });
+  bubble.querySelector('.body').appendChild(stopBtn);
   try {
     const resp = await fetch(`${API_BASE}/api/kb/ask`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const reader = resp.body.getReader();
@@ -1725,7 +1766,15 @@ async function askStreaming(containerId, presetQuery) {
     const mid = appendMsg('agent', full, { companion: isCompanion, src: srcLine, query: query }, containerId);
   } catch (e) {
     bubble.remove();
-    appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）', null, containerId);
+    // 用户主动停止：保留已生成部分，不算错误
+    if (e && e.name === 'AbortError') {
+      if (full) {
+        const isCompanion2 = companionMode || /抱抱|陪陪|我在|歇一歇|抱抱你/.test(full);
+        appendMsg('agent', full, { companion: isCompanion2, src: srcLine, query: query }, containerId);
+      }
+    } else {
+      appendMsg('agent', '出错了：' + e.message + '（请确认后端已启动）', null, containerId);
+    }
   } finally {
     askBtn.textContent = askOrig;
     askBtn.disabled = false;
@@ -2794,13 +2843,27 @@ async function renderChatSessions() {
     }
     list.innerHTML = homeSessions.map(s => `
       <div class="side-item ${s.session_id === sessionId ? 'active' : ''}" data-session="${escAttr(s.session_id)}" title="${escAttr(s.last_msg || '')}">
-        <span class="hide-when-collapsed side-title">${esc((s.last_msg || '新对话').slice(0, 14))}</span>
+        <span class="hide-when-collapsed side-title">${esc((s.title || s.last_msg || '新对话').slice(0, 14))}</span>
         <button class="del-session" data-del="${escAttr(s.session_id)}" title="删除该对话">×</button>
       </div>`).join('');
     list.querySelectorAll('.side-item[data-session]').forEach(item => {
       item.addEventListener('click', e => {
         if (e.target.classList.contains('del-session')) return;
         switchChatSession(item.dataset.session);
+      });
+      // 双击改名
+      item.addEventListener('dblclick', e => {
+        if (e.target.classList.contains('del-session')) return;
+        const sid = item.dataset.session;
+        const curEl = item.querySelector('.side-title');
+        const cur = curEl ? curEl.textContent : '';
+        const name = prompt('重命名这段对话：', cur);
+        if (name == null) return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        apiCall('/api/chat/session/rename', { scope: 'home', session_id: sid, title: trimmed })
+          .then(() => renderChatSessions())
+          .catch(err => alert('重命名失败: ' + err.message));
       });
     });
     list.querySelectorAll('.del-session').forEach(btn => {

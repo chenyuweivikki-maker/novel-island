@@ -1386,6 +1386,19 @@ def chat_session_clear(scope: str = "home", session_id: str = "default"):
     return {"success": True}
 
 
+class ChatSessionRenameRequest(BaseModel):
+    scope: str = "home"
+    session_id: str
+    title: str
+
+
+@app.post("/api/chat/session/rename")
+def chat_session_rename(req: ChatSessionRenameRequest):
+    """重命名会话组"""
+    memory_manager.rename_session(req.scope, req.session_id, req.title.strip()[:20])
+    return {"success": True}
+
+
 # ===== 启动 =====
 if __name__ == "__main__":
     import uvicorn
