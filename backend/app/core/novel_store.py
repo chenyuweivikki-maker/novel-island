@@ -91,17 +91,21 @@ class NovelStore:
             conn.execute("ALTER TABLE chapters ADD COLUMN foreshadowing TEXT DEFAULT '[]'")
         if "setup" not in ch_cols:
             conn.execute("ALTER TABLE chapters ADD COLUMN setup TEXT DEFAULT ''")
+        # 题材列（我的作品页分类联动）：老库迁移补列，新库建表时也不会带，用同款迁移方式加
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(novels)").fetchall()]
+        if "genre" not in cols:
+            conn.execute("ALTER TABLE novels ADD COLUMN genre TEXT DEFAULT ''")
         conn.commit()
         conn.close()
 
-    def create_novel(self, title: str, expected_words: int = 0, chapter_words: int = 0) -> int:
-        """创建作品，返回 novel_id（sort_order 排在当前最后，里程碑18支持字数设置）"""
+    def create_novel(self, title: str, expected_words: int = 0, chapter_words: int = 0, genre: str = "") -> int:
+        """创建作品，返回 novel_id（sort_order 排在当前最后，里程碑18支持字数设置，题材可选）"""
         conn = self._get_conn()
         max_order = conn.execute("SELECT MAX(sort_order) AS m FROM novels").fetchone()["m"]
         next_order = (max_order or 0) + 1
         cur = conn.execute(
-            "INSERT INTO novels (title, created_at, sort_order, expected_words, chapter_words) VALUES (?, ?, ?, ?, ?)",
-            (title, time.time(), next_order, expected_words, chapter_words),
+            "INSERT INTO novels (title, created_at, sort_order, expected_words, chapter_words, genre) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, time.time(), next_order, expected_words, chapter_words, genre),
         )
         conn.commit()
         novel_id = cur.lastrowid
@@ -112,6 +116,13 @@ class NovelStore:
         """重命名作品（里程碑17）"""
         conn = self._get_conn()
         conn.execute("UPDATE novels SET title = ? WHERE id = ?", (title, novel_id))
+        conn.commit()
+        conn.close()
+
+    def update_novel_genre(self, novel_id: int, genre: str):
+        """修改作品题材（「我的作品」页分类联动；传空串=清除题材，回到未分类）"""
+        conn = self._get_conn()
+        conn.execute("UPDATE novels SET genre = ? WHERE id = ?", (genre, novel_id))
         conn.commit()
         conn.close()
 
@@ -219,13 +230,22 @@ class NovelStore:
         conn.close()
 
     def list_novels(self) -> List[Dict[str, Any]]:
-        """列出所有作品（按 sort_order 排序，里程碑17/18）"""
+        """列出所有作品（按 sort_order 排序，里程碑17/18，含题材）"""
         conn = self._get_conn()
         rows = conn.execute(
-            "SELECT id, title, created_at, sort_order, outline, expected_words, chapter_words FROM novels ORDER BY sort_order, id"
+            "SELECT id, title, created_at, sort_order, outline, expected_words, chapter_words, genre FROM novels ORDER BY sort_order, id"
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+    def list_genres(self) -> List[str]:
+        """所有作品用到的题材（去重、非空、按首次出现顺序）——「我的作品」页分类按钮的数据源"""
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT genre FROM novels WHERE genre IS NOT NULL AND genre != '' GROUP BY genre ORDER BY MIN(sort_order)"
+        ).fetchall()
+        conn.close()
+        return [r["genre"] for r in rows]
 
     # ===== 伏笔管理（P2-3：伏笔看板 / 未填坑提醒） =====
     def add_foreshadowings(self, novel_id: int, chapter_id: int, texts: List[str]) -> int:

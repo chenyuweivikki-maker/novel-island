@@ -150,6 +150,7 @@ class NovelCreateRequest(BaseModel):
     title: str
     expected_words: int = 0  # 里程碑18：预计总字数
     chapter_words: int = 0   # 里程碑18：每章字数
+    genre: str = ""          # 题材（我的作品页分类联动：留空=未分类）
 
 
 class NovelRenameRequest(BaseModel):
@@ -643,8 +644,8 @@ def timeline(novel_id: int | None = None):
 
 @app.post("/api/novel")
 def create_novel(req: NovelCreateRequest):
-    """创建作品（里程碑18：支持预计总字数/每章字数）"""
-    novel_id = novel_store.create_novel(req.title, req.expected_words, req.chapter_words)
+    """创建作品（里程碑18：支持预计总字数/每章字数；题材可选，联动「我的作品」分类）"""
+    novel_id = novel_store.create_novel(req.title, req.expected_words, req.chapter_words, req.genre)
     return {"novel_id": novel_id, "title": req.title}
 
 
@@ -654,11 +655,28 @@ def list_novels():
     return {"novels": novel_store.list_novels()}
 
 
+@app.get("/api/novels/genres")
+def list_novel_genres():
+    """「我的作品」页题材分类按钮的数据源：所有作品已用题材（去重）；没有任何题材时返回空列表，前端只剩「全部」"""
+    return {"genres": novel_store.list_genres()}
+
+
 @app.post("/api/novel/{novel_id}/rename")
 def rename_novel(novel_id: int, req: NovelRenameRequest):
     """重命名作品（里程碑17）"""
     novel_store.update_novel_title(novel_id, req.title)
     return {"novel_id": novel_id, "title": req.title}
+
+
+class NovelGenreRequest(BaseModel):
+    genre: str = ""  # 题材；空串=清除题材（回到未分类）
+
+
+@app.post("/api/novel/{novel_id}/genre")
+def update_novel_genre(novel_id: int, req: NovelGenreRequest):
+    """修改作品题材（「我的作品」页分类联动）"""
+    novel_store.update_novel_genre(novel_id, req.genre)
+    return {"novel_id": novel_id, "genre": req.genre}
 
 
 @app.post("/api/novels/reorder")

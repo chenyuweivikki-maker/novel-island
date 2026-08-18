@@ -111,6 +111,9 @@ input, textarea { font-family: inherit; }
 .novel-card .tags { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
 .tag { font-size: 11px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 2px 10px; }
 .tag.solid { background: var(--text); color: #fff; border-color: var(--text); }
+/* 「我的作品」卡片上的编辑题材小按钮 */
+.tag.tag-edit { cursor: pointer; padding: 2px 7px; font-size: 11px; line-height: 1.4; border-style: dashed; }
+.tag.tag-edit:hover { background: var(--surface-2); color: var(--text); border-style: solid; }
 .novel-card .date { margin-left: auto; font-size: 11px; color: var(--text-3); }
 .novel-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .novel-card p { font-size: 13px; color: var(--text-2); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -138,7 +141,23 @@ input, textarea { font-family: inherit; }
   overflow: hidden; background: var(--surface);
 }
 .app-sidebar.collapsed { width: 48px; padding: 8px 0; }
-.app-sidebar.collapsed .side-nav .side-item { justify-content: center; font-size: 12px; gap: 0; }
+/* 收起态：导航 tab 变成圆形单字徽标（首/创/灵/作/社），文字与项目区隐藏 */
+.app-sidebar.collapsed .side-nav .side-item {
+  justify-content: center; gap: 0; padding: 6px 0; font-size: 0;
+}
+.app-sidebar.collapsed .side-nav .side-item > span { display: none; }
+.app-sidebar.collapsed .side-nav .side-item::after {
+  content: attr(data-short);
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: transparent; color: var(--text-2);
+  font-size: 13px; font-weight: 600; letter-spacing: 0;
+  transition: background .12s, color .12s;
+}
+.app-sidebar.collapsed .side-nav .side-item:hover { background: transparent; }
+.app-sidebar.collapsed .side-nav .side-item:hover::after { background: var(--surface-2); color: var(--text); }
+.app-sidebar.collapsed .side-nav .side-item.active { background: transparent; }
+.app-sidebar.collapsed .side-nav .side-item.active::after { background: var(--text); color: var(--on-primary); }
 .app-sidebar.collapsed .side-nav .side-item span.meta, .app-sidebar.collapsed .side-projects { display: none; }
 .side-nav { display: flex; flex-direction: column; }
 .side-nav .side-item { margin-bottom: 2px; }
@@ -687,11 +706,11 @@ window.addEventListener('error', function (e) {
     <!-- ═══════ 全局侧边栏（导航 + 项目区）═══════ -->
     <aside class="app-sidebar" id="appSidebar">
       <div class="side-nav" id="sideNav">
-        <div class="side-item" data-nav="home"><span>首页</span></div>
-        <div class="side-item" data-nav="chat"><span>创作</span></div>
-        <div class="side-item" data-nav="inspiration"><span>灵感库</span></div>
-        <div class="side-item" data-nav="works"><span>我的作品</span></div>
-        <div class="side-item" data-nav="community"><span>社区</span></div>
+        <div class="side-item" data-nav="home" data-short="首" title="首页"><span>首页</span></div>
+        <div class="side-item" data-nav="chat" data-short="创" title="创作"><span>创作</span></div>
+        <div class="side-item" data-nav="inspiration" data-short="灵" title="灵感库"><span>灵感库</span></div>
+        <div class="side-item" data-nav="works" data-short="作" title="我的作品"><span>我的作品</span></div>
+        <div class="side-item" data-nav="community" data-short="社" title="社区"><span>社区</span></div>
       </div>
       <div class="side-projects" id="sideProjects" style="display:none">
         <div class="side-group">小说项目</div>
@@ -736,9 +755,7 @@ window.addEventListener('error', function (e) {
         <h2>我的作品</h2>
         <div class="seg" id="genreSeg">
           <button class="active" data-g="全部">全部</button>
-          <button data-g="奇幻">奇幻</button>
-          <button data-g="都市">都市</button>
-          <button data-g="科幻">科幻</button>
+          <!-- 题材分类按钮由 loadWorks() 按项目实际题材动态生成，没有题材时只剩「全部」 -->
         </div>
         <div class="seg" id="statusSeg">
           <button class="active" data-s="全部">全部</button>
@@ -999,11 +1016,24 @@ window.addEventListener('error', function (e) {
   <div class="modal">
     <div class="modal-title">新建小说 · 填写基本信息，开始你的创作</div>
     <div class="modal-field"><label>小说名称</label><input id="newNovelTitle" placeholder="给你的故事起个名字…"></div>
+    <div class="modal-field"><label>题材（可选，用于「我的作品」分类）</label><input id="newNovelGenre" list="genreOptions" placeholder="如：都市 / 奇幻 / 科幻…"><datalist id="genreOptions"><option value="都市"><option value="奇幻"><option value="科幻"><option value="悬疑"><option value="古风"><option value="言情"><option value="武侠"><option value="末世"><option value="穿越"><option value="电竞"><option value="校园"><option value="职场"><option value="修仙"><option value="刑侦"><option value="年代"><option value="重生"><option value="娱乐圈"></datalist></div>
     <div class="modal-field"><label>预计总字数</label><input id="newNovelExpectedWords" placeholder="例：200,000"></div>
     <div class="modal-field"><label>每章字数</label><input id="newNovelChapterWords" placeholder="例：3,000"></div>
     <div class="modal-actions">
       <button class="btn-pill" id="btnCancelNewNovel">取消</button>
       <button class="btn-pill primary" id="btnConfirmNewNovel">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 编辑题材弹窗 ═══════ -->
+<div class="modal-mask" id="genreEditModal">
+  <div class="modal">
+    <div class="modal-title">编辑题材 · <span id="genreEditTitle"></span></div>
+    <div class="modal-field"><label>题材（留空 = 清除，回到未分类）</label><input id="genreEditInput" list="genreOptions" placeholder="如：都市 / 奇幻 / 科幻…"></div>
+    <div class="modal-actions">
+      <button class="btn-pill" id="btnCancelGenreEdit">取消</button>
+      <button class="btn-pill primary" id="btnConfirmGenreEdit">保存</button>
     </div>
   </div>
 </div>
@@ -1133,6 +1163,16 @@ function showView(view) {
   });
   // 项目区：仅创作视图显示（点击项目即进入项目侧边栏）
   document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
+  // 进入创作视图自动折叠侧边栏（让创作区更宽）；其他视图展开
+  var sb = document.getElementById('appSidebar');
+  var isCollapsed = sb.classList.contains('collapsed');
+  if (view === 'chat' && !isCollapsed) {
+    sb.classList.add('collapsed');
+    document.getElementById('btnSideCollapse').textContent = '›';
+  } else if (view !== 'chat' && isCollapsed) {
+    sb.classList.remove('collapsed');
+    document.getElementById('btnSideCollapse').textContent = '‹';
+  }
   if (view === 'works') { loadWorks(); }
   if (view === 'inspiration') { loadInspiration(); }
   if (view === 'community') { loadCommunity(); }
@@ -1207,9 +1247,26 @@ document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => 
 });
 
 // ===== 我的作品 =====
+function renderGenreSeg(genres) {
+  // 按项目实际题材动态渲染分类按钮：没有任何题材 → 只剩「全部」
+  const seg = document.getElementById('genreSeg');
+  const cur = seg.querySelector('.active')?.dataset.g || '全部';
+  seg.innerHTML = '<button class="active" data-g="全部">全部</button>' +
+    genres.map(g => `<button data-g="${escAttr(g)}">${esc(g)}</button>`).join('');
+  // 当前选中的题材还在 → 保持；不在了（如题材被删）→ 回退「全部」
+  const target = [...seg.querySelectorAll('button')].find(b => b.dataset.g === cur);
+  if (target) {
+    seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+    target.classList.add('active');
+  }
+}
 function loadWorks() {
   apiGet('/api/novels').then(data => {
     const novels = data.novels || [];
+    // 题材按钮数据源：作品列表里实际出现过的题材（去重、非空、保持顺序）
+    const seen = [];
+    novels.forEach(n => { if (n.genre && !seen.includes(n.genre)) seen.push(n.genre); });
+    renderGenreSeg(seen);
     const g = document.querySelector('#genreSeg .active').dataset.g;
     const s = document.querySelector('#statusSeg .active').dataset.s;
     const filtered = novels.filter(n =>
@@ -1224,7 +1281,7 @@ function loadWorks() {
       <div class="works-grid">
         ${filtered.map(n => `
           <div class="novel-card" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">
-            <div class="tags"><span class="tag">${esc(n.genre || '未分类')}</span><span class="tag">${esc(n.status || '连载中')}</span><span class="date">${esc(n.updated_at ? n.updated_at.slice(5, 10) : '')}</span></div>
+            <div class="tags"><span class="tag">${esc(n.genre || '未分类')}</span><button class="tag tag-edit" title="编辑题材" onclick="event.stopPropagation(); openGenreEdit(${n.id}, '${escAttr(n.genre || '')}', '${escAttr(n.title)}')">✎</button><span class="tag">${esc(n.status || '连载中')}</span><span class="date">${esc(n.updated_at ? n.updated_at.slice(5, 10) : '')}</span></div>
             <h3>${esc(n.title)}</h3>
             <p>${esc(n.description || '还没有简介，开始写第一章吧。')}</p>
             <div class="meta">第 ${n.chapter_count || 0} 章 · ${(n.total_words || 0).toLocaleString()} 字</div>
@@ -1247,9 +1304,16 @@ function loadWorks() {
     document.getElementById('worksContent').innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}<br><br>请确认后端已启动（localhost:8000）</div>`;
   });
 }
-document.querySelectorAll('#genreSeg button, #statusSeg button').forEach(b => b.addEventListener('click', () => {
-  const seg = b.parentElement;
-  seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+// 题材/状态筛选：题材按钮是动态生成的，用事件委托绑定（页面加载只绑一次，新按钮自动生效）
+document.getElementById('genreSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  document.querySelectorAll('#genreSeg button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  loadWorks();
+});
+document.querySelectorAll('#statusSeg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#statusSeg button').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   loadWorks();
 }));
@@ -1296,17 +1360,39 @@ document.getElementById('btnCancelNewNovel').addEventListener('click', () => doc
 document.getElementById('btnConfirmNewNovel').addEventListener('click', async () => {
   const title = document.getElementById('newNovelTitle').value.trim();
   if (!title) { alert('请输入小说名称'); return; }
+  const genre = document.getElementById('newNovelGenre').value.trim();
   const expectedWords = parseInt(document.getElementById('newNovelExpectedWords').value) || 0;
   const chapterWords = parseInt(document.getElementById('newNovelChapterWords').value) || 0;
   try {
-    const data = await apiCall('/api/novel', { title, expected_words: expectedWords, chapter_words: chapterWords });
+    const data = await apiCall('/api/novel', { title, genre, expected_words: expectedWords, chapter_words: chapterWords });
     document.getElementById('newNovelModal').classList.remove('show');
+    document.getElementById('newNovelGenre').value = '';
     showView('chat');
     renderSidebar();
     selectNovel(data.novel_id, title);
     showAgentWelcome(title);
-    trackEvent('create_book', { book_genre: '', has_outline: false }); // PRD 埋点
+    trackEvent('create_book', { book_genre: genre, has_outline: false }); // PRD 埋点
   } catch (e) { alert('创建失败: ' + e.message); }
+});
+
+// ===== 编辑题材 =====
+var genreEditingId = null;
+function openGenreEdit(novelId, currentGenre, title) {
+  genreEditingId = novelId;
+  document.getElementById('genreEditTitle').textContent = title;
+  document.getElementById('genreEditInput').value = currentGenre;
+  document.getElementById('genreEditModal').classList.add('show');
+}
+document.getElementById('btnCancelGenreEdit').addEventListener('click', () => document.getElementById('genreEditModal').classList.remove('show'));
+document.getElementById('btnConfirmGenreEdit').addEventListener('click', async () => {
+  if (genreEditingId == null) return;
+  const genre = document.getElementById('genreEditInput').value.trim();
+  try {
+    await apiCall('/api/novel/' + genreEditingId + '/genre', { genre });
+    document.getElementById('genreEditModal').classList.remove('show');
+    loadWorks(); // 刷新作品列表 + 题材分类按钮
+    trackEvent('edit_book_genre', { book_id: genreEditingId, book_genre: genre });
+  } catch (e) { alert('保存失败: ' + e.message); }
 });
 
 // ===== 选中小说 / 默认对话 =====
