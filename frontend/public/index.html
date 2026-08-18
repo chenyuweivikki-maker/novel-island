@@ -96,9 +96,6 @@ input, textarea { font-family: inherit; }
 .home-chips { margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
 .chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-size: 13px; padding: 8px 18px; border-radius: var(--radius-pill); transition: all .15s; }
 .chip:hover { border-color: var(--text); color: var(--text); }
-.home .recent { margin-top: 48px; width: 100%; max-width: 880px; }
-.home .recent h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-.recent-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 
 /* ── 我的作品 ── */
 .works { height: 100%; overflow-y: auto; padding: 40px 48px; }
@@ -551,10 +548,6 @@ window.addEventListener('error', function (e) {
             <button class="chip" data-q="卡文了，怎么办">卡文了，怎么办</button>
             <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
             <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
-          </div>
-          <div class="recent" id="homeRecent" style="display:none">
-            <h2>最近作品</h2>
-            <div class="recent-row" id="homeRecentRow"></div>
           </div>
         </div>
       </div>
@@ -2047,23 +2040,6 @@ function showAgentWelcome(title) {
   appendMsg('agent', `恭喜创建《${title}》！知识库已就绪（空库也能问答）。\n\n接下来可以按这个顺序开始：\n① 直接在这里告诉我你的主角是谁、故事发生在哪——我边聊边帮你建库\n② 或在「写作编辑器」保存第一章（自动生成章纲、抽取人物、更新知识库）\n③ 素材也可以直接拖进输入框，我自动解析入库`);
 }
 
-// ===== 首页最近作品（已登录态） =====
-async function loadHomeRecent() {
-  try {
-    const data = await apiGet('/api/novels');
-    const novels = (data.novels || []).slice(0, 3);
-    const wrap = document.getElementById('homeRecent');
-    if (!novels.length) { wrap.style.display = 'none'; return; }
-    document.getElementById('homeRecentRow').innerHTML = novels.map(n => `
-      <div class="novel-card" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">
-        <div class="tags"><span class="tag">${esc(n.genre || '连载中')}</span><span class="date">${esc(n.updated_at ? n.updated_at.slice(5, 10) : '')}</span></div>
-        <h3>${esc(n.title)}</h3>
-        <p>${esc(n.description || '还没有简介，开始写第一章吧。')}</p>
-        <div class="meta">第 ${n.chapter_count || 0} 章 · ${(n.total_words || 0).toLocaleString()} 字</div>
-      </div>`).join('');
-    wrap.style.display = 'block';
-  } catch (e) { document.getElementById('homeRecent').style.display = 'none'; }
-}
 // 「看看我的灵感库」chip → 灵感库页
 document.querySelectorAll('.chip[data-q="看看我的灵感库"]').forEach(c => {
   c.addEventListener('click', () => showView('inspiration'));
@@ -2091,7 +2067,6 @@ document.addEventListener('keydown', e => {
 window.addEventListener('load', () => {
   showView('home');
   renderSidebar();
-  loadHomeRecent();
   bindGraphCanvasEvents();
 });
 </script>
