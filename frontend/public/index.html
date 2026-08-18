@@ -244,13 +244,11 @@ input, textarea { font-family: inherit; }
 .portrait-card.generating .spinner { width: 28px; height: 28px; border: 2px solid var(--border-strong); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .portrait-card.done .edit-tag { position: absolute; top: 8px; left: 8px; font-size: 11px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); padding: 2px 8px; background: var(--surface); }
-.portrait-states { display: flex; gap: 12px; margin-top: 16px; }
-.portrait-states .ps { flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; text-align: center; font-size: 11px; color: var(--text-2); }
-.ps .ps-card { height: 72px; border: 1px dashed var(--border-strong); border-radius: 8px; background: var(--surface-2); margin-bottom: 6px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 10px; }
-.ps:nth-child(2) .ps-card::after { content: ''; width: 16px; height: 16px; border: 2px solid var(--border-strong); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
-.ps:nth-child(3) .ps-card { border: 1px solid var(--border-strong); }
-.ps:nth-child(3) .ps-card::before { content: '👤'; font-size: 22px; }
 .info-col { flex: 1; min-width: 0; }
+.char-name-big { font-size: 24px; font-weight: 700; margin-bottom: 2px; }
+.char-role-line { font-size: 13px; color: var(--text-2); margin-bottom: 20px; }
+.cl-group { font-size: 11px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; padding: 14px 8px 6px; }
+.sec-none { color: var(--text-3); font-size: 13px; }
 .info-section { margin-bottom: 20px; }
 .info-section .sec-title { font-size: 11px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .info-section .sec-body { font-size: 14px; line-height: 1.7; }
@@ -976,11 +974,25 @@ function renderCharacterCards() {
     return;
   }
   const sel = KB.characters[Math.min(charIndex, KB.characters.length - 1)];
-  list.innerHTML = KB.characters.map((c, i) =>
-    `<div class="cl-item ${i === charIndex ? 'active' : ''}" onclick="selectChar(${i})">${esc(c.name)}</div>`
-  ).join('') + '<div class="cl-new">＋ 新建人物</div>';
+  // 主角/配角分组：persona['角色'] 含「主角」为第一组，否则首个实体当主角，其余配角
+  var mains = KB.characters.filter(function (c) { return /主角|女主|男主/.test((c.persona || {})['角色'] || ''); });
+  var mainNames = mains.length ? mains.map(function (c) { return c.name; }) : [KB.characters[0].name];
+  var listHtml = '';
+  var mainList = KB.characters.filter(function (c) { return mainNames.indexOf(c.name) >= 0; });
+  var supportList = KB.characters.filter(function (c) { return mainNames.indexOf(c.name) < 0; });
+  var itemHtml = function (c, i) {
+    var idx = KB.characters.indexOf(c);
+    return '<div class="cl-item ' + (idx === charIndex ? 'active' : '') + '" onclick="selectChar(' + idx + ')">' + esc(c.name) + '</div>';
+  };
+  if (mainList.length) listHtml += '<div class="cl-group">主角</div>' + mainList.map(itemHtml).join('');
+  if (supportList.length) listHtml += '<div class="cl-group">配角</div>' + supportList.map(itemHtml).join('');
+  list.innerHTML = listHtml + '<div class="cl-new">＋ 新建人物</div>';
   const st = charPortraitState[sel.name] || 'empty';
   const p = sel.persona || {};
+  var relTags = sel.relations.length ? sel.relations.map(function (r) {
+    var other = r.source === sel.name ? r.target : r.source;
+    return '<span class="rel-tag" onclick="switchSubPage(\'graph\')">' + esc(other) + ' · ' + esc(r.relation) + '</span>';
+  }).join('') : '<span class="sec-none">暂无关系</span>';
   detail.innerHTML = `
     <div class="portrait-col">
       <div class="portrait-card ${st === 'generating' ? 'generating' : st === 'done' ? 'done' : ''}" id="portraitCard">
@@ -990,25 +1002,17 @@ function renderCharacterCards() {
              <button class="gen-btn" onclick="genPortrait('${escAttr(sel.name)}')">AI 生成全身人设图</button>
              <div class="gen-hint">支持接入 AI 生图模型</div>`}
       </div>
-      <div class="portrait-states">
-        <div class="ps"><div class="ps-card">占位</div>空态</div>
-        <div class="ps"><div class="ps-card"></div>生成中</div>
-        <div class="ps"><div class="ps-card"></div>已生成</div>
-      </div>
     </div>
     <div class="info-col">
-      <div class="info-section"><div class="sec-title">基本信息</div><div class="sec-body">姓名 ${esc(sel.name)} · ${esc(p['身份'] || '身份待定')}${p['年龄'] ? ' · ' + esc(p['年龄']) + ' 岁' : ''}</div></div>
+      <div class="char-name-big">${esc(sel.name)}</div>
+      <div class="char-role-line">${esc(mainNames.indexOf(sel.name) >= 0 ? '主角' : '配角')}${p['身份'] ? ' · ' + esc(p['身份']) : ''}</div>
+      <div class="info-section"><div class="sec-title">年龄</div><div class="sec-body">${esc(p['年龄'] || '暂无记录')}</div></div>
       <div class="info-section"><div class="sec-title">外貌特征</div><div class="sec-body">${esc(p['外貌'] || '暂无记录')}</div></div>
       <div class="info-section"><div class="sec-title">性格内核</div><div class="sec-body">${esc(p['性格'] || '暂无记录')}</div></div>
       <div class="info-section"><div class="sec-title">过往经历</div><div class="sec-body">${esc(p['经历'] || p['家庭'] || '暂无记录')}</div></div>
-      <div class="info-section"><div class="sec-title">社会关系</div>
-        <div class="rel-tags">
-          ${sel.relations.length ? sel.relations.map(r => {
-            const other = r.source === sel.name ? r.target : r.source;
-            return `<span class="rel-tag" onclick="switchSubPage('graph')">${esc(other)} · ${esc(r.relation)}</span>`;
-          }).join('') : '<span style="color:var(--text-3);font-size:13px">暂无关系</span>'}
-        </div>
-      </div>
+      <div class="info-section"><div class="sec-title">核心创伤</div><div class="sec-body">${esc(p['创伤'] || p['伤痛'] || '暂无记录')}</div></div>
+      <div class="info-section"><div class="sec-title">最重要的动机</div><div class="sec-body">${esc(p['动机'] || '暂无记录')}</div></div>
+      <div class="info-section"><div class="sec-title">社会关系</div><div class="rel-tags">${relTags}</div></div>
       <div class="info-section"><div class="sec-title">标志性物品 / 习惯</div><div class="sec-body">${esc(p['物品'] || '暂无记录')}</div></div>
     </div>`;
 }
