@@ -15,6 +15,7 @@ from .model_router import (
     get_model_for_task,
     record_llm_cost,
     record_model_fallback,
+    mark_provider_failure,
     MODEL_PROVIDERS,
 )
 
@@ -90,6 +91,7 @@ def chat(
         if model == "deepseek-chat":
             raise  # 主力模型都挂了，往上抛让上层兜底
         # 降级：高阶模型故障 → 回退 DeepSeek 主力模型
+        mark_provider_failure(model)  # 熔断计数（PRD：连续失败自动熔断该 provider）
         record_model_fallback(model, "deepseek-chat", reason="provider_error")
         print(f"[model_fallback] {model} 调用失败，回退 deepseek-chat（task={task}）")
         return _chat_once("deepseek-chat", system_prompt, user_prompt, temperature, max_tokens, task)
@@ -132,6 +134,7 @@ def chat_stream(
     except Exception:
         if model == "deepseek-chat":
             raise
+        mark_provider_failure(model)
         record_model_fallback(model, "deepseek-chat", reason="provider_error")
         print(f"[model_fallback] {model} 流式调用失败，回退 deepseek-chat（task={task}）")
         yield from _stream_once("deepseek-chat", system_prompt, user_prompt, temperature, max_tokens)
@@ -212,6 +215,7 @@ def chat_with_tools(
         except Exception:
             if model == "deepseek-chat":
                 raise
+            mark_provider_failure(model)
             record_model_fallback(model, "deepseek-chat", reason="provider_error")
             print(f"[model_fallback] {model} 工具调用失败，回退 deepseek-chat（task={task}）")
             client = get_client("deepseek-chat")

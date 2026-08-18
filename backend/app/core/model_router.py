@@ -14,8 +14,10 @@
 
 成本记录：
   每次 LLM 调用记录 model / input_tokens / output_tokens / 估算成本，
-  为监控和优化提供数据基础（PRD埋点 api_call_llm）。
+  落 SQLite（data/cost.db）持久化，服务重启不丢（PRD埋点 api_call_llm）。
 """
+import os
+import sqlite3
 import time
 from typing import List, Dict, Any
 
@@ -61,15 +63,50 @@ def _provider_available(model: str) -> bool:
     return bool(settings.DEEPSEEK_API_KEY)
 
 
+# ===== 熔断状态（PRD：provider 级熔断，避免反复打无效 key） =====
+# provider 连续失败 N 次 → 熔断 T 秒，期间 get_model_for_task 直接回退 DeepSeek
+_CIRCUIT_BREAKER: Dict[str, Dict[str, Any]] = {}
+BREAK_THRESHOLD = 3       # 连续失败次数
+BREAK_COOLDOWN = 300      # 熔断冷却 5 分钟
+
+
+def _provider_of(model: str) -> str:
+    return MODEL_PROVIDERS.get(model, "deepseek")
+
+
+def mark_provider_failure(model: str) -> None:
+    """记录一次 provider 调用失败；达到阈值即熔断（llm_client 降级时调用）"""
+    provider = _provider_of(model)
+    if provider == "deepseek":
+        return  # 主力模型不熔断（熔了主流程就没了）
+    st = _CIRCUIT_BREAKER.get(provider, {"fails": 0, "open_until": 0})
+    st["fails"] += 1
+    if st["fails"] >= BREAK_THRESHOLD:
+        st["open_until"] = time.time() + BREAK_COOLDOWN
+        print(f"[circuit_breaker] {provider} 连续失败 {st['fails']} 次，熔断 {BREAK_COOLDOWN}s")
+    _CIRCUIT_BREAKER[provider] = st
+
+
+def provider_is_open(provider: str) -> bool:
+    """provider 是否处于熔断中（未过冷却期）"""
+    st = _CIRCUIT_BREAKER.get(provider)
+    if not st:
+        return False
+    if time.time() >= st.get("open_until", 0):
+        _CIRCUIT_BREAKER.pop(provider, None)
+        return False
+    return True
+
+
 def get_model_for_task(task: str) -> str:
     """按任务返回模型名（路由核心）
 
-    优雅回退：目标模型的 Provider 没配 key → 回退 DeepSeek 主力模型，
+    优雅回退：目标模型的 Provider 没配 key 或处于熔断 → 回退 DeepSeek 主力模型，
     保证任何情况下主流程都能跑（成本记录/降级链路上游）。
     """
     level = TASK_LEVELS.get(task, "main")
     model = MODEL_ROUTES[level]
-    if not _provider_available(model):
+    if not _provider_available(model) or provider_is_open(_provider_of(model)):
         return "deepseek-chat"
     return model
 
@@ -88,15 +125,55 @@ PRICE_PER_MILLION = {
     "hunyuan-turbos-latest": {"input": 1.0, "output": 4.0},
 }
 
-# 内存中的调用日志（PRD埋点 api_call_llm）
+# ===== 成本记录（SQLite 持久化，重启不丢） =====
+_COST_DB_PATH = os.environ.get("COST_DB_PATH", "data/cost.db")
+# 内存镜像（向后兼容：外部可能读 _llm_call_logs；真实数据在 SQLite）
 _llm_call_logs: List[Dict[str, Any]] = []
 
 # 模型降级日志（PRD埋点 model_fallback）：高阶模型故障 → 回退 DeepSeek
 _fallback_logs: List[Dict[str, Any]] = []
 
 
+def _cost_conn() -> sqlite3.Connection:
+    """获取成本库连接（自动建表）"""
+    os.makedirs(os.path.dirname(_COST_DB_PATH) or ".", exist_ok=True)
+    conn = sqlite3.connect(_COST_DB_PATH, timeout=5)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS llm_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp REAL NOT NULL,
+            model TEXT NOT NULL,
+            task TEXT NOT NULL,
+            level TEXT NOT NULL,
+            input_tokens INTEGER NOT NULL,
+            output_tokens INTEGER NOT NULL,
+            cost REAL NOT NULL
+        )"""
+    )
+    return conn
+
+
+def _load_calls() -> List[Dict[str, Any]]:
+    """从 SQLite 读全部调用记录（含历史，重启后仍可汇总）"""
+    try:
+        conn = _cost_conn()
+        rows = conn.execute(
+            "SELECT timestamp, model, task, level, input_tokens, output_tokens, cost "
+            "FROM llm_calls ORDER BY id"
+        ).fetchall()
+        conn.close()
+        return [
+            {"timestamp": r[0], "model": r[1], "task": r[2], "level": r[3],
+             "input_tokens": r[4], "output_tokens": r[5], "cost": r[6]}
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"[model_router] 成本读取失败: {e}")
+        return list(_llm_call_logs)
+
+
 def record_llm_cost(model: str, task: str, input_tokens: int, output_tokens: int) -> float:
-    """记录一次 LLM 调用，返回估算成本（元）"""
+    """记录一次 LLM 调用，返回估算成本（元）。落 SQLite 持久化。"""
     price = PRICE_PER_MILLION.get(model, {"input": 2.0, "output": 8.0})
     cost = (input_tokens / 1_000_000) * price["input"] + (output_tokens / 1_000_000) * price["output"]
 
@@ -109,6 +186,18 @@ def record_llm_cost(model: str, task: str, input_tokens: int, output_tokens: int
         "output_tokens": output_tokens,
         "cost": round(cost, 6),
     })
+    # SQLite 持久化（失败不阻塞主流程）
+    try:
+        conn = _cost_conn()
+        conn.execute(
+            "INSERT INTO llm_calls (timestamp, model, task, level, input_tokens, output_tokens, cost) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (time.time(), model, task, get_level_for_task(task), input_tokens, output_tokens, round(cost, 6)),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[model_router] 成本落库失败: {e}")
     # PRD 埋点：api_call_llm + cost_attribution
     try:
         from .tracking import tracking
@@ -137,21 +226,22 @@ def record_model_fallback(original_model: str, fallback_model: str, reason: str 
 
 
 def get_cost_summary() -> Dict[str, Any]:
-    """汇总成本：总调用次数、总token、总成本、按任务分布、降级次数"""
-    total_cost = sum(log["cost"] for log in _llm_call_logs)
-    total_input = sum(log["input_tokens"] for log in _llm_call_logs)
-    total_output = sum(log["output_tokens"] for log in _llm_call_logs)
+    """汇总成本：总调用次数、总token、总成本、按任务分布、降级次数（SQLite 聚合）"""
+    calls = _load_calls()
+    total_cost = sum(c["cost"] for c in calls)
+    total_input = sum(c["input_tokens"] for c in calls)
+    total_output = sum(c["output_tokens"] for c in calls)
 
     by_task: Dict[str, Dict[str, float]] = {}
-    for log in _llm_call_logs:
-        t = log["task"]
+    for c in calls:
+        t = c["task"]
         if t not in by_task:
             by_task[t] = {"calls": 0, "cost": 0.0}
         by_task[t]["calls"] += 1
-        by_task[t]["cost"] += log["cost"]
+        by_task[t]["cost"] += c["cost"]
 
     return {
-        "total_calls": len(_llm_call_logs),
+        "total_calls": len(calls),
         "total_input_tokens": total_input,
         "total_output_tokens": total_output,
         "total_cost": round(total_cost, 4),
@@ -161,6 +251,13 @@ def get_cost_summary() -> Dict[str, Any]:
 
 
 def clear_cost_logs():
-    """清空成本日志（测试用）"""
+    """清空成本日志（测试用）：SQLite + 内存"""
+    try:
+        conn = _cost_conn()
+        conn.execute("DELETE FROM llm_calls")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
     _llm_call_logs.clear()
     _fallback_logs.clear()
