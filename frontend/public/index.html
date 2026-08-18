@@ -1250,6 +1250,8 @@ function showView(view) {
   });
   // 项目区：仅创作视图显示（点击项目即进入项目侧边栏）
   document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
+  // 对话会话列表：仅首页显示（其他 tab 的侧边栏不需要历史对话）
+  document.getElementById('sideChats').style.display = view === 'home' ? 'block' : 'none';
   if (view === 'works') { loadWorks(); }
   if (view === 'inspiration') { loadInspiration(); }
   if (view === 'community') { loadCommunity(); }
