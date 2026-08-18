@@ -143,6 +143,7 @@ class AskRequest(BaseModel):
     stream: bool = False
     novel_id: int | None = None  # 里程碑11：按项目检索/问答
     material: str | None = None  # 对话式建库：随消息拖入/粘贴的素材文本（Agent 解析入库）
+    session_id: str = "default"  # 前端稳定会话标识（localStorage 持久化；区分多组对话便于对比）
 
 
 # ===== 创作空间请求模型（里程碑10）=====
@@ -400,9 +401,9 @@ NO_PROJECT_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫�
 {history}"""
 
 
-def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False) -> str:
+def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False, session_id: str = "default") -> str:
     """无项目对话统一走 LLM（带短期记忆，记住书名/题材等上下文）"""
-    memory = memory_manager.get_memory(novel_id)
+    memory = memory_manager.get_memory(novel_id, session_id)
     history = memory.get_context()
     history_text = "\n".join(
         f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
@@ -432,10 +433,10 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
     流式模式用 chat_stream 逐 token 输出；非流式保持原逻辑。
     """
     if not req.stream:
-        return {"answer": reply_fn(req.query, *args, **kwargs), "sources": []}
+        return {"answer": reply_fn(req.query, *args, session_id=req.session_id, **kwargs), "sources": []}
 
     # 流式：先取记忆上下文（与 reply_fn 一致），再 chat_stream 生成
-    memory = memory_manager.get_memory(req.novel_id)
+    memory = memory_manager.get_memory(req.novel_id, req.session_id)
     history = memory.get_context()
     history_text = "\n".join(
         f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
@@ -491,13 +492,13 @@ EMPTY_KB_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫」�
 {history}"""
 
 
-def _llm_empty_kb_reply(query: str, novel_id: int | None) -> str:
+def _llm_empty_kb_reply(query: str, novel_id: int | None, session_id: str = "default") -> str:
     """空库对话走 LLM（图谱进度 + 记忆上下文）"""
     g = get_graph_for(novel_id)
     entities = ", ".join(g.all_entities()[:8]) if g else "（无）"
     rels = ", ".join(f"{r.get('source')}-{r.get('relation')}->{r.get('target')}" for r in (g.all_relations() if g else [])[:8]) or "（无）"
     evts = ", ".join(e.get("summary", "")[:20] for e in (g.get_timeline() if g else [])[-5:]) or "（无）"
-    memory = memory_manager.get_memory(novel_id)
+    memory = memory_manager.get_memory(novel_id, session_id)
     history = "\n".join(
         f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
         for m in memory.get_context()[-6:]
@@ -515,12 +516,12 @@ def _llm_empty_kb_reply(query: str, novel_id: int | None) -> str:
 def _empty_kb_stream_or_dict(req):
     """空库分支：req.stream=True 时 SSE 流式（打字机），否则 dict。"""
     if not req.stream:
-        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id), "sources": []}
+        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id, req.session_id), "sources": []}
     g = get_graph_for(req.novel_id)
     entities = ", ".join(g.all_entities()[:8]) if g else "（无）"
     rels = ", ".join(f"{r.get('source')}-{r.get('relation')}->{r.get('target')}" for r in (g.all_relations() if g else [])[:8]) or "（无）"
     evts = ", ".join(e.get("summary", "")[:20] for e in (g.get_timeline() if g else [])[-5:]) or "（无）"
-    memory = memory_manager.get_memory(req.novel_id)
+    memory = memory_manager.get_memory(req.novel_id, req.session_id)
     history = "\n".join(
         f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
         for m in memory.get_context()[-6:]
@@ -554,7 +555,7 @@ def ask(req: AskRequest):
     if req.material and req.material.strip():
         if req.novel_id is None:
             # 无项目收到素材：LLM 说明需要先建书（不硬编码）
-            return {"answer": _llm_no_project_reply(f"我拖了一段素材进来：{req.material[:80]}…"), "sources": []}
+            return {"answer": _llm_no_project_reply(f"我拖了一段素材进来：{req.material[:80]}…", session_id=req.session_id), "sources": []}
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
 
@@ -591,7 +592,6 @@ def ask(req: AskRequest):
             return {"answer": answer, "sources": []}
         # 否则 → LLM 引导（带图谱进度上下文，自然推进建库；支持流式）
         return _empty_kb_stream_or_dict(req)
-        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id), "sources": []}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
     #    创作型提问（写/描写/生成等）不走精确属性短路——"写一段X的内心活动"
@@ -693,6 +693,7 @@ def ask(req: AskRequest):
             "user_query": req.query,
             "top_k": req.top_k,
             "novel_id": req.novel_id,
+            "session_id": req.session_id,
         })
     except Exception as e:
         # 降级策略（PRD）：LLM 链路故障时不硬报错
@@ -704,7 +705,7 @@ def ask(req: AskRequest):
 
     # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
     # 里程碑17：按 novel_id 存（切换项目历史不串）
-    memory_manager.get_memory(req.novel_id).add_turn(req.query, result["agent_response"])
+    memory_manager.get_memory(req.novel_id, req.session_id).add_turn(req.query, result["agent_response"])
 
     # 写入语义缓存（只缓存有检索依据的回答，降低幻觉扩散）
     if result["retrieved_chunks"]:
@@ -1347,6 +1348,26 @@ def community_add_comment(req: CommentCreateRequest):
 @app.delete("/api/community/comment/{comment_id}")
 def community_delete_comment(comment_id: int):
     community_store.delete_comment(comment_id)
+    return {"success": True}
+
+
+# ===== 会话历史 API（对话持久化 + 对比不同对话）=====
+@app.get("/api/chat/sessions")
+def chat_sessions():
+    """列出所有对话组（scope + session_id + 消息数 + 最后消息），供前端对比不同对话"""
+    return {"sessions": memory_manager.list_sessions()}
+
+
+@app.get("/api/chat/history")
+def chat_history(scope: str = "home", session_id: str = "default", limit: int = 100):
+    """读取某个对话组的完整历史（前端查看/对比用）"""
+    return {"history": memory_manager.get_session_history(scope, session_id, limit)}
+
+
+@app.delete("/api/chat/session")
+def chat_session_clear(scope: str = "home", session_id: str = "default"):
+    """清空某个对话组的历史（新开一组对比）"""
+    memory_manager.get_memory(None if scope == "home" else int(scope), session_id).clear()
     return {"success": True}
 
 

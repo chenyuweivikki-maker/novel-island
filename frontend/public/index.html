@@ -1116,8 +1116,13 @@ let currentSubPage = 'chat';
 let companionMode = false;
 let loginMode = 'login'; // login | register
 let messages = [];       // 对话消息列表
-// 会话 ID（埋点 session_start/end）
-const sessionId = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+// 会话 ID（localStorage 持久化：刷新页面不丢，支持对比不同对话的效果）
+var sessionId = null;
+try { sessionId = localStorage.getItem('novel_island_session') || null; } catch (e) {}
+if (!sessionId) {
+  sessionId = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
+}
 trackSessionStart();
 function trackSessionStart() {
   try {
@@ -1231,7 +1236,7 @@ function homeAsk(q) {
     bubble.remove();
     if (!full) {
       // 流式无输出（降级路径）→ 非流式兜底
-      return apiCall('/api/kb/ask', { query: q, top_k: 5 }).then(function (data) {
+      return apiCall('/api/kb/ask', { query: q, top_k: 5, session_id: sessionId }).then(function (data) {
         appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
       });
     }
@@ -1239,7 +1244,7 @@ function homeAsk(q) {
   }
   fetch(API_BASE + '/api/kb/ask', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: q, top_k: 5, stream: true })
+    body: JSON.stringify({ query: q, top_k: 5, stream: true, session_id: sessionId })
   }).then(function (resp) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const reader = resp.body.getReader();
@@ -1606,7 +1611,7 @@ async function askStreaming(containerId, presetQuery) {
   const input = document.getElementById('qaInput');
   const query = (presetQuery != null ? presetQuery : input.value).trim();
   if (!query && !attachedFile) return;
-  const body = { query: query || '（素材解析）', top_k: 5, stream: true };
+  const body = { query: query || '（素材解析）', top_k: 5, stream: true, session_id: sessionId };
   if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
   if (attachedFile) body.material = attachedFile.text;
 
@@ -1662,7 +1667,7 @@ async function askStreaming(containerId, presetQuery) {
     bubble.remove();
     if (!full) {
       // 流式没输出（可能是缓存/降级路径）→ 用非流式兜底
-      const data = await apiCall('/api/kb/ask', { query: query, top_k: 5, novel_id: body.novel_id || null });
+      const data = await apiCall('/api/kb/ask', { query: query, top_k: 5, novel_id: body.novel_id || null, session_id: sessionId });
       full = data.answer || '（无回答）';
       srcLine = (data.sources || []).length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : '';
     }
@@ -2195,7 +2200,7 @@ async function waAsk(q) {
   box.appendChild(typing);
   box.scrollTop = box.scrollHeight;
   try {
-    const body = { query: q, top_k: 5 };
+    const body = { query: q, top_k: 5, session_id: sessionId };
     if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
     const data = await apiCall('/api/kb/ask', body);
     typing.remove();

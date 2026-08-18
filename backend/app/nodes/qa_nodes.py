@@ -433,8 +433,9 @@ class AgentNode:
 
         # 里程碑6：读取短期记忆（对话历史），拼进 prompt
         # 里程碑17：按 novel_id 取记忆（切换项目历史不串）
+        # 里程碑：按 session_id 分组（同一本书可开多组对话便于对比）
         # 如果历史超长，get_context 会自动做摘要压缩
-        history = memory_manager.get_memory(state.get("novel_id")).get_context()
+        history = memory_manager.get_memory(state.get("novel_id"), state.get("session_id") or "default").get_context()
         # 里程碑6修复：messages 必须以 system 开头（OpenAI协议要求）
         context_messages = [{'role': 'system', 'content': AGENT_SYSTEM_PROMPT}] + list(history)
         # 把"新问题+质检反馈"作为最后一条 user 消息
