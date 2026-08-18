@@ -376,11 +376,12 @@ input, textarea { font-family: inherit; }
 .insp-cats .cat-head { font-size: 12px; color: var(--text-3); letter-spacing: 1px; margin-right: 4px; }
 .insp-cat {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-pill);
-  font-size: 13px; color: var(--text-2); cursor: pointer; position: relative;
+  font-size: 13px; font-weight: 400; color: var(--text-2); cursor: pointer; position: relative;
   border: 1px solid var(--border); background: var(--surface);
+  transition: background-color .12s, color .12s, border-color .12s;
 }
 .insp-cat:hover { border-color: var(--text); color: var(--text); }
-.insp-cat.active { background: var(--text); color: var(--on-primary); border-color: var(--text); font-weight: 500; }
+.insp-cat.active { background: var(--text); color: var(--on-primary); border-color: var(--text); }
 .insp-cat .cnt { font-size: 11px; opacity: .7; }
 .insp-cat .more {
   display: none; border: none; background: none; color: inherit; font-size: 13px;
@@ -893,14 +894,14 @@ window.addEventListener('error', function (e) {
       <div class="insp-layout">
         <div class="insp-cats" id="inspCats">
           <span class="cat-head">分类</span>
-          <div class="insp-cat active" data-cat="全部"><span>全部</span><span class="cnt" id="inspCntAll">0</span></div>
+          <div class="insp-cat active" data-cat="auto" id="inspCatAuto"><span>自动分类</span><span class="cnt" id="inspCntAll">0</span></div>
           <div id="inspCatList"></div>
           <button class="insp-cat-add" id="btnInspAddCat">＋ 添加分类</button>
         </div>
         <div class="insp-main">
           <div class="insp-input-box" id="inspInputBox">
-            <select id="inspNovelSel" title="这条灵感属于哪本书（留空 = 全局收件箱）">
-              <option value="0">📥 全局收件箱</option>
+            <select id="inspNovelSel" title="这条灵感属于哪本书（不选 = 自动分类）">
+              <option value="0">✨ 自动分类</option>
             </select>
             <textarea id="inspInput" placeholder="想到什么就写什么…（AI 会自动分类：人设 / 剧情 / 金句 / 世界观）"></textarea>
             <button class="send" id="btnInspSend">↑</button>
@@ -2271,8 +2272,8 @@ async function resolveFh(id) {
 }
 
 // ===== 灵感库（P12）=====
-const INSP_NOVEL = 0; // 灵感库为全局收件箱（不绑定具体小说）
-let inspCategory = '全部';
+const INSP_NOVEL = 0; // 默认收件库（不绑定具体小说）；「自动分类」tab 查全部
+let inspCategory = 'auto'; // auto=自动分类（默认页，显示所有+输入框）| 具体分类名=只看该分类
 let inspCatNames = [];
 
 async function loadInspiration() {
@@ -2284,7 +2285,7 @@ async function loadInspNovelSel() {
     const sel = document.getElementById('inspNovelSel');
     if (!sel) return;
     const cur = sel.value;
-    sel.innerHTML = '<option value="0">📥 全局收件箱</option>' +
+    sel.innerHTML = '<option value="0">✨ 自动分类</option>' +
       (data.novels || []).map(n => `<option value="${n.id}">📕 ${esc(n.title)}</option>`).join('');
     sel.value = cur || '0';
   } catch (e) { console.error(e); }
@@ -2309,7 +2310,7 @@ async function loadInspCats() {
         loadInspItems();
       });
     });
-    const all = document.querySelector('#inspCats .insp-cat[data-cat="全部"]');
+    const all = document.querySelector('#inspCats .insp-cat[data-cat="auto"]');
     const cntAll = (data.categories || []).reduce((s, c) => s + c.count, 0);
     document.getElementById('inspCntAll').textContent = cntAll;
     // 侧栏灵感库分组角标联动（人设灵感/剧情灵感/金句…数字实时更新）
@@ -2328,11 +2329,9 @@ async function loadInspCats() {
 async function loadInspItems() {
   const list = document.getElementById('inspItems');
   try {
-    const cat = inspCategory === '全部' ? '' : inspCategory;
-    // 「全部」查所有书 + 全局收件箱；指定分类时按全局收件箱过滤
-    const nid = inspCategory === '全部' ? '' : INSP_NOVEL;
-    const url = nid === '' ? `/api/inspirations?category=${encodeURIComponent(cat)}`
-                           : `/api/inspirations?novel_id=${nid}&category=${encodeURIComponent(cat)}`;
+    // 「自动分类」tab：显示所有书 + 默认收件库的全部灵感；具体分类 tab：只看该分类（所有书）
+    const cat = inspCategory === 'auto' ? '' : inspCategory;
+    const url = `/api/inspirations?category=${encodeURIComponent(cat)}`;
     const data = await apiGet(url);
     const items = data.inspirations || [];
     // 小说标题映射（用于「属于哪本书」标签）
@@ -2463,7 +2462,7 @@ async function delInspCat(name) {
   if (!confirm(`删除分类「${name}」？其中的灵感会归入「其他」。`)) return;
   try {
     await fetch(`${API_BASE}/api/inspiration/category?novel_id=${INSP_NOVEL}&name=${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (inspCategory === name) inspCategory = '全部';
+    if (inspCategory === name) inspCategory = 'auto';
     loadInspiration();
   } catch (e) { alert('删除失败: ' + e.message); }
 }
