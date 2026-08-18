@@ -141,26 +141,8 @@ input, textarea { font-family: inherit; }
   overflow: hidden; background: var(--surface);
 }
 .app-sidebar.collapsed { width: 48px; padding: 8px 0; }
-/* 收起态：导航 tab 变成圆形单字徽标（首/创/灵/作/社），文字与项目区隐藏 */
-.app-sidebar.collapsed .side-nav .side-item {
-  justify-content: center; gap: 0; padding: 6px 0; font-size: 0;
-}
-.app-sidebar.collapsed .side-nav .side-item > span { display: none; }
-.app-sidebar.collapsed .side-nav .side-item::after {
-  content: attr(data-short);
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 50%;
-  background: transparent; color: var(--text-2);
-  font-size: 13px; font-weight: 600; letter-spacing: 0;
-  transition: background .12s, color .12s;
-}
-.app-sidebar.collapsed .side-nav .side-item:hover { background: transparent; }
-.app-sidebar.collapsed .side-nav .side-item:hover::after { background: var(--surface-2); color: var(--text); }
-.app-sidebar.collapsed .side-nav .side-item.active { background: transparent; }
-.app-sidebar.collapsed .side-nav .side-item.active::after { background: var(--text); color: var(--on-primary); }
-.app-sidebar.collapsed .side-nav .side-item span.meta, .app-sidebar.collapsed .side-projects { display: none; }
-.side-nav { display: flex; flex-direction: column; }
-.side-nav .side-item { margin-bottom: 2px; }
+/* 收起态：隐藏对话列表与项目区（顶部导航不受影响） */
+.app-sidebar.collapsed .side-chats, .app-sidebar.collapsed .side-projects { display: none; }
 .side-projects { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
 .side-chats { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
 .side-chats .side-item { position: relative; }
@@ -741,6 +723,13 @@ window.addEventListener('error', function (e) {
   <!-- ═══════ 全局 Header（只留 Logo + 用户）═══════ -->
   <header class="header">
     <div class="logo"><img src="/static/xiaoshuomao-official.svg" alt="小说猫"><span>小说岛</span></div>
+    <nav class="nav" id="topNav">
+      <a data-nav="home" class="active">首页</a>
+      <a data-nav="chat">创作</a>
+      <a data-nav="inspiration">灵感库</a>
+      <a data-nav="works">我的作品</a>
+      <a data-nav="community">社区</a>
+    </nav>
     <div class="user">
       <span class="user-name" id="userName" style="display:none">陈雨薇</span>
       <button class="btn-pill" id="btnLoginHeader">登录</button>
@@ -748,15 +737,8 @@ window.addEventListener('error', function (e) {
   </header>
 
   <div class="app-body">
-    <!-- ═══════ 全局侧边栏（导航 + 项目区）═══════ -->
+    <!-- ═══════ 全局侧边栏（对话会话 + 项目区）═══════ -->
     <aside class="app-sidebar" id="appSidebar">
-      <div class="side-nav" id="sideNav">
-        <div class="side-item" data-nav="home" data-short="首" title="首页"><span>首页</span></div>
-        <div class="side-item" data-nav="chat" data-short="创" title="创作"><span>创作</span></div>
-        <div class="side-item" data-nav="inspiration" data-short="灵" title="灵感库"><span>灵感库</span></div>
-        <div class="side-item" data-nav="works" data-short="作" title="我的作品"><span>我的作品</span></div>
-        <div class="side-item" data-nav="community" data-short="社" title="社区"><span>社区</span></div>
-      </div>
       <!-- 对话会话列表（多会话切换 / 对比不同对话） -->
       <div class="side-chats" id="sideChats">
         <div class="side-group">对话</div>
@@ -1263,7 +1245,7 @@ function showView(view) {
     var show = names[i] === view;
     el.style.display = show ? (names[i] === 'chat' || names[i] === 'home' ? 'flex' : 'block') : 'none';
   }
-  document.querySelectorAll('#sideNav .side-item').forEach(function (i) {
+  document.querySelectorAll('#topNav a').forEach(function (i) {
     i.classList.toggle('active', NAV_VIEW[i.dataset.nav] === view);
   });
   // 项目区：仅创作视图显示（点击项目即进入项目侧边栏）
@@ -1296,7 +1278,7 @@ function updateBadge() {
 }
 document.querySelector('.logo').addEventListener('click', () => showView('home'));
 var NAV_VIEW = { home: 'home', chat: 'chat', inspiration: 'inspiration', works: 'works', community: 'community' };
-document.querySelectorAll('#sideNav .side-item').forEach(function (item) {
+document.querySelectorAll('#topNav a').forEach(function (item) {
   item.addEventListener('click', function () {
     showView(NAV_VIEW[item.dataset.nav]);
   });
