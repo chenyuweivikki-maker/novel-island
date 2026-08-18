@@ -144,6 +144,9 @@ class AskRequest(BaseModel):
     novel_id: int | None = None  # 里程碑11：按项目检索/问答
     material: str | None = None  # 对话式建库：随消息拖入/粘贴的素材文本（Agent 解析入库）
     session_id: str = "default"  # 前端稳定会话标识（localStorage 持久化；区分多组对话便于对比）
+    model: str = ""              # Agent 设置：模型覆盖（空=按任务自动路由）
+    temperature: float | None = None  # Agent 设置：温度覆盖（None=默认）
+    persona: str = ""            # Agent 设置：人设/语气附加说明（拼进 system prompt）
 
 
 # ===== 创作空间请求模型（里程碑10）=====
@@ -401,7 +404,8 @@ NO_PROJECT_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫�
 {history}"""
 
 
-def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False, session_id: str = "default") -> str:
+def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False, session_id: str = "default",
+                            model: str = "", temperature: float | None = None, persona: str = "") -> str:
     """无项目对话统一走 LLM（带短期记忆，记住书名/题材等上下文）"""
     memory = memory_manager.get_memory(novel_id, session_id)
     history = memory.get_context()
@@ -409,14 +413,18 @@ def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool =
         f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
         for m in history[-6:]  # 最近几轮，避免超长
     ) or "（无）"
+    system = NO_PROJECT_SYSTEM_PROMPT.format(history=history_text)
+    if persona and persona.strip():
+        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
     user_prompt = f"作者说：{query}\n\n请以小说猫的口吻回应。"
     try:
         reply = chat(
-            NO_PROJECT_SYSTEM_PROMPT.format(history=history_text),
+            system,
             user_prompt,
-            temperature=0.8,
+            temperature=temperature if temperature is not None else 0.8,
             max_tokens=300,
             task="companion",
+            model=model or None,
         ).strip()
     except Exception as e:
         print(f"[ask] 无项目 LLM 引导失败: {e}")
@@ -433,7 +441,8 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
     流式模式用 chat_stream 逐 token 输出；非流式保持原逻辑。
     """
     if not req.stream:
-        return {"answer": reply_fn(req.query, *args, session_id=req.session_id, **kwargs), "sources": []}
+        return {"answer": reply_fn(req.query, *args, session_id=req.session_id,
+                                   model=req.model, temperature=req.temperature, persona=req.persona, **kwargs), "sources": []}
 
     # 流式：先取记忆上下文（与 reply_fn 一致），再 chat_stream 生成
     memory = memory_manager.get_memory(req.novel_id, req.session_id)
@@ -443,12 +452,16 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
         for m in history[-6:]
     ) or "（无）"
     system_prompt = NO_PROJECT_SYSTEM_PROMPT.format(history=history_text)
+    if req.persona and req.persona.strip():
+        system_prompt += f"\n\n作者要求你的人设/语气：{req.persona.strip()}"
     user_prompt = f"作者说：{req.query}\n\n请以小说猫的口吻回应。"
 
     def generate():
         full = ""
         try:
-            for token in chat_stream(system_prompt, user_prompt, temperature=0.8, max_tokens=300, task="companion"):
+            for token in chat_stream(system_prompt, user_prompt,
+                                      temperature=req.temperature if req.temperature is not None else 0.8,
+                                      max_tokens=300, task="companion", model=req.model or None):
                 full += token
                 yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
         except Exception as e:
@@ -532,7 +545,9 @@ def _empty_kb_stream_or_dict(req):
     def generate():
         full = ""
         try:
-            for token in chat_stream(system_prompt, user_prompt, temperature=0.8, max_tokens=300, task="companion"):
+            for token in chat_stream(system_prompt, user_prompt,
+                                      temperature=req.temperature if req.temperature is not None else 0.8,
+                                      max_tokens=300, task="companion", model=req.model or None):
                 full += token
                 yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
         except Exception as e:

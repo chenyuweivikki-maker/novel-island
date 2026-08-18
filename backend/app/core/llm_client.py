@@ -77,14 +77,17 @@ def chat(
     temperature: float = 0.3,
     max_tokens: int = 1024,
     task: str = 'qa',
+    model: str | None = None,
 ) -> str:
     """调用 LLM 生成回答（里程碑7：按任务路由模型 + 记录成本）
 
-    模型名由 get_model_for_task 决定，客户端按模型名选 Provider。
+    模型名由 get_model_for_task 决定（model=None），也可由调用方显式指定（Agent 设置覆盖）。
+    客户端按模型名选 Provider。
     Phase 0 降级：高阶模型调用失败（余额不足/超时/限流）→ 自动回退 DeepSeek，
     保证主流程不崩（PRD 模型降级/熔断，埋点 model_fallback）。
     """
-    model = get_model_for_task(task)
+    if model is None:
+        model = get_model_for_task(task)
     try:
         return _chat_once(model, system_prompt, user_prompt, temperature, max_tokens, task)
     except Exception:
@@ -126,9 +129,11 @@ def chat_stream(
     temperature: float = 0.3,
     max_tokens: int = 1024,
     task: str = 'qa',
+    model: str | None = None,
 ):
     """流式输出 — 逐 token 返回（高阶模型故障时降级回退 DeepSeek）"""
-    model = get_model_for_task(task)
+    if model is None:
+        model = get_model_for_task(task)
     try:
         yield from _stream_once(model, system_prompt, user_prompt, temperature, max_tokens)
     except Exception:

@@ -162,6 +162,14 @@ input, textarea { font-family: inherit; }
 .side-nav { display: flex; flex-direction: column; }
 .side-nav .side-item { margin-bottom: 2px; }
 .side-projects { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
+.side-chats { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 4px; }
+.side-chats .side-item { position: relative; }
+.side-chats .side-item .del-session {
+  display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; color: var(--text-3); font-size: 13px; cursor: pointer; padding: 0 2px;
+}
+.side-chats .side-item:hover .del-session { display: block; }
+.side-chats .side-item .del-session:hover { color: var(--text); }
 .side-group { font-size: 11px; color: var(--text-3); letter-spacing: 1.5px; padding: 14px 8px 6px; white-space: nowrap; }
 .side-item {
   display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-sm);
@@ -378,8 +386,16 @@ input, textarea { font-family: inherit; }
 .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
 .modal-field { margin-bottom: 12px; }
 .modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
-.modal-field input, .modal-field textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; outline: none; }
-.modal-field input:focus, .modal-field textarea:focus { border-color: var(--text); }
+.modal-field input, .modal-field textarea, .modal-field select { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; outline: none; }
+.modal-field input:focus, .modal-field textarea:focus, .modal-field select:focus { border-color: var(--text); }
+.modal-field input[type="range"] { padding: 0; border: none; accent-color: var(--text); }
+/* 首页 Agent 设置按钮 */
+.agent-settings-btn {
+  border: none; background: none; color: var(--text-3); font-size: 16px; cursor: pointer;
+  flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  transition: color .12s, transform .12s;
+}
+.agent-settings-btn:hover { color: var(--text); transform: rotate(30deg); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 
 /* 状态 */
@@ -712,6 +728,12 @@ window.addEventListener('error', function (e) {
         <div class="side-item" data-nav="works" data-short="作" title="我的作品"><span>我的作品</span></div>
         <div class="side-item" data-nav="community" data-short="社" title="社区"><span>社区</span></div>
       </div>
+      <!-- 对话会话列表（多会话切换 / 对比不同对话） -->
+      <div class="side-chats" id="sideChats">
+        <div class="side-group">对话</div>
+        <div id="chatSessionList"></div>
+        <button class="side-new" id="btnNewChatSession">＋ 新建对话</button>
+      </div>
       <div class="side-projects" id="sideProjects" style="display:none">
         <div class="side-group">小说项目</div>
         <div id="projectList"></div>
@@ -742,12 +764,40 @@ window.addEventListener('error', function (e) {
       </div>
       <div class="home-input-bar">
         <div class="home-input">
+          <button class="agent-settings-btn" id="btnAgentSettings" title="Agent 设置：模型 / 温度 / 人设">⚙</button>
           <input id="homeInput" placeholder="告诉小说猫你想写什么…">
           <button class="send" id="homeSend">↑</button>
         </div>
         <p class="foot">写不下去的时候，我都在。</p>
       </div>
     </section>
+
+    <!-- Agent 设置弹窗 -->
+    <div class="modal-mask" id="agentSettingsModal">
+      <div class="modal" style="width:460px;max-width:94vw">
+        <div class="modal-title">Agent 设置</div>
+        <div class="modal-field">
+          <label>模型（默认按任务自动路由）</label>
+          <select id="agentModelSel">
+            <option value="">自动（deepseek / kimi 按任务）</option>
+            <option value="deepseek-chat">deepseek-chat（主力）</option>
+            <option value="kimi-k2.6">kimi-k2.6（高阶推理）</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>温度（0=严谨 · 1=发散） <span id="agentTempVal">0.8</span></label>
+          <input type="range" id="agentTempSlider" min="0" max="1" step="0.1" value="0.8">
+        </div>
+        <div class="modal-field">
+          <label>人设 / 语气（可留空）</label>
+          <textarea id="agentPersonaInput" rows="2" placeholder="如：叫我阿薇，回复要简短温暖，像闺蜜一样"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-pill" id="btnAgentSettingsReset">重置</button>
+          <button class="btn-pill primary" id="btnAgentSettingsSave">保存</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ═══════ 我的作品 ═══════ -->
     <section class="view works" id="view-works">
@@ -1236,7 +1286,7 @@ function homeAsk(q) {
     bubble.remove();
     if (!full) {
       // 流式无输出（降级路径）→ 非流式兜底
-      return apiCall('/api/kb/ask', { query: q, top_k: 5, session_id: sessionId }).then(function (data) {
+      return apiCall('/api/kb/ask', Object.assign({ query: q, top_k: 5, session_id: sessionId }, agentSettingsBody())).then(function (data) {
         appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
       });
     }
@@ -1244,7 +1294,7 @@ function homeAsk(q) {
   }
   fetch(API_BASE + '/api/kb/ask', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: q, top_k: 5, stream: true, session_id: sessionId })
+    body: JSON.stringify(Object.assign({ query: q, top_k: 5, stream: true, session_id: sessionId }, agentSettingsBody()))
   }).then(function (resp) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const reader = resp.body.getReader();
@@ -1611,7 +1661,7 @@ async function askStreaming(containerId, presetQuery) {
   const input = document.getElementById('qaInput');
   const query = (presetQuery != null ? presetQuery : input.value).trim();
   if (!query && !attachedFile) return;
-  const body = { query: query || '（素材解析）', top_k: 5, stream: true, session_id: sessionId };
+  const body = Object.assign({ query: query || '（素材解析）', top_k: 5, stream: true, session_id: sessionId }, agentSettingsBody());
   if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
   if (attachedFile) body.material = attachedFile.text;
 
@@ -1667,7 +1717,7 @@ async function askStreaming(containerId, presetQuery) {
     bubble.remove();
     if (!full) {
       // 流式没输出（可能是缓存/降级路径）→ 用非流式兜底
-      const data = await apiCall('/api/kb/ask', { query: query, top_k: 5, novel_id: body.novel_id || null, session_id: sessionId });
+      const data = await apiCall('/api/kb/ask', Object.assign({ query: query, top_k: 5, novel_id: body.novel_id || null, session_id: sessionId }, agentSettingsBody()));
       full = data.answer || '（无回答）';
       srcLine = (data.sources || []).length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : '';
     }
@@ -2200,7 +2250,7 @@ async function waAsk(q) {
   box.appendChild(typing);
   box.scrollTop = box.scrollHeight;
   try {
-    const body = { query: q, top_k: 5, session_id: sessionId };
+    const body = Object.assign({ query: q, top_k: 5, session_id: sessionId }, agentSettingsBody());
     if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
     const data = await apiCall('/api/kb/ask', body);
     typing.remove();
@@ -2691,6 +2741,127 @@ document.addEventListener('keydown', e => {
   fetch(API_BASE + '/api/health').then(function (r) { return r.json(); })
     .then(function (d) { badgeBackend = '✓ 后端已连接 (' + (d.model || 'ok') + ')'; updateBadge(); })
     .catch(function () { badgeBackend = '✗ 后端未连接'; updateBadge(); });
+// ===== Agent 设置（模型 / 温度 / 人设语气）=====
+var agentSettings = { model: '', temperature: 0.8, persona: '' };
+try {
+  var saved = JSON.parse(localStorage.getItem('novel_island_agent') || '{}');
+  if (saved && typeof saved === 'object') agentSettings = Object.assign(agentSettings, saved);
+} catch (e) {}
+function agentSettingsBody() {
+  // 组装 ask 请求的 agent 设置字段（persona 拼进 query 前的系统层，由后端透传）
+  var b = {};
+  if (agentSettings.model) b.model = agentSettings.model;
+  if (agentSettings.temperature != null) b.temperature = Number(agentSettings.temperature);
+  if (agentSettings.persona && agentSettings.persona.trim()) b.persona = agentSettings.persona.trim();
+  return b;
+}
+document.getElementById('btnAgentSettings').addEventListener('click', () => {
+  document.getElementById('agentModelSel').value = agentSettings.model || '';
+  document.getElementById('agentTempSlider').value = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
+  document.getElementById('agentTempVal').textContent = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
+  document.getElementById('agentPersonaInput').value = agentSettings.persona || '';
+  document.getElementById('agentSettingsModal').classList.add('show');
+});
+document.getElementById('agentTempSlider').addEventListener('input', e => {
+  document.getElementById('agentTempVal').textContent = e.target.value;
+});
+document.getElementById('btnAgentSettingsSave').addEventListener('click', () => {
+  agentSettings.model = document.getElementById('agentModelSel').value || '';
+  agentSettings.temperature = parseFloat(document.getElementById('agentTempSlider').value) || 0.8;
+  agentSettings.persona = document.getElementById('agentPersonaInput').value.trim();
+  try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+  document.getElementById('agentSettingsModal').classList.remove('show');
+});
+document.getElementById('btnAgentSettingsReset').addEventListener('click', () => {
+  agentSettings = { model: '', temperature: 0.8, persona: '' };
+  try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+  document.getElementById('agentSettingsModal').classList.remove('show');
+});
+document.getElementById('agentSettingsModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('agentSettingsModal')) document.getElementById('agentSettingsModal').classList.remove('show');
+});
+
+// ===== 多会话切换（对话历史分组 / 对比不同对话效果）=====
+async function renderChatSessions() {
+  try {
+    const data = await apiGet('/api/chat/sessions');
+    const list = document.getElementById('chatSessionList');
+    // 只看首页闲聊组（scope=home），项目对话按书走项目侧边栏
+    const homeSessions = (data.sessions || []).filter(s => s.scope === 'home');
+    if (!homeSessions.length) {
+      list.innerHTML = '<div class="side-item hide-when-collapsed" style="cursor:default;color:var(--text-3)">还没有对话，点下方＋新建</div>';
+      return;
+    }
+    list.innerHTML = homeSessions.map(s => `
+      <div class="side-item ${s.session_id === sessionId ? 'active' : ''}" data-session="${escAttr(s.session_id)}" title="${escAttr(s.last_msg || '')}">
+        <span class="hide-when-collapsed side-title">${esc((s.last_msg || '新对话').slice(0, 14))}</span>
+        <button class="del-session" data-del="${escAttr(s.session_id)}" title="删除该对话">×</button>
+      </div>`).join('');
+    list.querySelectorAll('.side-item[data-session]').forEach(item => {
+      item.addEventListener('click', e => {
+        if (e.target.classList.contains('del-session')) return;
+        switchChatSession(item.dataset.session);
+      });
+    });
+    list.querySelectorAll('.del-session').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const sid = btn.dataset.del;
+        if (!confirm('删除这段对话？历史记录将清空。')) return;
+        try {
+          await fetch(`${API_BASE}/api/chat/session?scope=home&session_id=${encodeURIComponent(sid)}`, { method: 'DELETE' });
+          if (sid === sessionId) newChatSession();
+          renderChatSessions();
+        } catch (err) { alert('删除失败: ' + err.message); }
+      });
+    });
+  } catch (e) { console.error(e); }
+}
+function switchChatSession(sid) {
+  if (!sid) return;
+  sessionId = sid;
+  try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
+  // 清空首页消息区，加载该会话历史
+  const list = document.getElementById('homeMsgList');
+  list.innerHTML = '';
+  const hw = document.getElementById('homeWelcome');
+  if (hw) hw.style.display = 'none';
+  loadChatHistory();
+  renderChatSessions();
+}
+function newChatSession() {
+  sessionId = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
+  const list = document.getElementById('homeMsgList');
+  list.innerHTML = '';
+  const hw = document.getElementById('homeWelcome');
+  if (hw) { hw.style.display = 'flex'; }
+  renderChatSessions();
+  showView('home');
+}
+async function loadChatHistory() {
+  try {
+    const data = await apiGet(`/api/chat/history?scope=home&session_id=${encodeURIComponent(sessionId)}`);
+    const hist = data.history || [];
+    const list = document.getElementById('homeMsgList');
+    const hw = document.getElementById('homeWelcome');
+    if (!hist.length) {
+      if (hw) hw.style.display = 'flex';
+      return;
+    }
+    if (hw) hw.style.display = 'none';
+    list.innerHTML = '';
+    hist.forEach(m => {
+      appendMsg(m.role === 'user' ? 'user' : 'agent', m.content, null, 'homeMsgList');
+    });
+    list.scrollTop = list.scrollHeight;
+  } catch (e) { console.error(e); }
+}
+document.getElementById('btnNewChatSession').addEventListener('click', newChatSession);
+// 初始化时渲染会话列表 + 恢复当前会话历史
+renderChatSessions();
+loadChatHistory();
+
 // ===== 社区（作者互动：帖子 / 点赞 / 收藏 / 评论）=====
 var commFilter = '';
 var pendingShareInsp = null; // { id, content } 灵感分享来源
