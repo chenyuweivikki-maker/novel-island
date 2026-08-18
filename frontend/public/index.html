@@ -423,10 +423,6 @@ window.addEventListener('error', function (e) {
             <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
             <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
           </div>
-          <div class="recent" id="recentBox" style="display:none">
-            <h2>最近作品</h2>
-            <div class="recent-row" id="recentList"></div>
-          </div>
         </div>
       </div>
       <div class="home-input-bar">
@@ -680,7 +676,6 @@ function showView(view) {
     renderSidebar();
     if (currentNovelId) refreshKBViews();
   }
-  if (view === 'home') { loadRecent(); }
   setBadge(VIEW_NAMES[view] ? '视图:' + VIEW_NAMES[view] + ' · ' : '');
 }
 var badgeView = '', badgeBackend = '检测后端…';
@@ -699,28 +694,6 @@ document.querySelectorAll('#sideNav .side-item').forEach(function (item) {
   });
 });
 
-// ===== 首页 =====
-function loadRecent() {
-  apiGet('/api/novels').then(data => {
-    const novels = data.novels || [];
-    const box = document.getElementById('recentBox');
-    if (novels.length === 0) { box.style.display = 'none'; return; }
-    box.style.display = 'block';
-    document.getElementById('recentList').innerHTML = novels.slice(0, 3).map(n => `
-      <div class="work-row" style="margin-top:0">
-        <div class="cover">📖</div>
-        <div class="info">
-          <div class="tags"><span class="tag">连载中</span></div>
-          <h3>${esc(n.title)}</h3>
-          <div class="desc">${(n.total_words || 0).toLocaleString()} 字 · 上次编辑 ${n.updated_at ? timeAgo(n.updated_at) : '—'}</div>
-        </div>
-        <div class="actions">
-          <button class="btn-pill small" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">继续写</button>
-        </div>
-      </div>
-    `).join('');
-  }).catch(() => {});
-}
 function timeAgo(iso) {
   if (!iso) return '—';
   const d = new Date(iso), now = new Date();
@@ -1353,7 +1326,6 @@ document.addEventListener('keydown', e => {
 window.addEventListener('load', () => {
   showView('home');
   renderSidebar();
-  loadRecent();
 });
 </script>
 </body>
