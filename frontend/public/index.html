@@ -358,10 +358,139 @@ input, textarea { font-family: inherit; }
 
 /* 状态 */
 .status { font-size: 12px; color: var(--text-3); margin-left: 8px; }
+
+/* ── 灵感库（P12：左分类 + 右条目） ── */
+.insp-layout { display: flex; height: 100%; }
+.insp-cats {
+  width: 200px; flex-shrink: 0; border-right: 1px solid var(--border);
+  padding: 20px 12px; overflow-y: auto;
+}
+.insp-cats .cat-head { font-size: 11px; color: var(--text-3); letter-spacing: 1.5px; padding: 0 10px 10px; }
+.insp-cat {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-2); cursor: pointer; position: relative;
+}
+.insp-cat:hover { background: var(--surface-2); color: var(--text); }
+.insp-cat.active { background: var(--text); color: var(--on-primary); font-weight: 500; }
+.insp-cat .cnt { margin-left: auto; font-size: 11px; color: var(--text-3); }
+.insp-cat.active .cnt { color: rgba(255,255,255,.7); }
+.insp-cat .more {
+  display: none; border: none; background: none; color: inherit; font-size: 13px;
+  padding: 0 2px; margin-left: 2px; line-height: 1;
+}
+.insp-cat:hover .more { display: block; }
+.insp-cat-add {
+  margin-top: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+  padding: 8px; text-align: center; font-size: 13px; color: var(--text-3); cursor: pointer;
+}
+.insp-cat-add:hover { border-color: var(--text); color: var(--text); }
+.insp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 24px 32px; }
+.insp-input-box {
+  display: flex; align-items: flex-end; gap: 12px; margin-bottom: 20px;
+  border: 1.5px solid var(--border-strong); border-radius: var(--radius);
+  padding: 14px 14px 14px 20px; background: var(--surface); transition: border-color .15s;
+}
+.insp-input-box:focus-within { border-color: var(--text); }
+.insp-input-box textarea {
+  flex: 1; border: none; outline: none; resize: none; font-size: 15px; line-height: 1.6;
+  background: transparent; color: var(--text); min-height: 44px; max-height: 160px;
+  font-family: inherit;
+}
+.insp-input-box textarea::placeholder { color: var(--text-3); font-size: 15px; }
+.insp-input-box .send { width: 40px; height: 40px; border-radius: var(--radius-sm); border: none; background: var(--text); color: #fff; font-size: 17px; flex-shrink: 0; }
+.insp-classifying { font-size: 12px; color: var(--text-3); margin-bottom: 12px; }
+.insp-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.insp-item {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; position: relative;
+}
+.insp-item:hover { border-color: var(--border-strong); }
+.insp-item .content { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+.insp-item .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-3); }
+.insp-item .meta .tag { font-size: 11px; padding: 1px 10px; }
+.insp-item .meta select {
+  border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: 11px;
+  color: var(--text-2); background: var(--surface); padding: 2px 6px; outline: none;
+}
+.insp-item .del { margin-left: auto; border: none; background: none; color: var(--text-3); font-size: 13px; cursor: pointer; }
+.insp-item .del:hover { color: var(--text); }
+.insp-foot { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+.insp-foot .hint { font-size: 12px; color: var(--text-3); }
+.insp-menu {
+  position: fixed; z-index: 200; background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: 0 4px 24px rgba(0,0,0,.1); padding: 4px; min-width: 130px;
+}
+.insp-menu button {
+  display: block; width: 100%; text-align: left; border: none; background: none; font-size: 13px;
+  color: var(--text); padding: 7px 12px; border-radius: 6px;
+}
+.insp-menu button:hover { background: var(--surface-2); }
+.insp-menu button.danger { color: #b3261e; }
+
+/* ── 关系图（力导向） ── */
+.graph-wrap { padding: 0; height: 100%; position: relative; overflow: hidden; }
+#graphSvg { width: 100%; height: 100%; display: block; cursor: grab; }
+#graphSvg:active { cursor: grabbing; }
+.graph-node { cursor: pointer; }
+.graph-node circle { transition: fill .12s; }
+.graph-node:hover circle { fill: var(--surface-2); }
+.graph-hint { position: absolute; left: 16px; bottom: 12px; font-size: 11px; color: var(--text-3); background: rgba(255,255,255,.85); padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid var(--border); }
+
+/* ── 编辑器右栏（对话联动） ── */
+.write-ai {
+  width: 300px; flex-shrink: 0; border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; background: var(--surface);
+}
+.write-ai .wa-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.write-ai .wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.write-ai .wa-msg { font-size: 13px; line-height: 1.65; }
+.write-ai .wa-msg.user { align-self: flex-end; background: var(--text); color: #fff; border-radius: 12px 12px 4px 12px; padding: 8px 12px; max-width: 90%; }
+.write-ai .wa-msg.ai { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; padding: 8px 12px; max-width: 92%; white-space: pre-wrap; }
+.write-ai .wa-msg.typing::after { content: '…'; animation: blink 1s infinite; }
+.write-ai .wa-input { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); align-items: center; }
+.write-ai .wa-input input {
+  flex: 1; border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  padding: 7px 14px; font-size: 13px; outline: none; background: var(--surface); min-width: 0;
+}
+.write-ai .wa-input input:focus { border-color: var(--text); }
+.write-ai .wa-input .send { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--text); color: #fff; font-size: 13px; flex-shrink: 0; }
+
+/* ── 润色 Review 弹窗 ── */
+.polish-compare { display: flex; gap: 16px; }
+.polish-col { flex: 1; min-width: 0; }
+.polish-col .pc-label { font-size: 11px; color: var(--text-3); letter-spacing: 1px; margin-bottom: 8px; }
+.polish-col .pc-body {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
+  font-size: 13.5px; line-height: 1.8; max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+}
+.polish-col.new .pc-body { border-color: var(--text); }
+.polish-col.new .pc-label { color: var(--text); font-weight: 600; }
+
+/* ── 策略报告弹窗 ── */
+.report-modal { width: 720px; max-width: 94vw; max-height: 86vh; overflow-y: auto; }
+.report-summary { font-size: 14px; line-height: 1.8; margin-bottom: 18px; }
+.report-sec { margin-bottom: 18px; }
+.report-sec h4 { font-size: 12px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.report-sec ul { list-style: none; }
+.report-sec li {
+  position: relative; padding: 6px 0 6px 18px; font-size: 13.5px; line-height: 1.7; color: var(--text-2);
+}
+.report-sec li::before { content: '·'; position: absolute; left: 4px; color: var(--text); font-weight: 700; }
+.report-hook {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2);
+  padding: 14px 16px; font-size: 13.5px; line-height: 1.8;
+}
+.report-stats { display: flex; gap: 24px; margin-bottom: 18px; font-size: 12px; color: var(--text-3); }
+
+/* 卡文弹窗 */
+.kawen-em { font-size: 15px; margin-bottom: 8px; }
+
 @media (max-width: 900px) {
   .nav { gap: 16px; }
   .char-layout { flex-direction: column; }
   .char-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 4px; overflow-x: auto; padding-bottom: 12px; }
+  .write-ai { display: none; }
+  .polish-compare { flex-direction: column; }
 }
 </style>
 
@@ -423,6 +552,10 @@ window.addEventListener('error', function (e) {
             <button class="chip" data-q="看看我的灵感库">看看我的灵感库</button>
             <button class="chip" data-q="人设总是崩，帮我检查">人设总是崩，帮我检查</button>
           </div>
+          <div class="recent" id="homeRecent" style="display:none">
+            <h2>最近作品</h2>
+            <div class="recent-row" id="homeRecentRow"></div>
+          </div>
         </div>
       </div>
       <div class="home-input-bar">
@@ -462,6 +595,8 @@ window.addEventListener('error', function (e) {
           <span class="title" id="chatTitle">写作Agent</span>
           <span class="pill" id="pillWriting">写作中</span>
           <button class="pill companion" id="pillCompanion">♡ 陪伴模式</button>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn-pill small" id="btnReport" style="display:none">📊 策略报告</button>
         </div>
         <div class="sub-tabs" id="subTabs">
           <button class="sub-tab active" data-subpage="chat">写作</button>
@@ -502,8 +637,8 @@ window.addEventListener('error', function (e) {
           <!-- 关系图 -->
           <div class="page" id="page-graph">
             <div class="graph-wrap">
-              <svg id="graphSvg" viewBox="0 0 800 480"></svg>
-              <div class="graph-hint">拖拽可移动 · 滚轮缩放 · 点击节点查看人设卡片</div>
+              <svg id="graphSvg"></svg>
+              <div class="graph-hint">拖拽节点/空白可移动 · 滚轮缩放 · 点击节点查看人设卡片</div>
             </div>
           </div>
 
@@ -548,7 +683,7 @@ window.addEventListener('error', function (e) {
             </div>
           </div>
 
-          <!-- 写作编辑器 -->
+          <!-- 写作编辑器（三栏：章节列表 + 编辑区 + AI 对话联动） -->
           <div class="page" id="page-write">
             <div class="write-layout">
               <div class="write-sidebar">
@@ -559,6 +694,7 @@ window.addEventListener('error', function (e) {
                 <div class="we-top">
                   <label for="chapterTitle" class="we-chapter-label">章节：</label>
                   <input id="chapterTitle" class="we-chapter-input" placeholder="如：第一章 / 重逢" autocomplete="off">
+                  <button class="btn-pill small" id="btnPolishSel" style="display:none">✨ AI 润色选中</button>
                   <span class="status" id="saveResult"></span>
                 </div>
                 <textarea id="chapterText" placeholder="开始写这一章……"></textarea>
@@ -569,7 +705,39 @@ window.addEventListener('error', function (e) {
                   <button class="btn-pill primary" id="btnSaveChapter">保存章节</button>
                 </div>
               </div>
+              <div class="write-ai">
+                <div class="wa-head">🐱 写作搭子 <span style="font-weight:400;color:var(--text-3);font-size:11px">选中文本可润色</span></div>
+                <div class="wa-msgs" id="waMsgs"></div>
+                <div class="wa-input">
+                  <input id="waInput" placeholder="问问 AI…（自动带上前文）">
+                  <button class="send" id="btnWaAsk">↑</button>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ 灵感库（P12：AI 自动分类） ═══════ -->
+    <section class="view" id="view-inspiration">
+      <div class="insp-layout">
+        <aside class="insp-cats" id="inspCats">
+          <div class="cat-head">灵感分类</div>
+          <div class="insp-cat active" data-cat="全部"><span>全部</span><span class="cnt" id="inspCntAll">0</span></div>
+          <div id="inspCatList"></div>
+          <div class="insp-cat-add" id="btnInspAddCat">＋ 添加分类</div>
+        </aside>
+        <div class="insp-main">
+          <div class="insp-input-box" id="inspInputBox">
+            <textarea id="inspInput" placeholder="想到什么就写什么…（AI 会自动分类：人设 / 剧情 / 金句 / 世界观）"></textarea>
+            <button class="send" id="btnInspSend">↑</button>
+          </div>
+          <div class="insp-classifying" id="inspClassifying" style="display:none">🤖 正在自动分类…</div>
+          <div class="insp-items" id="inspItems"></div>
+          <div class="insp-foot">
+            <button class="btn-pill" id="btnInspExport">导出</button>
+            <span class="hint" id="inspHint">灵感库：想到什么就记什么，写的时候来找</span>
           </div>
         </div>
       </div>
@@ -613,7 +781,7 @@ window.addEventListener('error', function (e) {
 </div>
 
 <!-- ═══════ 背景资料弹窗 ═══════ -->
-<div class="modal-mask" id="bgModal">
+ <div class="modal-mask" id="bgModal">
   <div class="modal">
     <div class="modal-title">添加背景资料</div>
     <div class="modal-field"><label>分类（如：世界观 / 人物 / 地点 / 物品）</label><input id="bgCategory" placeholder="世界观"></div>
@@ -623,6 +791,49 @@ window.addEventListener('error', function (e) {
       <button class="btn-pill" id="btnCancelBg">取消</button>
       <button class="btn-pill primary" id="btnConfirmBg">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════ 润色 Review 弹窗（P5：原文 vs 修改 → 采纳/放弃） ═══════ -->
+<div class="modal-mask" id="polishModal">
+  <div class="modal" style="width:720px;max-width:94vw">
+    <div class="modal-title">✨ AI 润色 · 对比确认</div>
+    <div class="polish-compare">
+      <div class="polish-col">
+        <div class="pc-label">原文</div>
+        <div class="pc-body" id="polishOrig"></div>
+      </div>
+      <div class="polish-col new">
+        <div class="pc-label">AI 修改</div>
+        <div class="pc-body" id="polishNew"></div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-pill" id="btnPolishCancel">放弃</button>
+      <button class="btn-pill" id="btnPolishRegen" style="display:none">重新生成</button>
+      <button class="btn-pill primary" id="btnPolishAccept">采纳并替换</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 卡文检测弹窗（P5：编辑停顿超 5 分钟） ═══════ -->
+<div class="modal-mask" id="kawenModal">
+  <div class="modal" style="width:440px">
+    <div class="modal-title">🐱 检测到卡文</div>
+    <p class="kawen-em">已经 5 分钟没打字了，需要 AI 帮忙推演后续情节吗？</p>
+    <p style="font-size:13px;color:var(--text-2);line-height:1.7">我会自动读取最近写的内容，结合人物设定给你几个推进方向。</p>
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn-pill" id="btnKawenLater">先不用</button>
+      <button class="btn-pill primary" id="btnKawenHelp">求助 AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 创作策略报告弹窗（P3-1 DataAnalyst） ═══════ -->
+<div class="modal-mask" id="reportModal">
+  <div class="modal report-modal">
+    <div class="modal-title" id="reportTitle">📊 创作策略报告</div>
+    <div id="reportBody" style="font-size:13px;color:var(--text-3)">正在分析你的作品（章节、人物关系、大纲）…<br><br>生成一份报告大约需要 20-60 秒，请稍候。</div>
   </div>
 </div>
 
@@ -655,10 +866,10 @@ async function apiGet(path) {
 }
 
 // ===== 视图切换 =====
-var VIEW_NAMES = { home: '首页', works: '我的作品', chat: '创作', login: '登录' };
+var VIEW_NAMES = { home: '首页', works: '我的作品', chat: '创作', inspiration: '灵感库', login: '登录' };
 function showView(view) {
   // 内联样式强制切换：不再依赖 .active 类，杜绝 CSS 层叠失效
-  var names = ['home', 'works', 'chat', 'login'];
+  var names = ['home', 'works', 'chat', 'inspiration', 'login'];
   for (var i = 0; i < names.length; i++) {
     var el = document.getElementById('view-' + names[i]);
     if (!el) continue;
@@ -671,6 +882,7 @@ function showView(view) {
   // 项目区：仅创作视图显示（点击项目即进入项目侧边栏）
   document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
   if (view === 'works') { loadWorks(); }
+  if (view === 'inspiration') { loadInspiration(); }
   if (view === 'chat') {
     if (!currentNovelId) selectDefaultChat();
     renderSidebar();
@@ -685,7 +897,7 @@ function updateBadge() {
   if (vb) vb.textContent = 'v1.2 · ' + badgeView + badgeBackend;
 }
 document.querySelector('.logo').addEventListener('click', () => showView('home'));
-var NAV_VIEW = { home: 'home', chat: 'chat', inspiration: 'works', works: 'works', community: 'community' };
+var NAV_VIEW = { home: 'home', chat: 'chat', inspiration: 'inspiration', works: 'works', community: 'community' };
 document.querySelectorAll('#sideNav .side-item').forEach(function (item) {
   item.addEventListener('click', function () {
     var nav = item.dataset.nav;
@@ -732,6 +944,8 @@ document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => 
     const q = chip.dataset.q;
     // 「帮我创建一本新书」→ 直接走建书流程（新建小说弹窗 → 创建后 Agent 引导建库）
     if (q && q.indexOf('创建一本新书') >= 0) { openNewNovel(); return; }
+    // 「看看我的灵感库」→ 跳灵感库页
+    if (q && q.indexOf('看看我的灵感库') >= 0) { showView('inspiration'); return; }
     if (document.getElementById('view-home').classList.contains('active')) {
       homeAsk(q);
     } else {
@@ -849,6 +1063,7 @@ function selectNovel(id, title) {
   currentNovelId = id;
   document.getElementById('subTabs').classList.add('visible');
   document.getElementById('chatTitle').textContent = title;
+  document.getElementById('btnReport').style.display = 'inline-block';
   switchSubPage('chat');
   renderSidebar();
   refreshKBViews();
@@ -862,6 +1077,7 @@ function selectDefaultChat() {
   currentNovelId = null;
   document.getElementById('subTabs').classList.remove('visible');
   document.getElementById('chatTitle').textContent = '写作Agent';
+  document.getElementById('btnReport').style.display = 'none';
   switchSubPage('chat');
 }
 
@@ -1053,40 +1269,236 @@ function genPortrait(name) {
   setTimeout(() => { charPortraitState[name] = 'done'; renderCharacterCards(); }, 1600); // mock：真实接入生图模型
 }
 
-// ===== 关系图（黑白风） =====
+// ===== 关系图（力导向：拖拽/缩放/点击弹人设卡） =====
+let graphSim = null;   // 力模拟模型 {nodes, links, tx, ty, scale, raf, running}
+let graphPopover = null;
+
+function buildGraphModel() {
+  const nodeMap = {};
+  const nodes = KB.characters.map((c, i) => {
+    const persona = c.persona || {};
+    const isMain = /主角|女主|男主/.test(persona['角色'] || '') || i === 0;
+    const n = { name: c.name, persona, isMain, x: 0, y: 0, vx: 0, vy: 0, fixed: false };
+    nodeMap[c.name] = n;
+    return n;
+  });
+  const N = nodes.length;
+  nodes.forEach((n, i) => {
+    n.x = 320 + Math.cos(i * 2 * Math.PI / N) * (N > 1 ? 130 : 0);
+    n.y = 210 + Math.sin(i * 2 * Math.PI / N) * (N > 1 ? 130 : 0);
+  });
+  const links = [], seen = {};
+  KB.characters.forEach(c => {
+    (c.relations || []).forEach(r => {
+      const other = r.source === c.name ? r.target : r.source;
+      if (!nodeMap[other] || other === c.name) return;
+      const key = [c.name, other].sort().join('|');
+      if (seen[key]) return;
+      seen[key] = 1;
+      links.push({ s: nodeMap[c.name], t: nodeMap[other], relation: r.relation, weight: r.weight || 3 });
+    });
+  });
+  return { nodes, links, tx: 0, ty: 0, scale: 1, raf: null, running: false };
+}
+
+function simStep(sim) {
+  const nodes = sim.nodes;
+  const n = nodes.length;
+  // 1. 两两斥力
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = b.x - a.x, dy = b.y - a.y;
+      let d2 = dx * dx + dy * dy;
+      if (d2 < 900) { d2 = 900; } // 最小距离钳制，防飞散
+      const d = Math.sqrt(d2);
+      const f = 5200 / d2;       // 斥力强度
+      dx /= d; dy /= d;
+      a.vx -= dx * f; a.vy -= dy * f;
+      b.vx += dx * f; b.vy += dy * f;
+    }
+  }
+  // 2. 弹簧（有边节点拉近）
+  for (const l of sim.links) {
+    const a = l.s, b = l.t;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const rest = 150;
+    const f = (d - rest) * 0.025;
+    const ux = dx / d, uy = dy / d;
+    a.vx += ux * f; a.vy += uy * f;
+    b.vx -= ux * f; b.vy -= uy * f;
+  }
+  // 3. 向心力（主角偏向中心，整体聚拢）
+  for (const nd of nodes) {
+    const cx = 320, cy = 210;
+    const k = nd.isMain ? 0.06 : 0.012;
+    nd.vx += (cx - nd.x) * k;
+    nd.vy += (cy - nd.y) * k;
+  }
+  // 4. 积分 + 阻尼
+  for (const nd of nodes) {
+    if (nd.fixed) continue;
+    nd.vx *= 0.82; nd.vy *= 0.82;
+    nd.x += nd.vx; nd.y += nd.vy;
+  }
+}
+
+function renderGraphFrame(sim) {
+  const svg = document.getElementById('graphSvg');
+  const W = svg.clientWidth || 800, H = svg.clientHeight || 480;
+  const cx = W / 2, cy = H / 2;
+  // 画面内主角居中（世界坐标 → 屏幕）
+  const main = sim.nodes.find(x => x.isMain) || sim.nodes[0];
+  const sx = p => (p.x - main.x) * sim.scale + W / 2 + sim.tx;
+  const sy = p => (p.y - main.y) * sim.scale + H / 2 + sim.ty;
+  const px = p => sx(p), py = p => sy(p);
+  let html = '';
+  // 边
+  for (const l of sim.links) {
+    const x1 = px(l.s), y1 = py(l.s), x2 = px(l.t), y2 = py(l.t);
+    const sw = 1 + Math.min((l.weight || 3) * 0.25, 2.2);
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#d0d0d0" stroke-width="${sw}"/>`;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    html += `<text x="${mx}" y="${my - 5}" text-anchor="middle" fill="#6b6b6b" font-size="10">${esc(l.relation)}</text>`;
+  }
+  // 节点
+  for (const nd of sim.nodes) {
+    const x = px(nd), y = py(nd), r = nd.isMain ? 34 : 23;
+    html += `<g class="graph-node" data-name="${escAttr(nd.name)}" transform="translate(${x},${y})">
+      <circle r="${r}" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      ${nd.isMain ? '<circle r="' + (r + 5) + '" fill="none" stroke="#111" stroke-width="1" stroke-dasharray="3 3"/>' : ''}
+      <text y="4" text-anchor="middle" fill="#111" font-size="${nd.isMain ? 13 : 11}" font-weight="${nd.isMain ? 600 : 400}">${esc(nd.name)}</text>
+    </g>`;
+  }
+  svg.innerHTML = html;
+  bindGraphNodeEvents(sim);
+}
+
+function startGraphSim(sim) {
+  if (sim.running) return;
+  sim.running = true;
+  const step = () => {
+    simStep(sim);
+    renderGraphFrame(sim);
+    sim.raf = requestAnimationFrame(step);
+  };
+  sim.raf = requestAnimationFrame(step);
+  // 15 秒后自动收敛停止（省电），交互时重新启动
+  setTimeout(() => { if (sim.running) { cancelAnimationFrame(sim.raf); sim.running = false; } }, 15000);
+}
+
+function bindGraphNodeEvents(sim) {
+  const svg = document.getElementById('graphSvg');
+  svg.querySelectorAll('.graph-node').forEach(g => {
+    g.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      const name = g.dataset.name;
+      const nd = sim.nodes.find(x => x.name === name);
+      if (!nd) return;
+      nd.fixed = true;
+      // 拖拽跟随
+      const move = ev => {
+        const rect = svg.getBoundingClientRect();
+        const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+        const main = sim.nodes.find(x => x.isMain) || sim.nodes[0];
+        nd.x = main.x + (px - rect.width / 2 - sim.tx) / sim.scale;
+        nd.y = main.y + (py - rect.height / 2 - sim.ty) / sim.scale;
+      };
+      const up = () => {
+        nd.fixed = false;
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        if (!sim.running) startGraphSim(sim);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+    g.addEventListener('click', e => {
+      e.stopPropagation();
+      showGraphPopover(sim, g.dataset.name, e);
+    });
+  });
+}
+
+function showGraphPopover(sim, name, ev) {
+  const nd = sim.nodes.find(x => x.name === name);
+  if (!nd) return;
+  closeGraphPopover();
+  const p = document.createElement('div');
+  p.className = 'graph-popover';
+  const persona = nd.persona || {};
+  const rels = KB.characters.find(c => c.name === name)?.relations || [];
+  p.style.cssText = 'position:fixed;z-index:300;width:300px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:18px 20px;box-shadow:0 8px 40px rgba(0,0,0,.14);font-size:13px;';
+  const sec = (t, v) => v ? `<div style="margin-bottom:10px"><div style="font-size:11px;color:#9c9c9c;letter-spacing:1px;margin-bottom:3px">${t}</div><div style="line-height:1.7">${esc(v)}</div></div>` : '';
+  p.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:17px;font-weight:700">${esc(name)}</span>
+      <span style="font-size:11px;border:1px solid #111;border-radius:999px;padding:2px 10px">${nd.isMain ? '主角' : '配角'}</span>
+    </div>
+    ${sec('身份', persona['身份'])}${sec('年龄', persona['年龄'])}${sec('外貌特征', persona['外貌'])}
+    ${sec('性格内核', persona['性格'])}${sec('过往经历', persona['经历'] || persona['家庭'])}
+    ${sec('核心创伤', persona['创伤'])}${sec('动机', persona['动机'])}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+      ${rels.length ? rels.map(r => {
+        const other = r.source === name ? r.target : r.source;
+        return `<span style="font-size:11px;border:1px solid #d0d0d0;border-radius:999px;padding:2px 10px;color:#6b6b6b">${esc(other)} · ${esc(r.relation)}</span>`;
+      }).join('') : '<span style="font-size:11px;color:#9c9c9c">暂无关系</span>'}
+    </div>
+    <button onclick="closeGraphPopover()" style="position:absolute;top:10px;right:14px;border:none;background:none;font-size:15px;color:#9c9c9c;cursor:pointer">×</button>`;
+  p.style.left = Math.min(ev.clientX, window.innerWidth - 330) + 'px';
+  p.style.top = Math.min(ev.clientY, window.innerHeight - 320) + 'px';
+  document.body.appendChild(p);
+  graphPopover = p;
+}
+function closeGraphPopover() { if (graphPopover) { graphPopover.remove(); graphPopover = null; } }
+
+function bindGraphCanvasEvents() {
+  const svg = document.getElementById('graphSvg');
+  svg.addEventListener('mousedown', e => {
+    if (e.target !== svg) return; // 只处理空白处平移
+    const startX = e.clientX, startY = e.clientY;
+    const origTx = graphSim ? graphSim.tx : 0, origTy = graphSim ? graphSim.ty : 0;
+    const move = ev => {
+      if (!graphSim) return;
+      graphSim.tx = origTx + (ev.clientX - startX);
+      graphSim.ty = origTy + (ev.clientY - startY);
+      renderGraphFrame(graphSim);
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (!graphSim) return;
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    const main = graphSim.nodes.find(x => x.isMain) || graphSim.nodes[0];
+    // 以鼠标为锚点缩放（世界坐标补偿）
+    const wx = main.x + (mx - rect.width / 2 - graphSim.tx) / graphSim.scale;
+    const wy = main.y + (my - rect.height / 2 - graphSim.ty) / graphSim.scale;
+    graphSim.scale = Math.min(3, Math.max(0.3, graphSim.scale * factor));
+    graphSim.tx = mx - rect.width / 2 - (wx - main.x) * graphSim.scale;
+    graphSim.ty = my - rect.height / 2 - (wy - main.y) * graphSim.scale;
+    renderGraphFrame(graphSim);
+  }, { passive: false });
+}
+
 function renderRelationshipGraph() {
   const svg = document.getElementById('graphSvg');
   if (!KB.characters.length) {
-    svg.innerHTML = '<text x="400" y="240" text-anchor="middle" fill="#9c9c9c" font-size="13">还没有人物数据，保存章节后自动生成</text>';
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#9c9c9c" font-size="13">还没有人物数据，保存章节后自动生成</text>';
     return;
   }
-  const cx = 400, cy = 240, r = 150;
-  const main = KB.characters[0];
-  const others = KB.characters.slice(1);
-  let html = '';
-  // 连线
-  for (const char of KB.characters) {
-    for (const rel of char.relations || []) {
-      const target = KB.characters.find(c => c.name === rel.target || c.name === rel.source);
-      if (!target || target.name === char.name) continue;
-      const pos = c => c === main ? [cx, cy] : [cx + r * Math.cos((others.indexOf(c) + 1) * 2 * Math.PI / (others.length + 1)), cy + r * Math.sin((others.indexOf(c) + 1) * 2 * Math.PI / (others.length + 1))];
-      const [x1, y1] = pos(char), [x2, y2] = pos(target);
-      const relName = rel.source === char.name ? rel.relation : rel.relation;
-      html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#d0d0d0" stroke-width="${1 + (rel.weight || 3) * 0.15}"/>`;
-      html += `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}" text-anchor="middle" fill="#6b6b6b" font-size="10">${esc(relName)}</text>`;
-    }
-  }
-  // 节点
-  for (let i = 0; i < KB.characters.length; i++) {
-    const char = KB.characters[i];
-    const isMain = i === 0;
-    const [x, y] = isMain ? [cx, cy] : [cx + r * Math.cos(i * 2 * Math.PI / KB.characters.length), cy + r * Math.sin(i * 2 * Math.PI / KB.characters.length)];
-    const nodeR = isMain ? 34 : 24;
-    html += `
-      <circle cx="${x}" cy="${y}" r="${nodeR}" fill="#fff" stroke="#111" stroke-width="1.5"/>
-      <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#111" font-size="${isMain ? 13 : 11}" font-weight="${isMain ? 600 : 400}">${esc(char.name)}</text>`;
-  }
-  svg.innerHTML = html;
+  closeGraphPopover();
+  graphSim = buildGraphModel();
+  renderGraphFrame(graphSim);
+  startGraphSim(graphSim);
 }
 
 // ===== 时间线 / 章纲（思维导图） =====
@@ -1266,6 +1678,337 @@ function updateWordCount() {
 }
 document.getElementById('chapterText').addEventListener('input', updateWordCount);
 
+// ===== 编辑器右栏：AI 对话联动（P5 三栏） =====
+let polishSelStart = null, polishSelEnd = null, polishSelText = '';
+function waAppend(role, text) {
+  const box = document.getElementById('waMsgs');
+  const div = document.createElement('div');
+  div.className = 'wa-msg ' + role;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+async function waAsk(q) {
+  if (!q) return;
+  waAppend('user', q);
+  const box = document.getElementById('waMsgs');
+  const typing = document.createElement('div');
+  typing.className = 'wa-msg ai typing';
+  typing.textContent = '思考中';
+  box.appendChild(typing);
+  box.scrollTop = box.scrollHeight;
+  try {
+    const body = { query: q, top_k: 5 };
+    if (currentNovelIdNum()) body.novel_id = currentNovelIdNum();
+    const data = await apiCall('/api/kb/ask', body);
+    typing.remove();
+    waAppend('ai', data.answer);
+  } catch (e) {
+    typing.remove();
+    waAppend('ai', '出错了：' + e.message);
+  }
+}
+document.getElementById('btnWaAsk').addEventListener('click', () => {
+  const input = document.getElementById('waInput');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  waAsk(q);
+});
+document.getElementById('waInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btnWaAsk').click();
+});
+
+// ===== 润色 Review（P5：选中文本 → AI 润色 → 对比 → 采纳/放弃） =====
+let polishTarget = null; // {type:'selection', start, end}
+const chapterTextEl = document.getElementById('chapterText');
+chapterTextEl.addEventListener('mouseup', () => {
+  const btn = document.getElementById('btnPolishSel');
+  const s = chapterTextEl.selectionStart, e = chapterTextEl.selectionEnd;
+  if (s != null && e != null && e - s >= 8) {
+    polishSelText = chapterTextEl.value.slice(s, e).trim();
+    if (polishSelText.length >= 8) {
+      btn.style.display = 'inline-block';
+      btn.textContent = `✨ AI 润色选中（${polishSelText.length}字）`;
+      return;
+    }
+  }
+  btn.style.display = 'none';
+});
+document.getElementById('btnPolishSel').addEventListener('click', () => {
+  const s = chapterTextEl.selectionStart, e = chapterTextEl.selectionEnd;
+  if (s == null || e == null || e <= s) return;
+  polishTarget = { type: 'selection', start: s, end: e };
+  doPolish(chapterTextEl.value.slice(s, e), '润色这一段，保持原意');
+});
+async function doPolish(text, style) {
+  const mask = document.getElementById('polishModal');
+  document.getElementById('polishOrig').textContent = text;
+  document.getElementById('polishNew').textContent = 'AI 正在润色…';
+  mask.classList.add('show');
+  document.getElementById('btnPolishRegen').style.display = 'none';
+  try {
+    const data = await apiCall('/api/polish', { text, style, intensity: 0.5 });
+    if (data.error) { document.getElementById('polishNew').textContent = data.error; return; }
+    document.getElementById('polishNew').textContent = data.polished;
+    document.getElementById('btnPolishRegen').style.display = 'inline-block';
+  } catch (e) {
+    document.getElementById('polishNew').textContent = '润色失败: ' + e.message;
+  }
+}
+document.getElementById('btnPolishCancel').addEventListener('click', () => document.getElementById('polishModal').classList.remove('show'));
+document.getElementById('btnPolishRegen').addEventListener('click', () => {
+  const text = document.getElementById('polishOrig').textContent;
+  document.getElementById('polishNew').textContent = 'AI 正在重新润色…';
+  apiCall('/api/polish', { text, style: '保持作者原有风格，轻度润色', intensity: 0.8 }).then(d => {
+    document.getElementById('polishNew').textContent = d.polished || d.error || '';
+  });
+});
+document.getElementById('btnPolishAccept').addEventListener('click', () => {
+  const polished = document.getElementById('polishNew').textContent;
+  const mask = document.getElementById('polishModal');
+  if (!polished || polished.indexOf('正在') >= 0 || polished.indexOf('失败') >= 0) return;
+  const v = chapterTextEl.value;
+  if (polishTarget && polishTarget.type === 'selection') {
+    chapterTextEl.value = v.slice(0, polishTarget.start) + polished + v.slice(polishTarget.end);
+  } else {
+    chapterTextEl.value = polished;
+  }
+  updateWordCount();
+  mask.classList.remove('show');
+  document.getElementById('saveResult').textContent = '✓ 已采纳润色结果';
+  document.getElementById('btnPolishSel').style.display = 'none';
+});
+
+// ===== 卡文检测（P5：编辑停顿超 5 分钟 → 弹窗求助） =====
+let kawenTimer = null;
+function resetKawenTimer() {
+  if (kawenTimer) clearTimeout(kawenTimer);
+  kawenTimer = setTimeout(() => {
+    if (currentSubPage === 'write' && document.getElementById('chapterText').value.trim().length >= 30) {
+      document.getElementById('kawenModal').classList.add('show');
+    }
+  }, 5 * 60 * 1000);
+}
+chapterTextEl.addEventListener('input', resetKawenTimer);
+document.getElementById('btnKawenLater').addEventListener('click', () => {
+  document.getElementById('kawenModal').classList.remove('show');
+  resetKawenTimer();
+});
+document.getElementById('btnKawenHelp').addEventListener('click', () => {
+  document.getElementById('kawenModal').classList.remove('show');
+  switchSubPage('chat');
+  const content = chapterTextEl.value.trim();
+  const q = '我卡文了，最近写的是：' + content.slice(-600) + '\n\n请帮我推演后续情节，给我3个具体方向。';
+  document.getElementById('qaInput').value = q;
+  ask();
+});
+
+// ===== 创作策略报告（P3-1 DataAnalyst） =====
+document.getElementById('btnReport').addEventListener('click', async () => {
+  if (!currentNovelId) return;
+  const mask = document.getElementById('reportModal');
+  document.getElementById('reportTitle').textContent = '📊 创作策略报告 · 生成中';
+  document.getElementById('reportBody').innerHTML = '正在分析你的作品（章节、人物关系、大纲）…<br><br>生成一份报告大约需要 20-60 秒，请稍候。';
+  mask.classList.add('show');
+  try {
+    const data = await apiCall('/api/analysis/report', { novel_id: currentNovelId });
+    if (data.error) { document.getElementById('reportBody').innerHTML = '生成失败: ' + esc(data.error); return; }
+    const r = data.report || {};
+    const list = (arr) => (arr && arr.length ? arr.map(x => `<li>${esc(x)}</li>`).join('') : '<li style="color:#9c9c9c">暂无</li>');
+    document.getElementById('reportTitle').textContent = '📊 创作策略报告';
+    document.getElementById('reportBody').innerHTML = `
+      <div class="report-stats">
+        <span>📖 ${r._chapters || 0} 章</span><span>✍️ ${(r._words || 0).toLocaleString()} 字</span><span>🤖 DataAnalyst Agent</span>
+      </div>
+      <div class="report-summary">${esc(r.summary || '')}</div>
+      <div class="report-sec"><h4>作品优势</h4><ul>${list(r.strengths)}</ul></div>
+      <div class="report-sec"><h4>短板提示</h4><ul>${list(r.weaknesses)}</ul></div>
+      <div class="report-sec"><h4>市场机会</h4><ul>${list(r.market_opportunities)}</ul></div>
+      <div class="report-sec"><h4>策略建议</h4><ul>${list(r.strategy)}</ul></div>
+      <div class="report-sec"><h4>开篇钩子示例</h4><div class="report-hook">${esc(r.opening_hook || '')}</div></div>`;
+  } catch (e) {
+    document.getElementById('reportBody').innerHTML = '生成失败: ' + esc(e.message);
+  }
+});
+document.getElementById('reportModal').addEventListener('click', e => { if (e.target === document.getElementById('reportModal')) e.target.classList.remove('show'); });
+
+// ===== 灵感库（P12）=====
+const INSP_NOVEL = 0; // 灵感库为全局收件箱（不绑定具体小说）
+let inspCategory = '全部';
+let inspCatNames = [];
+
+async function loadInspiration() {
+  await Promise.all([loadInspCats(), loadInspItems()]);
+}
+async function loadInspCats() {
+  try {
+    const data = await apiGet(`/api/inspiration/categories?novel_id=${INSP_NOVEL}`);
+    inspCatNames = (data.categories || []).map(c => c.name);
+    const list = document.getElementById('inspCatList');
+    list.innerHTML = (data.categories || []).map(c => `
+      <div class="insp-cat ${inspCategory === c.name ? 'active' : ''}" data-cat="${escAttr(c.name)}">
+        <span>${esc(c.name)}</span>
+        <span class="cnt">${c.count}</span>
+        <button class="more" title="分类管理">⋯</button>
+      </div>`).join('');
+    list.querySelectorAll('.insp-cat').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.classList.contains('more')) { openInspMenu(e, el.dataset.cat); return; }
+        inspCategory = el.dataset.cat;
+        document.querySelectorAll('#inspCats .insp-cat').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        loadInspItems();
+      });
+    });
+    const all = document.querySelector('#inspCats .insp-cat[data-cat="全部"]');
+    const cntAll = (data.categories || []).reduce((s, c) => s + c.count, 0);
+    document.getElementById('inspCntAll').textContent = cntAll;
+    // 侧栏灵感库分组角标联动（人设灵感/剧情灵感/金句…数字实时更新）
+    const counts = {};
+    (data.categories || []).forEach(c => { counts[c.name] = c.count; });
+    document.querySelectorAll('#sideProjects .side-item').forEach(si => {
+      if (si.dataset.novelId) return;
+      const m = si.textContent.match(/(人设|剧情|金句|世界观|其他)灵感/);
+      if (m && counts[m[1]] != null) {
+        const meta = si.querySelector('.meta');
+        if (meta) meta.textContent = counts[m[1]];
+      }
+    });
+  } catch (e) { console.error(e); }
+}
+async function loadInspItems() {
+  const list = document.getElementById('inspItems');
+  try {
+    const cat = inspCategory === '全部' ? '' : inspCategory;
+    const data = await apiGet(`/api/inspirations?novel_id=${INSP_NOVEL}&category=${encodeURIComponent(cat)}`);
+    const items = data.inspirations || [];
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state">还没有灵感。想到什么就写什么，AI 会自动帮你分类整理。</div>`;
+      return;
+    }
+    list.innerHTML = items.map(it => `
+      <div class="insp-item">
+        <div class="content">${esc(it.content)}</div>
+        <div class="meta">
+          <span class="tag">${esc(it.category)}</span>
+          <span>${timeAgo(it.created_at * 1000)}</span>
+          <select onchange="changeInspCat(${it.id}, this.value)">
+            ${inspCatNames.map(n => `<option ${n === it.category ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+            <option>其他</option>
+          </select>
+          <button class="del" onclick="deleteInsp(${it.id})">删除</button>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+async function changeInspCat(id, cat) {
+  try {
+    await apiCall(`/api/inspiration/${id}/category`, { insp_id: id, category: cat });
+    loadInspiration();
+  } catch (e) { alert('改分类失败: ' + e.message); }
+}
+async function deleteInsp(id) {
+  if (!confirm('删除这条灵感？')) return;
+  try {
+    await fetch(`${API_BASE}/api/inspiration/${id}`, { method: 'DELETE' });
+    loadInspiration();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+// 上传灵感（AI 自动分类）
+document.getElementById('btnInspSend').addEventListener('click', async () => {
+  const input = document.getElementById('inspInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const classifying = document.getElementById('inspClassifying');
+  classifying.style.display = 'block';
+  try {
+    const data = await apiCall('/api/inspirations', { novel_id: INSP_NOVEL, content: text });
+    classifying.style.display = 'none';
+    if (data.error) { alert(data.error); return; }
+    document.getElementById('inspHint').textContent = data.auto
+      ? `✓ 已入库，AI 分类为「${data.category}」`
+      : '✓ 已入库';
+    loadInspiration();
+    setTimeout(() => document.getElementById('inspHint').textContent = '灵感库：想到什么就记什么，写的时候来找', 3000);
+  } catch (e) {
+    classifying.style.display = 'none';
+    alert('上传失败: ' + e.message);
+  }
+});
+document.getElementById('inspInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('btnInspSend').click(); }
+});
+// 导出
+document.getElementById('btnInspExport').addEventListener('click', async () => {
+  try {
+    const data = await apiGet(`/api/inspirations/export?novel_id=${INSP_NOVEL}`);
+    const blob = new Blob([data.text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '小说岛-灵感库.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert('导出失败: ' + e.message); }
+});
+// 分类管理（⋯ 浮动菜单：改名/上移/下移/删除）
+let inspMenuEl = null;
+function openInspMenu(e, name) {
+  e.stopPropagation();
+  closeInspMenu();
+  const menu = document.createElement('div');
+  menu.className = 'insp-menu';
+  menu.innerHTML = `
+    <button onclick="renameInspCat('${escAttr(name)}')">✏️ 改名</button>
+    <button onclick="moveInspCat('${escAttr(name)}','up')">↑ 上移</button>
+    <button onclick="moveInspCat('${escAttr(name)}','down')">↓ 下移</button>
+    <button class="danger" onclick="delInspCat('${escAttr(name)}')">🗑 删除</button>`;
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 150) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+  document.body.appendChild(menu);
+  inspMenuEl = menu;
+}
+function closeInspMenu() { if (inspMenuEl) { inspMenuEl.remove(); inspMenuEl = null; } }
+document.addEventListener('click', closeInspMenu);
+async function moveInspCat(name, dir) {
+  closeInspMenu();
+  try {
+    await apiCall('/api/inspiration/category/move', { novel_id: INSP_NOVEL, name, direction: dir });
+    loadInspCats();
+  } catch (e) { alert('移动失败: ' + e.message); }
+}
+async function delInspCat(name) {
+  closeInspMenu();
+  if (!confirm(`删除分类「${name}」？其中的灵感会归入「其他」。`)) return;
+  try {
+    await fetch(`${API_BASE}/api/inspiration/category?novel_id=${INSP_NOVEL}&name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (inspCategory === name) inspCategory = '全部';
+    loadInspiration();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+async function renameInspCat(name) {
+  closeInspMenu();
+  const newName = prompt('新的分类名：', name);
+  if (!newName || newName === name) return;
+  try {
+    await apiCall('/api/inspiration/category/rename', { novel_id: INSP_NOVEL, old_name: name, new_name: newName });
+    if (inspCategory === name) inspCategory = newName;
+    loadInspiration();
+  } catch (e) { alert('改名失败: ' + e.message); }
+}
+document.getElementById('btnInspAddCat').addEventListener('click', () => {
+  const name = prompt('新分类名：');
+  if (!name) return;
+  apiCall('/api/inspiration/category', { novel_id: INSP_NOVEL, name }).then(loadInspCats).catch(e => alert('添加失败: ' + e.message));
+});
+// 侧栏灵感库分组（非项目条目）→ 灵感库页
+document.querySelectorAll('#sideProjects .side-item:not([data-novel-id])').forEach(si => {
+  si.addEventListener('click', () => showView('inspiration'));
+});
+
 // ===== 数据刷新 =====
 async function refreshKBViews() {
   KB.characters = await fetchCharacters();
@@ -1304,6 +2047,28 @@ function showAgentWelcome(title) {
   appendMsg('agent', `恭喜创建《${title}》！知识库已就绪（空库也能问答）。\n\n接下来可以按这个顺序开始：\n① 直接在这里告诉我你的主角是谁、故事发生在哪——我边聊边帮你建库\n② 或在「写作编辑器」保存第一章（自动生成章纲、抽取人物、更新知识库）\n③ 素材也可以直接拖进输入框，我自动解析入库`);
 }
 
+// ===== 首页最近作品（已登录态） =====
+async function loadHomeRecent() {
+  try {
+    const data = await apiGet('/api/novels');
+    const novels = (data.novels || []).slice(0, 3);
+    const wrap = document.getElementById('homeRecent');
+    if (!novels.length) { wrap.style.display = 'none'; return; }
+    document.getElementById('homeRecentRow').innerHTML = novels.map(n => `
+      <div class="novel-card" onclick="enterNovel(${n.id}, '${escAttr(n.title)}')">
+        <div class="tags"><span class="tag">${esc(n.genre || '连载中')}</span><span class="date">${esc(n.updated_at ? n.updated_at.slice(5, 10) : '')}</span></div>
+        <h3>${esc(n.title)}</h3>
+        <p>${esc(n.description || '还没有简介，开始写第一章吧。')}</p>
+        <div class="meta">第 ${n.chapter_count || 0} 章 · ${(n.total_words || 0).toLocaleString()} 字</div>
+      </div>`).join('');
+    wrap.style.display = 'block';
+  } catch (e) { document.getElementById('homeRecent').style.display = 'none'; }
+}
+// 「看看我的灵感库」chip → 灵感库页
+document.querySelectorAll('.chip[data-q="看看我的灵感库"]').forEach(c => {
+  c.addEventListener('click', () => showView('inspiration'));
+});
+
 // ===== 弹窗通用关闭（Esc / 点遮罩）=====
 document.querySelectorAll('.modal-mask').forEach(mask => {
   mask.addEventListener('click', e => { if (e.target === mask) mask.classList.remove('show'); });
@@ -1326,6 +2091,8 @@ document.addEventListener('keydown', e => {
 window.addEventListener('load', () => {
   showView('home');
   renderSidebar();
+  loadHomeRecent();
+  bindGraphCanvasEvents();
 });
 </script>
 </body>

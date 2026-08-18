@@ -18,12 +18,13 @@ from pydantic import BaseModel
 
 from .core.config import settings
 from .core.chunker import clean_text, chunk_text
-from .core.retriever import get_retriever_for
+from .core.retriever import get_retriever_for, retriever, retriever_manager
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
 from .core.memory import memory_manager
 from .core.model_router import get_cost_summary, clear_cost_logs
 from .core.graph_store import graph, graph_manager, get_graph_for
 from .core.novel_store import novel_store
+from .core.inspiration_store import inspiration_store
 from .core.hybrid_retriever import hybrid_search
 from .core.hybrid_retriever import precise_attribute_search
 from .core.vector_store import vector_store, vector_store_manager
@@ -49,6 +50,38 @@ if len(graph) == 0:
     graph.load()
 # 里程碑9：启动时加载向量库
 vector_store.load()
+
+
+def restore_tfidf_retrievers() -> None:
+    """启动时从持久化向量库重建各项目 TF-IDF 检索器
+
+    修复产品级缺陷：TF-IDF 索引纯内存，后端重启后问答会退化成"空库引导"。
+    向量库（data/vector_*.npz）持久化了全部文本块，用它们重建索引即可恢复。
+    """
+    import glob
+    import re as _re
+    from .core.chunker import Chunk
+
+    def rebuild(store, r):
+        if store.is_ready:
+            chunks = [Chunk(id=i, text=t, char_count=len(t)) for i, t in enumerate(store.texts)]
+            r.build_index(chunks)
+
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    # 全局库（data/vector_store.npz）
+    rebuild(vector_store, retriever)
+    # 各项目库（data/vector_{n}.npz）
+    for path in glob.glob(os.path.join(data_dir, "vector_*.npz")):
+        m = _re.match(r".*vector_(\d+)\.npz$", path)
+        if not m:
+            continue
+        nid = int(m.group(1))
+        store = vector_store_manager.get_store(nid)
+        rebuild(store, retriever_manager.get_retriever(nid))
+        print(f"[restore] 重建 TF-IDF 检索器 novel_id={nid} chunks={len(store.texts)}")
+
+
+restore_tfidf_retrievers()
 
 # CORS — 允许前端跨域
 app.add_middleware(
@@ -112,6 +145,48 @@ class ChapterSaveRequest(BaseModel):
     title: str = ""
     chapter_id: int | None = None  # 有则更新该章（先删旧），无则新增（里程碑10）
     # 里程碑11：novel_id 已存在，图谱/向量按 novel_id 隔离
+
+
+# ===== 灵感库请求模型（UI 定稿 P12）=====
+class InspirationAddRequest(BaseModel):
+    novel_id: int
+    content: str
+    category: str = ""  # 空 → LLM 自动分类
+    source: str = "text"
+
+
+class InspirationCategoryRequest(BaseModel):
+    insp_id: int
+    category: str
+
+
+class InspCategoryAddRequest(BaseModel):
+    novel_id: int
+    name: str
+
+
+class InspCategoryRenameRequest(BaseModel):
+    novel_id: int
+    old_name: str
+    new_name: str
+
+
+class InspCategoryMoveRequest(BaseModel):
+    novel_id: int
+    name: str
+    direction: str  # up | down
+
+
+# ===== 润色请求模型（P5 润色 Review 弹窗）=====
+class PolishRequest(BaseModel):
+    text: str
+    style: str = "保持作者原有风格，轻度润色"  # 目标风格描述
+    intensity: float = 0.5  # 0=保守 1=大胆
+
+
+# ===== 写作后分析请求模型（P3-1 DataAnalyst）=====
+class AnalysisReportRequest(BaseModel):
+    novel_id: int
 
 
 # ===== 接口 =====
@@ -632,6 +707,201 @@ def cost_clear():
     """清空成本日志（测试用）"""
     clear_cost_logs()
     return {'success': True}
+
+
+# ===== 灵感库 API（UI 定稿 P12：作者上传 → AI 自动分类 → 分类浏览）=====
+
+@app.post("/api/inspirations")
+def add_inspiration(req: InspirationAddRequest):
+    """上传灵感；category 为空 → LLM 自动分类"""
+    try:
+        insp_id = inspiration_store.add_inspiration(req.novel_id, req.content, req.category, req.source)
+        item = next((x for x in inspiration_store.list_inspirations(req.novel_id) if x["id"] == insp_id), None)
+        return {"id": insp_id, "category": item["category"] if item else "", "auto": not req.category.strip()}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/inspirations")
+def list_inspirations(novel_id: int | None = None, category: str | None = None):
+    """灵感列表（可按分类过滤）"""
+    items = inspiration_store.list_inspirations(novel_id, category)
+    return {"inspirations": items, "total": len(items)}
+
+
+@app.patch("/api/inspiration/{insp_id}/category")
+def change_inspiration_category(insp_id: int, req: InspirationCategoryRequest):
+    """手动改分类"""
+    inspiration_store.set_category(insp_id, req.category)
+    return {"success": True}
+
+
+@app.delete("/api/inspiration/{insp_id}")
+def delete_inspiration(insp_id: int):
+    inspiration_store.delete_inspiration(insp_id)
+    return {"success": True}
+
+
+@app.get("/api/inspiration/categories")
+def list_inspiration_categories(novel_id: int):
+    """分类列表（带数量角标）"""
+    cats = inspiration_store.list_categories(novel_id)
+    counts = inspiration_store.count_by_category(novel_id)
+    return {
+        "categories": [{"name": c["name"], "count": counts.get(c["name"], 0)} for c in cats],
+    }
+
+
+@app.post("/api/inspiration/category")
+def add_inspiration_category(req: InspCategoryAddRequest):
+    """添加分类"""
+    try:
+        cid = inspiration_store.add_category(req.novel_id, req.name)
+        return {"id": cid}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/inspiration/category/rename")
+def rename_inspiration_category(req: InspCategoryRenameRequest):
+    """分类改名（条目同步）"""
+    try:
+        inspiration_store.rename_category(req.novel_id, req.old_name, req.new_name)
+        return {"success": True}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/inspiration/category/move")
+def move_inspiration_category(req: InspCategoryMoveRequest):
+    """分类上移/下移"""
+    inspiration_store.move_category(req.novel_id, req.name, req.direction)
+    return {"success": True}
+
+
+@app.delete("/api/inspiration/category")
+def delete_inspiration_category(novel_id: int, name: str):
+    """删除分类（条目归入「其他」）"""
+    inspiration_store.delete_category(novel_id, name)
+    return {"success": True}
+
+
+@app.get("/api/inspirations/export")
+def export_inspirations(novel_id: int | None = None):
+    """导出全部灵感为纯文本"""
+    return {"text": inspiration_store.export_text(novel_id)}
+
+
+# ===== 润色 API（P5 润色 Review 弹窗：AI 修改 → 对比 → 采纳/放弃）=====
+
+POLISH_SYSTEM = (
+    "你是资深网文编辑，负责给作者的段落做润色。要求：\n"
+    "1. 保留原文的情节、人物、对话含义，不新增事实、不改设定；\n"
+    "2. 只输出润色后的正文，不要解释、不要标题、不要引用原文；\n"
+    "3. 如果原文已经很好了，可以只做轻微调整。"
+)
+
+
+@app.post("/api/polish")
+def polish_text(req: PolishRequest):
+    """润色文本（无状态：原文→改写，前端负责 Review 对比）"""
+    if not req.text.strip():
+        return {"error": "没有可润色的文本"}
+    text = req.text.strip()
+    if len(text) > 4000:
+        text = text[:4000]  # 保护成本：超长只润色前 4000 字
+    intensity_desc = (
+        "非常保守，尽量少改动"
+        if req.intensity < 0.34
+        else ("大胆改写，让文笔明显提升" if req.intensity > 0.66 else "适度润色")
+    )
+    user_prompt = (
+        f"润色下面的段落。风格要求：{req.style}。力度：{intensity_desc}。\n\n"
+        f"--- 原文 ---\n{text}"
+    )
+    try:
+        result = chat(POLISH_SYSTEM, user_prompt, temperature=0.4, max_tokens=2048, task="creative")
+        return {"polished": result.strip()}
+    except Exception as e:
+        return {"error": f"润色失败: {e}"}
+
+
+# ===== 写作后智能分析 API（P3-1 DataAnalyst Agent：历史诊断 + 市场机会 + 策略建议）=====
+
+DATA_ANALYST_SYSTEM = (
+    "你是资深的网文编辑兼数据分析师。基于作者的作品资料，输出一份「创作策略报告」。\n"
+    "报告必须输出严格 JSON，结构如下：\n"
+    "{\n"
+    "  \"summary\": \"一段总评（150字内）\",\n"
+    "  \"strengths\": [\"优势1\", \"优势2\", \"优势3\"],\n"
+    "  \"weaknesses\": [\"短板1\", \"短板2\"],\n"
+    "  \"market_opportunities\": [\"1-3个有潜力的细分题材方向及理由\"],\n"
+    "  \"strategy\": [\"具体可执行的写作策略建议\"],\n"
+    "  \"opening_hook\": \"基于其风格设计的开篇钩子示例（100字内）\"\n"
+    "}\n"
+    "不要输出 JSON 以外的任何内容。"
+)
+
+
+def _parse_report_json(text: str) -> dict:
+    """容错解析 LLM 输出的 JSON（剥离 ```json 包裹 / 截取首尾括号）"""
+    t = text.strip()
+    t = t.replace("```json", "").replace("```", "").strip()
+    start, end = t.find("{"), t.rfind("}")
+    if start >= 0 and end > start:
+        t = t[start:end + 1]
+    try:
+        data = json.loads(t)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        print(f"[data_analyst] JSON 解析失败，回退文本: {e}")
+    return {"summary": t[:300]}
+
+
+@app.post("/api/analysis/report")
+def analysis_report(req: AnalysisReportRequest):
+    """生成创作策略报告：聚合章节/大纲/图谱 → LLM 分析 → 结构化报告"""
+    chapters = novel_store.list_chapters(req.novel_id)
+    outline = novel_store.get_novel_outline(req.novel_id)
+    g = get_graph_for(req.novel_id)
+
+    # 1. 聚合素材（控制 token：最多 6 章 × 1200 字 + 图谱摘要）
+    chapter_parts = []
+    for c in chapters[-6:]:
+        full = novel_store.get_chapter(c["id"])
+        body = (full or {}).get("content", "")
+        chapter_parts.append(f"第{c['id']}章《{c.get('title', '')}》\n{body[:1200]}")
+    chapter_text = "\n\n".join(chapter_parts) or "（还没有章节）"
+
+    rel_lines = []
+    for r in g.all_relations()[:60]:
+        rel_lines.append(f"{r['source']} ——{r['relation']}→ {r['target']}")
+    graph_text = "\n".join(rel_lines) or "（图谱为空）"
+
+    title_map = {n["id"]: n["title"] for n in novel_store.list_novels()}
+    user_prompt = (
+        f"作者的作品《{title_map.get(req.novel_id, '未命名')}》资料如下：\n\n"
+        f"--- 大纲 ---\n{outline[:1500] or '（暂无）'}\n\n"
+        f"--- 最近章节节选 ---\n{chapter_text}\n\n"
+        f"--- 人物关系 ---\n{graph_text}\n\n"
+        "请按系统要求输出创作策略报告 JSON。"
+    )
+    try:
+        raw = chat(DATA_ANALYST_SYSTEM, user_prompt, temperature=0.5, max_tokens=2500, task="complex")
+    except Exception as e:
+        # 复杂级失败 → 回退主力模型再试一次
+        try:
+            raw = chat(DATA_ANALYST_SYSTEM, user_prompt, temperature=0.5, max_tokens=2500, task="summary")
+        except Exception as e2:
+            return {"error": f"报告生成失败: {e2}"}
+    report = _parse_report_json(raw)
+    report["_novel_id"] = req.novel_id
+    report["_chapters"] = len(chapters)
+    report["_words"] = sum(
+        len((novel_store.get_chapter(c["id"]) or {}).get("content", "")) for c in chapters
+    )
+    return {"report": report}
 
 
 # ===== 启动 =====
