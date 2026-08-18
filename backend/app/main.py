@@ -354,6 +354,19 @@ GENRE_HINTS = ["都市", "奇幻", "悬疑", "古风", "科幻", "言情", "武�
 # 会话内去重：无项目时只发一次完整引导，之后简短追问（避免两条重复长引导堆叠）
 _last_no_novel_brief = False
 
+# 创作型动词：命中即视为「创作/续写/描写」意图，不走精确属性检索短路
+# （否则"写一段她在宴会上看到江观南的内心活动"会被属性检索截胡成设定文本）
+CREATIVE_VERBS = [
+    "写一段", "写一句", "写个", "写一个", "写写", "帮我写", "续写", "描写", "描述一下",
+    "生成", "创作", "编一段", "编一个", "来一段", "发挥一下", "写个片段", "写个段落",
+    "扩写", "改写", "润色", "假如", "如果", "想象", "写一写", "试写",
+]
+
+
+def _is_creative_query(query: str) -> bool:
+    """创作型提问：要求 LLM 生成内容，而非查询既有设定"""
+    return any(v in query for v in CREATIVE_VERBS)
+
 
 def _is_new_book_intent(query: str) -> bool:
     return any(kw in query for kw in NEW_BOOK_KEYWORDS)
@@ -425,14 +438,17 @@ def ask(req: AskRequest):
         return {"answer": next_guide_question(req.novel_id), "sources": []}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）
-    precise = precise_attribute_search(req.query, req.novel_id)
-    if precise and not req.stream:
-        return {
-            "answer": precise["answer"],
-            "sources": [],
-            "retrieval": [],
-            "precise": precise,
-        }
+    #    创作型提问（写/描写/生成等）不走精确属性短路——"写一段X的内心活动"
+    #    含实体+属性词但意图是创作，命中图谱会直接返回设定文本而非创作（评测暴露的 bug）
+    if not _is_creative_query(req.query):
+        precise = precise_attribute_search(req.query, req.novel_id)
+        if precise and not req.stream:
+            return {
+                "answer": precise["answer"],
+                "sources": [],
+                "retrieval": [],
+                "precise": precise,
+            }
 
     # 里程碑11：按项目取向量库
     vs = vector_store_manager.get_store(req.novel_id) if req.novel_id is not None else vector_store
