@@ -425,6 +425,45 @@ def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool =
     return reply
 
 
+def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
+    """无项目/空库分支统一出口：req.stream=True 时返回 SSE 流式，否则返回 dict。
+
+    让首页对话也具备打字机效果（和创作页一致）。reply_fn 是生成回复的函数，
+    流式模式用 chat_stream 逐 token 输出；非流式保持原逻辑。
+    """
+    if not req.stream:
+        return {"answer": reply_fn(req.query, *args, **kwargs), "sources": []}
+
+    # 流式：先取记忆上下文（与 reply_fn 一致），再 chat_stream 生成
+    memory = memory_manager.get_memory(req.novel_id)
+    history = memory.get_context()
+    history_text = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in history[-6:]
+    ) or "（无）"
+    system_prompt = NO_PROJECT_SYSTEM_PROMPT.format(history=history_text)
+    user_prompt = f"作者说：{req.query}\n\n请以小说猫的口吻回应。"
+
+    def generate():
+        full = ""
+        try:
+            for token in chat_stream(system_prompt, user_prompt, temperature=0.8, max_tokens=300, task="companion"):
+                full += token
+                yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
+        except Exception as e:
+            print(f"[ask] 无项目流式引导失败: {e}")
+            fallback = general_opening_fallback(req.query)
+            if not full:
+                yield "data: " + json.dumps({"type": "token", "data": fallback}, ensure_ascii=False) + "\n\n"
+                full = fallback
+        # 记忆整轮（流式完成后统一写入）
+        if full:
+            memory.add_turn(req.query, full)
+        yield "data: " + json.dumps({"type": "done"}) + "\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 def general_opening_fallback(query: str) -> str:
     """LLM 故障时的降级引导（仅兜底，正常全走模型）"""
     if any(g in query for g in GENRE_HINTS) or ("叫" in query and len(query) >= 6):
@@ -473,6 +512,41 @@ def _llm_empty_kb_reply(query: str, novel_id: int | None) -> str:
     return reply
 
 
+def _empty_kb_stream_or_dict(req):
+    """空库分支：req.stream=True 时 SSE 流式（打字机），否则 dict。"""
+    if not req.stream:
+        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id), "sources": []}
+    g = get_graph_for(req.novel_id)
+    entities = ", ".join(g.all_entities()[:8]) if g else "（无）"
+    rels = ", ".join(f"{r.get('source')}-{r.get('relation')}->{r.get('target')}" for r in (g.all_relations() if g else [])[:8]) or "（无）"
+    evts = ", ".join(e.get("summary", "")[:20] for e in (g.get_timeline() if g else [])[-5:]) or "（无）"
+    memory = memory_manager.get_memory(req.novel_id)
+    history = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in memory.get_context()[-6:]
+    ) or "（无）"
+    system_prompt = EMPTY_KB_SYSTEM_PROMPT.format(entities=entities or "（无）", relations=rels, events=evts, history=history)
+    user_prompt = f"作者说：{req.query}"
+
+    def generate():
+        full = ""
+        try:
+            for token in chat_stream(system_prompt, user_prompt, temperature=0.8, max_tokens=300, task="companion"):
+                full += token
+                yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
+        except Exception as e:
+            print(f"[ask] 空库流式引导失败: {e}")
+            fallback = next_guide_question(req.novel_id)
+            if not full:
+                yield "data: " + json.dumps({"type": "token", "data": fallback}, ensure_ascii=False) + "\n\n"
+                full = fallback
+        if full:
+            memory.add_turn(req.query, full)
+        yield "data: " + json.dumps({"type": "done"}) + "\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
@@ -488,8 +562,8 @@ def ask(req: AskRequest):
     if _is_new_book_intent(req.query):
         if req.novel_id is not None:
             # 已在作品里：不打断当前创作，LLM 引导侧栏新建
-            return {"answer": _llm_no_project_reply(req.query, req.novel_id, brief=True), "sources": []}
-        return {"answer": _llm_no_project_reply(req.query), "sources": []}
+            return _no_project_stream_or_dict(req, _llm_no_project_reply, req.novel_id, brief=True)
+        return _no_project_stream_or_dict(req, _llm_no_project_reply)
 
     # ===== 无项目（首页/默认对话）：全部走 LLM（不硬编码）=====
     if req.novel_id is None:
@@ -499,7 +573,7 @@ def ask(req: AskRequest):
             comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
             return {"answer": comp["agent_response"], "sources": []}
         # 其余（含已给题材/书名）→ LLM 建书引导，接住作者的话
-        return {"answer": _llm_no_project_reply(req.query), "sources": []}
+        return _no_project_stream_or_dict(req, _llm_no_project_reply)
 
     # 里程碑17：按项目取 TF-IDF 检索器
     r = get_retriever_for(req.novel_id)
@@ -515,7 +589,8 @@ def ask(req: AskRequest):
         if len(req.query) > 60:
             answer = ingest_material(req.query, req.novel_id)
             return {"answer": answer, "sources": []}
-        # 否则 → LLM 引导（带图谱进度上下文，自然推进建库）
+        # 否则 → LLM 引导（带图谱进度上下文，自然推进建库；支持流式）
+        return _empty_kb_stream_or_dict(req)
         return {"answer": _llm_empty_kb_reply(req.query, req.novel_id), "sources": []}
 
     # 1. 检索（里程碑9：先精确属性检索，再混合检索；里程碑11：按项目）

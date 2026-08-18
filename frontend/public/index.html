@@ -1213,16 +1213,63 @@ function homeAsk(q) {
   if (!q) return;
   document.getElementById('homeInput').value = '';
   appendMsg('user', q, null, 'homeMsgList');
-  const typing = document.createElement('div');
-  typing.className = 'msg typing';
-  typing.innerHTML = '<div class="avatar"><img src="/static/xiaoshuomao-official.svg" alt="猫"></div><div class="body">思考中…</div>';
-  document.getElementById('homeMsgList').appendChild(typing);
-  document.getElementById('homeMsgList').scrollTop = 99999;
-  apiCall('/api/kb/ask', { query: q, top_k: 5 }).then(function (data) {
-    typing.remove();
-    appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
+  // 流式打字机（与创作页一致）：SSE 逐 token 渲染
+  const list = document.getElementById('homeMsgList');
+  const bubble = document.createElement('div');
+  bubble.className = 'msg typing';
+  bubble.innerHTML = '<div class="avatar"><img src="/static/xiaoshuomao-official.svg" alt="猫"></div><div class="body">思考中…</div>';
+  list.appendChild(bubble);
+  list.scrollTop = 99999;
+  const sendBtn = document.getElementById('homeSend');
+  const btnOrig = sendBtn.textContent;
+  sendBtn.textContent = '…';
+  sendBtn.disabled = true;
+  let full = '';
+  function finish() {
+    sendBtn.textContent = btnOrig;
+    sendBtn.disabled = false;
+    bubble.remove();
+    if (!full) {
+      // 流式无输出（降级路径）→ 非流式兜底
+      return apiCall('/api/kb/ask', { query: q, top_k: 5 }).then(function (data) {
+        appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || '') }, 'homeMsgList');
+      });
+    }
+    appendMsg('agent', full, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(full) }, 'homeMsgList');
+  }
+  fetch(API_BASE + '/api/kb/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: q, top_k: 5, stream: true })
+  }).then(function (resp) {
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buf = '';
+    function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) { finish(); return; }
+        buf += decoder.decode(r.value, { stream: true });
+        let sep;
+        while ((sep = buf.indexOf('\n\n')) >= 0) {
+          const raw = buf.slice(0, sep); buf = buf.slice(sep + 2);
+          if (!raw.startsWith('data: ')) continue;
+          let payload;
+          try { payload = JSON.parse(raw.slice(6)); } catch (e) { continue; }
+          if (payload.type === 'token') {
+            full += payload.data;
+            bubble.classList.remove('typing');
+            bubble.querySelector('.body').innerHTML = esc(full).replace(/\n/g, '<br>');
+            list.scrollTop = list.scrollHeight;
+          } else if (payload.type === 'done') { finish(); return; }
+        }
+        return pump();
+      });
+    }
+    return pump();
   }).catch(function (e) {
-    typing.remove();
+    sendBtn.textContent = btnOrig;
+    sendBtn.disabled = false;
+    bubble.remove();
     appendMsg('agent', '出错了：' + e.message, null, 'homeMsgList');
   });
 }
