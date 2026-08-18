@@ -1617,7 +1617,9 @@ function showGraphPopover(sim, name, ev) {
   const p = document.createElement('div');
   p.className = 'graph-popover';
   const persona = nd.persona || {};
-  const rels = KB.characters.find(c => c.name === name)?.relations || [];
+  var relChar = null;
+  for (var ci = 0; ci < KB.characters.length; ci++) { if (KB.characters[ci].name === name) { relChar = KB.characters[ci]; break; } }
+  const rels = relChar ? relChar.relations || [] : [];
   p.style.cssText = 'position:fixed;z-index:300;width:300px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:18px 20px;box-shadow:0 8px 40px rgba(0,0,0,.14);font-size:13px;';
   const sec = (t, v) => v ? `<div style="margin-bottom:10px"><div style="font-size:11px;color:#9c9c9c;letter-spacing:1px;margin-bottom:3px">${t}</div><div style="line-height:1.7">${esc(v)}</div></div>` : '';
   p.innerHTML = `

@@ -97,7 +97,32 @@ app.add_middleware(
 )
 
 # 托管前端静态文件 — 单端口，无跨域问题
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "public")
+def _resolve_frontend_dir() -> str:
+    """解析前端静态目录：环境变量 FRONTEND_DIR 优先，否则按常见布局探测。
+
+    本地开发：backend/app/main.py → ../../frontend/public = 项目根/frontend/public ✅
+    Docker 单容器：Dockerfile COPY frontend /app/frontend → /app/frontend/public ✅
+    （旧写法 ../../frontend/public 在容器内会解析到 /frontend/public，首页 404）
+    """
+    candidates: list[str] = []
+    env_dir = os.environ.get("FRONTEND_DIR", "").strip()
+    if env_dir:
+        candidates.append(env_dir)
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates += [
+        os.path.join(here, "..", "..", "frontend", "public"),  # 本地开发
+        os.path.join("/app", "frontend", "public"),            # Docker 单容器（/app/app/main.py）
+        os.path.join(here, "..", "frontend", "public"),        # 兜底
+    ]
+    for c in candidates:
+        p = os.path.abspath(c)
+        if os.path.isdir(p):
+            return p
+    # 全部探测失败时返回第一个候选（serve_index 会给出 404 提示）
+    return os.path.abspath(candidates[0])
+
+
+FRONTEND_DIR = _resolve_frontend_dir()
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 

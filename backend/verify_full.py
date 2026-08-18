@@ -1,5 +1,6 @@
 """后端全功能自检：真实模型调用 + 全 API 冒烟（E2E）"""
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -113,6 +114,41 @@ check("成本记录 cost", st == 200 and "total_cost" in d)
 # ── 11. 清理自检数据 ──
 st, d = api("DELETE", f"/api/background/{bg_id}")
 check("删除背景资料", st == 200)
+
+
+def _cleanup_novel(nid):
+    """清理自检创建的小说：数据库记录 + 图谱/向量持久化文件（防止残留堆积）"""
+    if not nid:
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    # 1) 数据库：删除该小说的章节/背景/伏笔/灵感 + 小说本体
+    import sqlite3
+    db_path = os.path.join(here, "data", "novels.db")
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        for table in ("chapters", "backgrounds", "foreshadowings"):
+            cur.execute(f"DELETE FROM {table} WHERE novel_id = ?", (nid,))
+        cur.execute("DELETE FROM inspirations WHERE novel_id = ?", (nid,))
+        cur.execute("DELETE FROM novels WHERE id = ?", (nid,))
+        # 第8节灵感测试写入共享库（novel_id=0）的测试数据也一并清掉
+        cur.execute("DELETE FROM inspirations WHERE novel_id = 0 AND content LIKE ?", ("%主角会梦见案发现场%",))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"  ⚠️ 数据库清理失败: {e}")
+    # 2) 持久化文件：graph_{nid}.json / vector_{nid}.npz
+    for fname in (f"graph_{nid}.json", f"vector_{nid}.npz"):
+        p = os.path.join(here, "data", fname)
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except OSError as e:
+                print(f"  ⚠️ 删除 {fname} 失败: {e}")
+
+
+_cleanup_novel(nid)
+check("清理自检小说数据（库+图谱+向量）", True)
 
 print(f"\n===== 自检结果: {PASS} 通过 / {FAIL} 失败 =====")
 sys.exit(1 if FAIL else 0)

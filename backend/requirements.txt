@@ -17,24 +17,30 @@ openai>=1.50.0
 scikit-learn>=1.5.0
 numpy>=1.26.0
 
-# ============================================
-# 规划中（后续里程碑启用，当前代码未 import）
-# ============================================
-
-# Agent 编排 — 里程碑1将真正启用
-# （models/state.py 已建 TypedDict 状态骨架，但尚未 import langgraph）
+# Agent 编排（graphs/qa_graph.py + build_graph.py 已启用 LangGraph 状态机）
 langgraph>=0.2.0
 
-# LangChain 生态（RAG 链路与工具集成，里程碑2+）
+# 文档解析（core/doc_parser.py，多模态素材 .txt/.md/.docx/.pdf）
+python-docx>=1.1.0
+pypdf>=5.0.0
+
+# 文件上传支持（POST /api/material/parse）
+python-multipart>=0.0.12
+
+# ============================================
+# 可选增强（未启用/规划中，装上即可用，不装不影响主流程）
+# ============================================
+
+# LangChain 生态（后续 RAG 链路与工具集成）
 langchain>=0.3.0
 langchain-openai>=0.2.0
 langchain-community>=0.3.0
 llama-index>=0.11.0
 
-# 向量数据库（语义检索升级，替代当前 TF-IDF）
+# 向量数据库（语义检索升级，替代当前 TF-IDF + npz 向量文件）
 qdrant-client>=1.12.0
 
-# 图数据库（人物/世界观关系图谱）
+# 图数据库（人物/世界观关系图谱，替代当前 JSON 存储）
 neo4j>=5.25.0
 
 # 持久化存储（章节/项目数据 + 缓存）
@@ -44,13 +50,6 @@ redis>=5.0.0
 
 # 工具库（token 计数）
 tiktoken>=0.8.0
-
-# 文档解析（用户导入 docx/pdf 素材）
-python-docx>=1.1.0
-pypdf>=5.0.0
-
-# 文件上传支持（启用素材上传接口时需要）
-python-multipart>=0.0.12
 
 # ============================================
 # 开发/测试
