@@ -444,6 +444,7 @@ class AgentNode:
         # 调 chat_with_tools：给 LLM 工具清单 + 执行函数映射表
         # 注意：这里传入完整 messages（含历史），而不是单独的 user_prompt
         # 内部完成：LLM决策 → 执行工具 → 结果回填 → 最终回答
+        tool_log: list = []
         answer = chat_with_tools(
             AGENT_SYSTEM_PROMPT,
             context_messages,  # 里程碑6：传完整消息列表（含对话历史）
@@ -452,6 +453,7 @@ class AgentNode:
             use_messages=True,  # 标记：第二个参数已是 messages 而非字符串
             task='qa',
             tool_context={"novel_id": state.get("novel_id")},  # 里程碑17：工具知道当前项目
+            tool_log=tool_log,  # 工具调用可见性：收集本次调用的工具
         )
 
         # 预检索结果仍作为来源展示（供调试看召回情况）
@@ -466,6 +468,7 @@ class AgentNode:
             "sources": sources,
             "retry_count": retry,
             "current_step": self.name,
+            "tool_log": tool_log,
         }
 
 

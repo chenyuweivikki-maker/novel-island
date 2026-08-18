@@ -174,6 +174,7 @@ def chat_with_tools(
     use_messages: bool = False,
     task: str = 'qa',
     tool_context: dict | None = None,
+    tool_log: list | None = None,
 ) -> str:
     """带工具调用的对话 — 里程碑3+6
 
@@ -272,6 +273,14 @@ def chat_with_tools(
                         result = executor(**args)
                     except Exception as e:
                         result = f"工具执行失败：{e}"
+
+                # 工具调用可见性：记录（名字 + 参数摘要 + 结果摘要）
+                if tool_log is not None:
+                    tool_log.append({
+                        "tool": tool_name,
+                        "args": json.dumps(args, ensure_ascii=False)[:120],
+                        "result": str(result)[:120],
+                    })
 
                 # PRD 埋点：tool_usage
                 try:

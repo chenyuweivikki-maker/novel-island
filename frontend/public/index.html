@@ -242,6 +242,8 @@ input, textarea { font-family: inherit; }
 }
 .msg.user .body { background: var(--text); color: #fff; border: none; border-radius: 12px 12px 4px 12px; }
 .msg .src { margin-top: 6px; font-size: 11px; color: var(--text-3); }
+.msg .src.tools { display: flex; gap: 4px; flex-wrap: wrap; }
+.tool-chip { font-size: 11px; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
 .msg.companion .body {
   background: var(--surface); border: 1px dashed var(--border-strong);
   border-left: 3px solid var(--text);
@@ -405,6 +407,24 @@ input, textarea { font-family: inherit; }
   transition: color .12s, transform .12s;
 }
 .agent-settings-btn:hover { color: var(--text); transform: rotate(30deg); }
+/* 上下文窗口指示 */
+.usage-bar { font-size: 11px; color: var(--text-3); margin-left: 8px; }
+/* 人设预设芯片 */
+.agent-preset-chip {
+  display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: var(--radius-pill); padding: 3px 10px;
+  font-size: 12px; color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.agent-preset-chip:hover { border-color: var(--text); color: var(--text); }
+.agent-preset-chip.on { border-color: var(--text); color: var(--text); background: var(--surface-2); font-weight: 500; }
+.agent-preset-chip .preset-del { font-weight: 700; color: var(--text-3); }
+.agent-preset-chip .preset-del:hover { color: var(--text); }
+/* 可用能力面板 */
+.skills-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill-chip {
+  font-size: 11px; padding: 3px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+}
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 
 /* 状态 */
@@ -777,7 +797,7 @@ window.addEventListener('error', function (e) {
           <input id="homeInput" placeholder="告诉小说猫你想写什么…">
           <button class="send" id="homeSend">↑</button>
         </div>
-        <p class="foot">写不下去的时候，我都在。</p>
+        <p class="foot">写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
       </div>
     </section>
 
@@ -800,6 +820,27 @@ window.addEventListener('error', function (e) {
         <div class="modal-field">
           <label>人设 / 语气（可留空）</label>
           <textarea id="agentPersonaInput" rows="2" placeholder="如：叫我阿薇，回复要简短温暖，像闺蜜一样"></textarea>
+        </div>
+        <div class="modal-field">
+          <label>人设预设（保存多套，快速切换）</label>
+          <div id="agentPresetList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <input id="agentPresetName" class="post-input" placeholder="预设名称，如：闺蜜/主编/严厉" style="flex:1;margin-bottom:0">
+            <button class="btn-pill small" id="btnSavePreset">＋ 存为预设</button>
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>可用能力（Agent 会自动按需调用）</label>
+          <div class="skills-grid">
+            <div class="skill-chip">🔍 检索知识库</div>
+            <div class="skill-chip">✍️ 润色文风</div>
+            <div class="skill-chip">💡 头脑风暴灵感</div>
+            <div class="skill-chip">🎭 人设一致性检查</div>
+            <div class="skill-chip">🔗 情节一致性检查</div>
+            <div class="skill-chip">📝 多模态素材解析</div>
+            <div class="skill-chip">📊 策略报告</div>
+            <div class="skill-chip">🗣 情感陪伴</div>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-pill" id="btnAgentSettingsReset">重置</button>
@@ -1288,7 +1329,7 @@ function homeAsk(q) {
   const btnOrig = sendBtn.textContent;
   sendBtn.textContent = '…';
   sendBtn.disabled = true;
-  let full = '';
+  let full = '', lastUsage = null;
   const ctrl = new AbortController();
   if (window.__homeAbort) { try { window.__homeAbort.abort(); } catch (e) {} }
   window.__homeAbort = ctrl;
@@ -1302,10 +1343,11 @@ function homeAsk(q) {
     sendBtn.textContent = btnOrig;
     sendBtn.disabled = false;
     bubble.remove();
+    showUsageBar(lastUsage);
     if (!full) {
       // 流式无输出（降级路径）→ 非流式兜底
       return apiCall('/api/kb/ask', Object.assign({ query: q, top_k: 5, session_id: sessionId }, agentSettingsBody())).then(function (data) {
-        appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || ''), query: q }, 'homeMsgList');
+        appendMsg('agent', data.answer, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(data.answer || ''), query: q, tools: data.tools_used || [] }, 'homeMsgList');
       });
     }
     appendMsg('agent', full, { companion: /抱抱|陪陪|歇一歇|抱抱你/.test(full), query: q }, 'homeMsgList');
@@ -1574,17 +1616,20 @@ function appendMsg(role, text, opts, containerId) {
   const cls = role === 'user' ? 'msg user' : (opts.companion ? 'msg companion' : 'msg');
   const avatar = role === 'user' ? '我' : '<img src="/static/xiaoshuomao-official.svg" alt="猫">';
   const src = opts.src ? `<div class="src">来源：${opts.src}</div>` : '';
+  const toolsHtml = (opts.tools && opts.tools.length)
+    ? `<div class="src tools">${opts.tools.map(t => `<span class="tool-chip">🛠 ${esc(t.tool)}</span>`).join(' ')}</div>` : '';
   const tag = opts.companion ? `<span class="tag">♡ 陪伴模式</span><br>` : '';
   const actions = (role === 'agent' && !opts.noActions && opts.query)
     ? `<div class="msg-actions">
         <button title="重新生成" onclick="regenerateMsg(${mid}, event)">↻</button>
+        <button title="复制" onclick="copyMsg(${mid}, event)">📋</button>
         <button title="有帮助" id="fbGood${mid}" onclick="feedbackMsg(${mid}, 'good', event)">👍</button>
         <button title="不满意" id="fbBad${mid}" onclick="feedbackMsg(${mid}, 'bad', event)">👎</button>
       </div>` : '';
   const div = document.createElement('div');
   div.className = cls;
   div.dataset.mid = mid;
-  div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${src}</div>${actions}`;
+  div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${toolsHtml}${src}</div>${actions}`;
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
   if (containerId === 'homeMsgList') { var hw = document.getElementById('homeWelcome'); if (hw) hw.style.display = 'none'; }
@@ -1616,6 +1661,44 @@ async function regenerateMsg(mid, ev) {
     document.getElementById('qaInput').value = target.query;
     askStreaming(containerId, target.query);
   }
+}
+// 上下文窗口指示：从 /api/cost 汇总显示 token 用量与成本（会话累计）
+function showUsageBar(u) {
+  const bar = document.getElementById('homeUsageBar');
+  if (!bar) return;
+  if (u && u.total) {
+    bar.textContent = ` · 本会话 ${u.total.toLocaleString()} tokens`;
+    bar.style.display = 'inline';
+    return;
+  }
+  apiGet('/api/cost').then(function (d) {
+    if (d && d.total_calls) {
+      bar.textContent = ` · 已用 ${(d.total_input_tokens + d.total_output_tokens).toLocaleString()} tokens / ¥${(d.total_cost || 0).toFixed(3)}`;
+      bar.style.display = 'inline';
+    }
+  }).catch(function () {});
+}
+// 复制消息文本（Clipboard API，兼容降级）
+function copyMsg(mid, ev) {
+  if (ev) ev.stopPropagation();
+  const m = messages.find(x => x.id === mid);
+  if (!m) return;
+  const text = m.text || '';
+  function done() {
+    const btn = document.querySelector(`.msg[data-mid="${mid}"] .msg-actions button[title="复制"]`);
+    if (btn) { const o = btn.textContent; btn.textContent = '✓'; setTimeout(() => btn.textContent = o, 1200); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text); done(); });
+  } else { fallbackCopy(text); done(); }
+}
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  } catch (e) {}
 }
 // 反馈：好评/差评（埋点 accept_suggestion / reject_suggestion）
 function feedbackMsg(mid, kind, ev) {
@@ -1714,7 +1797,7 @@ async function askStreaming(containerId, presetQuery) {
   list.appendChild(bubble);
   list.scrollTop = 99999;
 
-  let full = '', srcLine = '';
+  let full = '', srcLine = '', lastTools = [];
   // 停止生成（AbortController）
   const ctrl = new AbortController();
   if (window.__askAbort) { try { window.__askAbort.abort(); } catch (e) {} }
@@ -1761,9 +1844,10 @@ async function askStreaming(containerId, presetQuery) {
       const data = await apiCall('/api/kb/ask', Object.assign({ query: query, top_k: 5, novel_id: body.novel_id || null, session_id: sessionId }, agentSettingsBody()));
       full = data.answer || '（无回答）';
       srcLine = (data.sources || []).length ? '片段#' + data.sources.slice(0, 3).map(s => s.chunk_id + 1).join(' · #') : '';
+      lastTools = data.tools_used || [];
     }
     const isCompanion = companionMode || /抱抱|陪陪|我在|歇一歇|抱抱你/.test(full);
-    const mid = appendMsg('agent', full, { companion: isCompanion, src: srcLine, query: query }, containerId);
+    const mid = appendMsg('agent', full, { companion: isCompanion, src: srcLine, query: query, tools: lastTools }, containerId);
   } catch (e) {
     bubble.remove();
     // 用户主动停止：保留已生成部分，不算错误
@@ -2791,10 +2875,11 @@ document.addEventListener('keydown', e => {
     .then(function (d) { badgeBackend = '✓ 后端已连接 (' + (d.model || 'ok') + ')'; updateBadge(); })
     .catch(function () { badgeBackend = '✗ 后端未连接'; updateBadge(); });
 // ===== Agent 设置（模型 / 温度 / 人设语气）=====
-var agentSettings = { model: '', temperature: 0.8, persona: '' };
+var agentSettings = { model: '', temperature: 0.8, persona: '', presets: [] };
 try {
   var saved = JSON.parse(localStorage.getItem('novel_island_agent') || '{}');
   if (saved && typeof saved === 'object') agentSettings = Object.assign(agentSettings, saved);
+  if (!Array.isArray(agentSettings.presets)) agentSettings.presets = [];
 } catch (e) {}
 function agentSettingsBody() {
   // 组装 ask 请求的 agent 设置字段（persona 拼进 query 前的系统层，由后端透传）
@@ -2804,12 +2889,52 @@ function agentSettingsBody() {
   if (agentSettings.persona && agentSettings.persona.trim()) b.persona = agentSettings.persona.trim();
   return b;
 }
+function saveAgentSettings() {
+  try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+}
+function renderAgentPresets() {
+  const wrap = document.getElementById('agentPresetList');
+  if (!wrap) return;
+  if (!agentSettings.presets.length) { wrap.innerHTML = '<span style="font-size:12px;color:var(--text-3)">暂无预设</span>'; return; }
+  wrap.innerHTML = agentSettings.presets.map((pr, i) => `
+    <span class="agent-preset-chip ${pr.persona === agentSettings.persona ? 'on' : ''}" data-i="${i}" title="${escAttr(pr.persona || '')}">
+      ${esc(pr.name)} <b class="preset-del" data-i="${i}">×</b>
+    </span>`).join('');
+  wrap.querySelectorAll('.agent-preset-chip').forEach(ch => {
+    ch.addEventListener('click', e => {
+      if (e.target.classList.contains('preset-del')) return;
+      const pr = agentSettings.presets[Number(ch.dataset.i)];
+      if (!pr) return;
+      agentSettings.persona = pr.persona || '';
+      document.getElementById('agentPersonaInput').value = agentSettings.persona;
+      saveAgentSettings();
+      renderAgentPresets();
+    });
+    ch.querySelector('.preset-del').addEventListener('click', e => {
+      e.stopPropagation();
+      agentSettings.presets.splice(Number(ch.dataset.i), 1);
+      saveAgentSettings();
+      renderAgentPresets();
+    });
+  });
+}
 document.getElementById('btnAgentSettings').addEventListener('click', () => {
   document.getElementById('agentModelSel').value = agentSettings.model || '';
   document.getElementById('agentTempSlider').value = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
   document.getElementById('agentTempVal').textContent = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
   document.getElementById('agentPersonaInput').value = agentSettings.persona || '';
+  renderAgentPresets();
   document.getElementById('agentSettingsModal').classList.add('show');
+});
+document.getElementById('btnSavePreset').addEventListener('click', () => {
+  const name = document.getElementById('agentPresetName').value.trim();
+  const persona = document.getElementById('agentPersonaInput').value.trim();
+  if (!name || !persona) { alert('预设名称和人设内容都要填'); return; }
+  agentSettings.presets = agentSettings.presets.filter(pr => pr.name !== name);
+  agentSettings.presets.push({ name: name, persona: persona });
+  saveAgentSettings();
+  document.getElementById('agentPresetName').value = '';
+  renderAgentPresets();
 });
 document.getElementById('agentTempSlider').addEventListener('input', e => {
   document.getElementById('agentTempVal').textContent = e.target.value;
@@ -2818,12 +2943,12 @@ document.getElementById('btnAgentSettingsSave').addEventListener('click', () => 
   agentSettings.model = document.getElementById('agentModelSel').value || '';
   agentSettings.temperature = parseFloat(document.getElementById('agentTempSlider').value) || 0.8;
   agentSettings.persona = document.getElementById('agentPersonaInput').value.trim();
-  try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+  saveAgentSettings();
   document.getElementById('agentSettingsModal').classList.remove('show');
 });
 document.getElementById('btnAgentSettingsReset').addEventListener('click', () => {
-  agentSettings = { model: '', temperature: 0.8, persona: '' };
-  try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+  agentSettings = { model: '', temperature: 0.8, persona: '', presets: agentSettings.presets || [] };
+  saveAgentSettings();
   document.getElementById('agentSettingsModal').classList.remove('show');
 });
 document.getElementById('agentSettingsModal').addEventListener('click', e => {
@@ -2844,7 +2969,10 @@ async function renderChatSessions() {
     list.innerHTML = homeSessions.map(s => `
       <div class="side-item ${s.session_id === sessionId ? 'active' : ''}" data-session="${escAttr(s.session_id)}" title="${escAttr(s.last_msg || '')}">
         <span class="hide-when-collapsed side-title">${esc((s.title || s.last_msg || '新对话').slice(0, 14))}</span>
-        <button class="del-session" data-del="${escAttr(s.session_id)}" title="删除该对话">×</button>
+        <span class="hide-when-collapsed session-ops">
+          <button class="del-session" data-export="${escAttr(s.session_id)}" title="导出对话">⤓</button>
+          <button class="del-session" data-del="${escAttr(s.session_id)}" title="删除该对话">×</button>
+        </span>
       </div>`).join('');
     list.querySelectorAll('.side-item[data-session]').forEach(item => {
       item.addEventListener('click', e => {
@@ -2864,6 +2992,12 @@ async function renderChatSessions() {
         apiCall('/api/chat/session/rename', { scope: 'home', session_id: sid, title: trimmed })
           .then(() => renderChatSessions())
           .catch(err => alert('重命名失败: ' + err.message));
+      });
+    });
+    list.querySelectorAll('.del-session[data-export]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        exportSession(btn.dataset.export);
       });
     });
     list.querySelectorAll('.del-session').forEach(btn => {
@@ -2919,6 +3053,27 @@ async function loadChatHistory() {
     });
     list.scrollTop = list.scrollHeight;
   } catch (e) { console.error(e); }
+}
+// 导出会话对话为 markdown/txt
+async function exportSession(sid) {
+  try {
+    const data = await apiGet(`/api/chat/history?scope=home&session_id=${encodeURIComponent(sid)}&limit=1000`);
+    const hist = data.history || [];
+    if (!hist.length) { alert('这段对话还没有内容可导出'); return; }
+    const title = (hist.find(m => m.role === 'user') || {}).content || '对话';
+    const lines = ['# 小说岛 · 对话导出', '', `会话：${title.slice(0, 30)}`, `时间：${new Date().toLocaleString()}`, ''];
+    hist.forEach(m => {
+      const who = m.role === 'user' ? '**我**' : '**小说猫**';
+      lines.push(`### ${who}  ${new Date((m.created_at || 0) * 1000).toLocaleString()}`);
+      lines.push('', m.content, '');
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `小说岛-${(title || '对话').slice(0, 20)}.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert('导出失败: ' + e.message); }
 }
 document.getElementById('btnNewChatSession').addEventListener('click', newChatSession);
 // 初始化时渲染会话列表 + 恢复当前会话历史

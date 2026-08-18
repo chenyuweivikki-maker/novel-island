@@ -39,6 +39,7 @@ class NovelIslandState(TypedDict):
     reranked_chunks: List[dict]           # 重排序后结果
     agent_response: str
     sources: List[dict]                   # 检索来源（chunk_id + score）
+    tool_log: Optional[list]              # 工具调用日志（可见性：本次问答调了哪些工具）
 
     # 6. 质检相关（里程碑4）
     critic_pass: Optional[bool]           # 质检是否通过

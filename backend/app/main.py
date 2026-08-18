@@ -732,6 +732,8 @@ def ask(req: AskRequest):
     return {
         "answer": result["agent_response"],
         "sources": result["sources"],
+        "usage": latest_usage(),
+        "tools_used": result.get("tool_log") or [],
         "retrieval": [
             {
                 "chunk_id": r["chunk"].id,
@@ -1364,6 +1366,23 @@ def community_add_comment(req: CommentCreateRequest):
 def community_delete_comment(comment_id: int):
     community_store.delete_comment(comment_id)
     return {"success": True}
+
+
+def latest_usage() -> dict:
+    '最近一次 LLM 调用的 token 用量（上下文窗口指示用）'
+    try:
+        import sqlite3 as _sql
+        conn = _sql.connect(os.environ.get("COST_DB_PATH", "data/cost.db"), timeout=5)
+        row = conn.execute(
+            "SELECT model, input_tokens, output_tokens FROM llm_calls ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        if row:
+            return {"model": row[0], "input_tokens": row[1], "output_tokens": row[2],
+                    "total": row[1] + row[2]}
+    except Exception:
+        pass
+    return {"model": "", "input_tokens": 0, "output_tokens": 0, "total": 0}
 
 
 # ===== 会话历史 API（对话持久化 + 对比不同对话）=====
