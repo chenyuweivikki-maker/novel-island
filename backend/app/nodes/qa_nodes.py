@@ -127,7 +127,7 @@ class GenerateNode:
         user_prompt = build_rag_prompt(query, results)
 
         # 调 LLM
-        answer = chat(RAG_SYSTEM_PROMPT, user_prompt, task="qa")
+        answer = chat(RAG_SYSTEM_PROMPT, user_prompt, task="qa", model=state.get("model") or None)
 
         # 整理来源，写回背包
         sources = [
@@ -277,7 +277,7 @@ class MultiHopInspirationNode:
 
         # ---- 跳：提取关键线索（task=extract 走简单级模型，便宜）----
         clue_prompt = _build_clue_prompt(query, chunks_1)
-        clue_output = chat(CLUE_EXTRACT_SYSTEM_PROMPT, clue_prompt, temperature=0.2, max_tokens=256, task="extract")
+        clue_output = chat(CLUE_EXTRACT_SYSTEM_PROMPT, clue_prompt, temperature=0.2, max_tokens=256, task="extract", model=state.get("model") or None)
         clues = _parse_clues(clue_output)
 
         # ---- Hop2：用线索二次检索（召回前文伏笔），去重合并 ----
@@ -299,6 +299,7 @@ class MultiHopInspirationNode:
             temperature=0.7,
             max_tokens=1024,
             task="inspire",
+            model=state.get("model") or None,
         )
 
         # 来源：合并两轮检索（去重）
@@ -454,6 +455,7 @@ class AgentNode:
             task='qa',
             tool_context={"novel_id": state.get("novel_id")},  # 里程碑17：工具知道当前项目
             tool_log=tool_log,  # 工具调用可见性：收集本次调用的工具
+            model=state.get("model") or None,  # Agent 设置：模型覆盖
         )
 
         # 预检索结果仍作为来源展示（供调试看召回情况）
@@ -527,7 +529,7 @@ class LogicCritiqueNode:
 
         # 拼 prompt → 调 LLM（复用 chat，task=logic 走复杂级路由）
         user_prompt = _build_logic_critique_prompt(query, results)
-        answer = chat(LOGIC_CRITIQUE_SYSTEM_PROMPT, user_prompt, task="logic")
+        answer = chat(LOGIC_CRITIQUE_SYSTEM_PROMPT, user_prompt, task="logic", model=state.get("model") or None)
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
@@ -610,7 +612,7 @@ class CharacterCriticNode:
 
         # 拼 prompt → 调 LLM（task=complex 走复杂级路由）
         user_prompt = _build_character_critic_prompt(query, results, persona, character or "该角色")
-        answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative")
+        answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative", model=state.get("model") or None)
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
@@ -672,6 +674,7 @@ class CompanionNode:
             temperature=0.7,
             max_tokens=600,
             task="companion",
+            model=state.get("model") or None,  # Agent 设置：模型覆盖
         )
 
         sources = [

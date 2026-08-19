@@ -175,6 +175,7 @@ def chat_with_tools(
     task: str = 'qa',
     tool_context: dict | None = None,
     tool_log: list | None = None,
+    model: str | None = None,
 ) -> str:
     """带工具调用的对话 — 里程碑3+6
 
@@ -204,7 +205,8 @@ def chat_with_tools(
 
     # 最多允许 LLM 连续调 3 次工具（防止它陷入工具循环）
     for _ in range(3):
-        model = get_model_for_task(task)
+        if model is None:
+            model = get_model_for_task(task)
         # 每次按模型名取客户端（工具调用可能跨 Provider 换模型）
         client = get_client(model)
         # 高阶模型故障（余额不足/超时）→ 本轮回退 DeepSeek 重试一次

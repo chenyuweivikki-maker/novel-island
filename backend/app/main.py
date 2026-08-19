@@ -709,6 +709,7 @@ def ask(req: AskRequest):
             "top_k": req.top_k,
             "novel_id": req.novel_id,
             "session_id": req.session_id,
+            "model": req.model,
         })
     except Exception as e:
         # 降级策略（PRD）：LLM 链路故障时不硬报错
