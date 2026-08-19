@@ -478,6 +478,85 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+NO_PROJECT_INSPIRATION_PROMPT = """你是「小说岛」的写作搭子「小说猫」。作者还没建书，但向你要灵感或剧情建议。
+
+任务：给方向性灵感（不开书也能聊）：
+1. 接住作者的具体需求（题材/角色/卡点），给 2-3 个具体的灵感方向
+2. 每个方向一句话说清"怎么用"，不写完整大纲
+3. 结尾轻轻提一句：正式建书后可以把这些灵感存进灵感库，或点「＋ 新建项目」开书
+4. 语气自然简短（3-5 句），像朋友聊创作
+
+之前对话：
+{history}"""
+
+NO_PROJECT_CRITIC_PROMPT = """你是「小说岛」的写作搭子「小说猫」。作者想让你检查逻辑/人设，但还没建书、没有知识库可查。
+
+任务：
+1. 诚实说明：还没建书，我没有这本书的设定库可以核对
+2. 但可以基于作者刚说/之前聊到的内容，给一个轻量的初步判断（1-2 句）
+3. 引导：把已定的设定/章节内容告诉我（或点「＋ 新建项目」开书后拖进来），我就能认真检查
+4. 语气自然，不机械
+
+之前对话：
+{history}"""
+
+
+def _llm_no_project_inspiration(query: str, novel_id: int | None = None, brief: bool = False,
+                                session_id: str = "default", model: str = "", temperature: float | None = None,
+                                persona: str = "") -> str:
+    """无项目灵感：LLM 给方向性灵感（不进状态机，不需要知识库）"""
+    memory = memory_manager.get_memory(novel_id, session_id)
+    history = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in memory.get_context()[-6:]
+    ) or "（无）"
+    system = NO_PROJECT_INSPIRATION_PROMPT.format(history=history)
+    if persona and persona.strip():
+        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
+    try:
+        reply = chat(
+            system,
+            f"作者说：{query}",
+            temperature=0.9,
+            max_tokens=400,
+            task="inspire",
+            model=model or None,
+        ).strip()
+    except Exception as e:
+        print(f"[ask] 无项目灵感失败: {e}")
+        reply = "这个方向很有的写！正式建书后（点「＋ 新建项目」）我可以结合你的人物和设定给你更贴的灵感。"
+    memory.add_turn(query, reply)
+    return reply
+
+
+def _llm_no_project_critic(query: str, novel_id: int | None = None, brief: bool = False,
+                           session_id: str = "default", model: str = "", temperature: float | None = None,
+                           persona: str = "") -> str:
+    """无项目逻辑/人设检查：诚实说明无库可查 + 轻量判断 + 引导建书"""
+    memory = memory_manager.get_memory(novel_id, session_id)
+    history = "\n".join(
+        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
+        for m in memory.get_context()[-6:]
+    ) or "（无）"
+    system = NO_PROJECT_CRITIC_PROMPT.format(history=history)
+    if persona and persona.strip():
+        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
+    try:
+        reply = chat(
+            system,
+            f"作者说：{query}",
+            temperature=0.5,
+            max_tokens=300,
+            task="logic",
+            model=model or None,
+        ).strip()
+    except Exception as e:
+        print(f"[ask] 无项目检查失败: {e}")
+        reply = "这本书还没建库，我暂时没法认真核对逻辑/人设。点「＋ 新建项目」开书后把设定和章节放进来，我就能查了。"
+    memory.add_turn(query, reply)
+    return reply
+
+
 def general_opening_fallback(query: str) -> str:
     """LLM 故障时的降级引导（仅兜底，正常全走模型）"""
     if any(g in query for g in GENRE_HINTS) or ("叫" in query and len(query) >= 6):
@@ -581,14 +660,20 @@ def ask(req: AskRequest):
             return _no_project_stream_or_dict(req, _llm_no_project_reply, req.novel_id, brief=True)
         return _no_project_stream_or_dict(req, _llm_no_project_reply)
 
-    # ===== 无项目（首页/默认对话）：全部走 LLM（不硬编码）=====
+    # ===== 无项目（首页/默认对话）：意图路由 + 各分支 LLM（建书主路由）=====
     if req.novel_id is None:
-        intent = IntentRouterNode()({"user_query": req.query})["current_intent"]
+        intent = IntentRouterNode()({"user_query": req.query, "model": req.model})["current_intent"]
         # 情感低落 → 纯陪伴优先（即使提到题材也不机械引导）
         if intent == "companion":
             comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
             return {"answer": comp["agent_response"], "sources": []}
-        # 其余（含已给题材/书名）→ LLM 建书引导，接住作者的话
+        # 灵感意图（无库也能给方向性建议，不机械引导建书）
+        if intent == "inspiration":
+            return _no_project_stream_or_dict(req, _llm_no_project_inspiration)
+        # 逻辑批判 / 人设检查：没有知识库可查，引导先建书（不假装能检查）
+        if intent in ("logic_critique", "character_critic"):
+            return _no_project_stream_or_dict(req, _llm_no_project_critic)
+        # 建书意图 / 事实问答 / 其他 → LLM 建书引导，接住作者的话
         return _no_project_stream_or_dict(req, _llm_no_project_reply)
 
     # 里程碑17：按项目取 TF-IDF 检索器

@@ -76,20 +76,87 @@ class IntentRouterNode:
         "身份", "设定一致", "跑偏", "变了",
     ]
 
+    # LLM 意图分类兜底：规则未命中时用小模型分类（里程碑7 升级落地）
+    # 成本控制：只有规则判不出才花 token；命中关键词直接免费走
+    INTENT_CLASSIFY_PROMPT = """你是「小说岛」的意图分类器。判断作者这句话属于哪一类意图，只输出 JSON：{"intent": "..."}。
+
+可选意图（只能选一个）：
+- fact_qa: 询问作品设定/角色/情节的事实性问题（如"林晚是做什么的"）
+- logic_critique: 要求检查情节逻辑矛盾/合理性（如"这段剧情有没有bug""前后对不上"）
+- character_critic: 要求检查人设是否崩塌/OOC（如"女主的人设崩了吗""这样写像不像他"）
+- inspiration: 求灵感/剧情发展建议/卡文求助（如"后面怎么写""给点灵感"）
+- companion: 情绪低落/求安慰/倾诉（如"好累""被骂了""想放弃"）
+- new_book: 报书名/题材/主角，开始建书（如"我想写本都市文""书名观南嘉措"）
+- general: 以上都不明确（闲聊、问候、系统问题）
+
+作者说：{query}
+只输出 JSON。"""
+
+    # 规则判断（按优先级）：陪伴 → 人设 → 逻辑 → 灵感 → 事实
+    def _rule_intent(self, query: str) -> str:
+        if any(kw in query for kw in self.COMPANION_KEYWORDS):
+            return "companion"
+        if any(kw in query for kw in self.CHARACTER_CRITIC_KEYWORDS):
+            return "character_critic"
+        if any(kw in query for kw in self.LOGIC_CRITIQUE_KEYWORDS):
+            return "logic_critique"
+        if any(kw in query for kw in self.INSPIRATION_KEYWORDS):
+            return "inspiration"
+        return "fact_qa"
+
+    def _llm_intent(self, query: str, model: str = "") -> str:
+        """规则未命中时用小模型分类（task=intent 走 simple 级便宜模型）"""
+        import json as _json
+        import re as _re
+        VALID = ("fact_qa", "logic_critique", "character_critic", "inspiration", "companion", "new_book", "general")
+        try:
+            out = chat(
+                self.INTENT_CLASSIFY_PROMPT.format(query=query[:200]),
+                "请分类。",
+                temperature=0.0,
+                max_tokens=50,
+                task="intent",
+                model=model or None,
+            )
+            out = (out or "").strip()
+            # 容错 1：完整 JSON 解析
+            try:
+                if out.startswith("```"):
+                    out = out.strip("`")
+                    if out.startswith("json"):
+                        out = out[4:]
+                data = _json.loads(out)
+                intent = (data or {}).get("intent", "")
+                if intent in VALID:
+                    return intent
+            except Exception:
+                pass
+            # 容错 2：正则提取 intent 字段值（LLM 可能只返回 "intent": "xxx" 片段）
+            m = _re.search(r'["\']intent["\']\s*[:：]\s*["\']([a-z_]+)["\']', out)
+            if m and m.group(1) in VALID:
+                return m.group(1)
+            # 容错 3：裸词（LLM 只回了 intent 名）
+            for v in VALID:
+                if out == v or out.endswith(v):
+                    return v
+        except Exception as e:
+            print(f"[intent] LLM 分类失败: {e}")
+        return "fact_qa"
+
     def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
         query = state.get("user_query", "")
+        model = state.get("model", "")  # Agent 设置：模型覆盖
 
-        # 规则判断（按优先级）：陪伴 → 人设 → 逻辑 → 灵感 → 事实
-        if any(kw in query for kw in self.COMPANION_KEYWORDS):
-            intent = "companion"
-        elif any(kw in query for kw in self.CHARACTER_CRITIC_KEYWORDS):
-            intent = "character_critic"
-        elif any(kw in query for kw in self.LOGIC_CRITIQUE_KEYWORDS):
-            intent = "logic_critique"
-        elif any(kw in query for kw in self.INSPIRATION_KEYWORDS):
-            intent = "inspiration"
-        else:
-            intent = "fact_qa"
+        # 规则优先（免费、可解释）：命中关键词直接走
+        intent = self._rule_intent(query)
+
+        # 规则全未命中（fact_qa 兜底也可能是模糊表达）→ 小模型分类确认
+        # 只有规则判为 fact_qa 时才问 LLM，避免浪费（规则已命中的直接走）
+        if intent == "fact_qa":
+            intent = self._llm_intent(query, model)
+            # LLM 说 general/未明确 → 当建书引导处理（首页建书主路由）
+            if intent == "general":
+                intent = "new_book"
 
         return {
             "current_intent": intent,
