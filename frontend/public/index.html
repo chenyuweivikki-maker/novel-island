@@ -406,11 +406,16 @@ input, textarea { font-family: inherit; }
   transition: color .12s, transform .12s;
 }
 .agent-settings-btn:hover { color: var(--text); transform: rotate(30deg); }
-/* 左下角设置入口 */
-.settings-link {
-  cursor: pointer; color: var(--text-3); transition: color .12s; user-select: none;
+/* 左下角固定设置入口 */
+.corner-settings {
+  position: fixed; left: 16px; bottom: 14px; z-index: 90;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: color .12s, border-color .12s, transform .12s;
+  box-shadow: 0 2px 10px rgba(0,0,0,.05);
 }
-.settings-link:hover { color: var(--text); }
+.corner-settings:hover { color: var(--text); border-color: var(--text); transform: rotate(30deg); }
 /* 设置弹窗 tabs */
 .settings-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
 .settings-tab {
@@ -824,9 +829,12 @@ window.addEventListener('error', function (e) {
           <input id="homeInput" placeholder="告诉小说猫你想写什么…">
           <button class="send" id="homeSend">↑</button>
         </div>
-        <p class="foot"><span class="settings-link" id="btnAgentSettings" title="设置">⚙ 设置</span> · 写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
+        <p class="foot">写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
       </div>
     </section>
+
+    <!-- 左下角固定设置入口 -->
+    <button class="corner-settings" id="btnAgentSettings" title="设置">⚙</button>
 
     <!-- Agent 设置弹窗 -->
     <div class="modal-mask" id="agentSettingsModal">
