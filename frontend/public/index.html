@@ -106,8 +106,12 @@ input, textarea { font-family: inherit; }
   padding: 14px 14px 14px 24px; transition: box-shadow .15s;
 }
 .home-input:focus-within { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
-.home-input input { flex: 1; border: none; outline: none; font-size: 16px; color: var(--text); background: transparent; }
-.home-input input::placeholder { color: var(--text-3); }
+.home-input textarea {
+  flex: 1; border: none; outline: none; resize: none; overflow-y: auto; line-height: 1.5;
+  font-size: 16px; color: var(--text); background: transparent; font-family: inherit; max-height: 120px;
+  display: flex; align-items: center; padding: 8px 0;
+}
+.home-input textarea::placeholder { color: var(--text-3); }
 .home-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
 .home-input .send:hover { transform: scale(1.05); }
 .home-chips { margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
@@ -269,8 +273,11 @@ input, textarea { font-family: inherit; }
 }
 .chat-input:focus-within { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
 .chat-input.dragover { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
-.chat-input input { flex: 1; border: none; outline: none; font-size: 16px; padding: 8px 0; background: transparent; }
-.chat-input input::placeholder { color: var(--text-3); }
+.chat-input textarea {
+  flex: 1; border: none; outline: none; resize: none; overflow-y: auto; line-height: 1.5;
+  font-size: 16px; padding: 8px 0; background: transparent; font-family: inherit; max-height: 120px;
+}
+.chat-input textarea::placeholder { color: var(--text-3); }
 .chat-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
 .chat-input .send:hover { transform: scale(1.05); }
 .attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; color: var(--text-2); }
@@ -662,12 +669,13 @@ input, textarea { font-family: inherit; }
 .write-ai .wa-msg.ai { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; padding: 12px 16px; max-width: 92%; white-space: pre-wrap; }
 .write-ai .wa-msg.typing::after { content: '…'; animation: blink 1s infinite; }
 .write-ai .wa-input { display: flex; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--border); align-items: center; }
-.write-ai .wa-input input {
+.write-ai .wa-input textarea {
   flex: 1; border: 1.5px solid var(--text); border-radius: var(--radius-pill);
-  padding: 12px 18px 12px 24px; font-size: 16px; outline: none; background: var(--surface); min-width: 0;
+  padding: 12px 18px 12px 24px; font-size: 16px; outline: none; resize: none; overflow-y: auto;
+  background: var(--surface); min-width: 0; font-family: inherit; line-height: 1.5; max-height: 120px;
   transition: box-shadow .15s;
 }
-.write-ai .wa-input input:focus { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
+.write-ai .wa-input textarea:focus { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
 .write-ai .wa-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
 .write-ai .wa-input .send:hover { transform: scale(1.05); }
 
@@ -826,7 +834,7 @@ window.addEventListener('error', function (e) {
       </div>
       <div class="home-input-bar">
         <div class="home-input">
-          <input id="homeInput" placeholder="告诉小说猫你想写什么…">
+          <textarea id="homeInput" placeholder="告诉小说猫你想写什么…" rows="1"></textarea>
           <button class="send" id="homeSend">↑</button>
         </div>
         <p class="foot">写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
@@ -973,7 +981,7 @@ window.addEventListener('error', function (e) {
             </div>
             <div class="chat-input" id="chatInputWrap">
               <div id="attachArea" style="display:none"></div>
-              <input id="qaInput" placeholder="告诉小说猫你想写什么…">
+              <textarea id="qaInput" placeholder="告诉小说猫你想写什么…" rows="1"></textarea>
               <button class="send" id="btnAsk">↑</button>
             </div>
           </div>
@@ -1067,7 +1075,7 @@ window.addEventListener('error', function (e) {
                 <div class="wa-head">🐱 写作搭子 <span style="font-weight:400;color:var(--text-3);font-size:11px">选中文本可润色</span></div>
                 <div class="wa-msgs" id="waMsgs"></div>
                 <div class="wa-input">
-                  <input id="waInput" placeholder="问问 AI…（自动带上前文）">
+                  <textarea id="waInput" placeholder="问问 AI…（自动带上前文）" rows="1"></textarea>
                   <button class="send" id="btnWaAsk">↑</button>
                 </div>
               </div>
@@ -1386,6 +1394,7 @@ function enterNovel(id, title) {
 function homeAsk(q) {
   if (!q) return;
   document.getElementById('homeInput').value = '';
+  autoResizeInput(document.getElementById('homeInput'));
   appendMsg('user', q, null, 'homeMsgList');
   // 流式打字机（与创作页一致）：SSE 逐 token 渲染；支持停止生成
   const list = document.getElementById('homeMsgList');
@@ -1466,7 +1475,19 @@ function homeAsk(q) {
 document.getElementById('homeSend').addEventListener('click', () => {
   homeAsk(document.getElementById('homeInput').value.trim());
 });
-document.getElementById('homeInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('homeSend').click(); });
+// 输入框自动高度（多行自适应，超宽自动换行不再向左延伸）
+function autoResizeInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+['homeInput', 'qaInput', 'waInput'].forEach(function (id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', function () { autoResizeInput(el); });
+});
+document.getElementById('homeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('homeSend').click(); }
+});
 document.querySelectorAll('#view-home .chip, .chips-row .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const q = chip.dataset.q;
@@ -1851,7 +1872,7 @@ async function askStreaming(containerId, presetQuery) {
 
   appendMsg('user', query || '📎 ' + attachedFile.name, null, containerId);
   clearAttach();
-  if (presetQuery == null) input.value = '';
+  if (presetQuery == null) { input.value = ''; autoResizeInput(input); }
 
   var askBtn = document.getElementById('btnAsk');
   var askOrig = askBtn.textContent;
@@ -1937,7 +1958,9 @@ async function ask(containerId) {
   return askStreaming(containerId || 'msgList');
 }
 document.getElementById('btnAsk').addEventListener('click', ask);
-document.getElementById('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+document.getElementById('qaInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+});
 document.getElementById('pillCompanion').addEventListener('click', () => {
   companionMode = !companionMode;
   const p = document.getElementById('pillCompanion');
@@ -2467,10 +2490,11 @@ document.getElementById('btnWaAsk').addEventListener('click', () => {
   const q = input.value.trim();
   if (!q) return;
   input.value = '';
+  autoResizeInput(input);
   waAsk(q);
 });
 document.getElementById('waInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('btnWaAsk').click();
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('btnWaAsk').click(); }
 });
 
 // ===== 润色 Review（P5：选中文本 → AI 润色 → 对比 → 采纳/放弃） =====
