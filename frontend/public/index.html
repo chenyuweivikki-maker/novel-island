@@ -1248,6 +1248,12 @@ function showView(view) {
   document.getElementById('sideProjects').style.display = view === 'chat' ? 'block' : 'none';
   // 对话会话列表：仅首页显示（其他 tab 的侧边栏不需要历史对话）
   document.getElementById('sideChats').style.display = view === 'home' ? 'block' : 'none';
+  // 整个侧边栏：仅首页/创作显示；灵感库/我的作品/社区等无侧边栏内容 → 整栏隐藏不占位
+  var sideBar = document.getElementById('appSidebar');
+  var collapseBtn = document.getElementById('btnSideCollapse');
+  var hasSidebar = (view === 'home' || view === 'chat');
+  sideBar.style.display = hasSidebar ? 'flex' : 'none';
+  if (collapseBtn) collapseBtn.style.display = hasSidebar ? 'block' : 'none';
   if (view === 'works') { loadWorks(); }
   if (view === 'inspiration') { loadInspiration(); }
   if (view === 'community') { loadCommunity(); }
