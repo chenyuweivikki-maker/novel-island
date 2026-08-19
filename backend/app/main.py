@@ -476,7 +476,7 @@ AUTO_BOOK_PROMPT = """你是「小说岛」的建书助手。作者在对话里�
 {history}
 
 请输出 JSON：{{
-  "title": "书名（从对话提取；没有明确书名就用主角名；都没有就'未命名'）",
+  "title": "书名（对话中明确出现的书名；没有明确书名就输出空字符串 ''，不要编造）",
   "genre": "题材（如 都市/奇幻/悬疑，没有就空）",
   "characters": ["角色名列表（对话中明确出现的作品角色，如 江观南；不要把'我/她/主角'这类代词当角色）"]
 }}
@@ -484,7 +484,7 @@ AUTO_BOOK_PROMPT = """你是「小说岛」的建书助手。作者在对话里�
 
 
 def _auto_create_book(session_id: str) -> int | None:
-    """从会话历史自动建书（出现角色时调用）。返回 novel_id；失败/已建过返回 None"""
+    """从会话历史自动建书（出现角色或明确书名时调用）。返回 novel_id；失败/已建过返回 None"""
     if session_id in _AUTO_BOOKED:
         return None
     memory = memory_manager.get_memory(None, session_id)
@@ -494,7 +494,7 @@ def _auto_create_book(session_id: str) -> int | None:
         return None
     joined = "；".join(user_msgs[-10:])
     # LLM 抽取书名/题材/角色（规则检测短语误报太多，改 LLM 一次性抽取）
-    title, genre, characters = "未命名", "", []
+    title, genre, characters = "", "", []
     try:
         import json as _json
         out = chat(AUTO_BOOK_PROMPT.format(history=joined[-600:]), "请建书。",
@@ -505,14 +505,17 @@ def _auto_create_book(session_id: str) -> int | None:
             if out.startswith("json"):
                 out = out[4:]
         data = _json.loads(out)
-        title = (data.get("title") or "").strip() or "未命名"
+        title = (data.get("title") or "").strip()
         genre = (data.get("genre") or "").strip()
         characters = [c.strip() for c in (data.get("characters") or []) if c and c.strip()]
     except Exception as e:
         print(f"[auto_book] 抽取失败: {e}")
-    # 没有抽到任何角色 → 不建书（等作者聊出角色）
-    if not characters:
+    # 触发条件：明确书名 OR 明确角色，任一即可开书；都没有 → 等作者继续聊
+    if not title and not characters:
         return None
+    # 书名缺省：用主角名兜底
+    if not title:
+        title = characters[0] if characters else "未命名"
     novel_id = novel_store.create_novel(title, 0, 0, genre)
     _AUTO_BOOKED.add(session_id)
     print(f"[auto_book] session={session_id} 自动建书: 《{title}》({genre}) novel_id={novel_id}, 角色={characters}")
