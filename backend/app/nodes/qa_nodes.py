@@ -596,7 +596,8 @@ class LogicCritiqueNode:
 
         # 拼 prompt → 调 LLM（复用 chat，task=logic 走复杂级路由）
         user_prompt = _build_logic_critique_prompt(query, results)
-        answer = chat(LOGIC_CRITIQUE_SYSTEM_PROMPT, user_prompt, task="logic", model=state.get("model") or None)
+        answer = chat(LOGIC_CRITIQUE_SYSTEM_PROMPT, user_prompt, task="logic",
+                     model=state.get("model") or state.get("complex_model") or None)
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}
@@ -679,7 +680,8 @@ class CharacterCriticNode:
 
         # 拼 prompt → 调 LLM（task=complex 走复杂级路由）
         user_prompt = _build_character_critic_prompt(query, results, persona, character or "该角色")
-        answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative", model=state.get("model") or None)
+        answer = chat(CHARACTER_CRITIC_SYSTEM_PROMPT, user_prompt, task="creative",
+                     model=state.get("model") or state.get("complex_model") or None)
 
         sources = [
             {"chunk_id": r["chunk"].id, "score": round(r["score"], 4)}

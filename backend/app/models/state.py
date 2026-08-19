@@ -35,6 +35,7 @@ class NovelIslandState(TypedDict):
     top_k: int = 5                        # 检索返回数量
     session_id: str = "default"           # 对话会话标识（记忆按会话分组持久化）
     model: str = ""                       # Agent 设置：模型覆盖（空=按 task 自动路由）
+    complex_model: str = ""               # Agent 设置：高阶推理模型覆盖（逻辑批判等）
     current_intent: str                   # fact_qa | logic_critique | inspiration | companion
     retrieved_chunks: List[dict]          # 检索结果
     reranked_chunks: List[dict]           # 重排序后结果

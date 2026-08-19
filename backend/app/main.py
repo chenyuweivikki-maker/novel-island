@@ -145,6 +145,7 @@ class AskRequest(BaseModel):
     material: str | None = None  # 对话式建库：随消息拖入/粘贴的素材文本（Agent 解析入库）
     session_id: str = "default"  # 前端稳定会话标识（localStorage 持久化；区分多组对话便于对比）
     model: str = ""              # Agent 设置：模型覆盖（空=按任务自动路由）
+    complex_model: str = ""      # Agent 设置：高阶推理模型覆盖（逻辑批判等，空=默认 kimi）
     temperature: float | None = None  # Agent 设置：温度覆盖（None=默认）
     persona: str = ""            # Agent 设置：人设/语气附加说明（拼进 system prompt）
 
@@ -795,6 +796,7 @@ def ask(req: AskRequest):
             "novel_id": req.novel_id,
             "session_id": req.session_id,
             "model": req.model,
+            "complex_model": req.complex_model,
         })
     except Exception as e:
         # 降级策略（PRD）：LLM 链路故障时不硬报错

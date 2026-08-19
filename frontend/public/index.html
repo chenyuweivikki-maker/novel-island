@@ -25,6 +25,23 @@
   --space: 8px;             /* 8px 网格 */
   --font: Inter, -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
+/* ── 主题（浅色系为主） ── */
+body[data-theme="warm"] {
+  --bg: #fdf8f2; --surface: #fffdf9; --surface-2: #f6efe6;
+  --border: #eee2d2; --border-strong: #dcc9ae;
+  --text: #3d2f1f; --text-2: #7a6a55; --text-3: #a8987f;
+}
+body[data-theme="paper"] {
+  --bg: #faf9f6; --surface: #fffefb; --surface-2: #f2f0ea;
+  --border: #e4e0d5; --border-strong: #c9c3b2;
+  --text: #2c2a26; --text-2: #6f6a5e; --text-3: #9d968a;
+}
+body[data-theme="dark"] {
+  --bg: #141417; --surface: #1c1c21; --surface-2: #26262d;
+  --border: #2e2e36; --border-strong: #3d3d47;
+  --text: #ececf1; --text-2: #b0b0bb; --text-3: #77777f;
+  --on-primary: #111111;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -389,6 +406,39 @@ input, textarea { font-family: inherit; }
   transition: color .12s, transform .12s;
 }
 .agent-settings-btn:hover { color: var(--text); transform: rotate(30deg); }
+/* 左下角设置入口 */
+.settings-link {
+  cursor: pointer; color: var(--text-3); transition: color .12s; user-select: none;
+}
+.settings-link:hover { color: var(--text); }
+/* 设置弹窗 tabs */
+.settings-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.settings-tab {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill);
+  padding: 5px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; transition: all .12s;
+}
+.settings-tab:hover { border-color: var(--text); color: var(--text); }
+.settings-tab.active { background: var(--text); color: var(--on-primary); border-color: var(--text); font-weight: 500; }
+.settings-pane { display: none; }
+.settings-pane.active { display: block; }
+.settings-hint { font-size: 11px; color: var(--text-3); line-height: 1.6; margin-top: 4px; }
+/* 主题选择 */
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.theme-card {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+  transition: border-color .12s; font-size: 12px; color: var(--text-2);
+}
+.theme-card:hover { border-color: var(--text); }
+.theme-card.active { border-color: var(--text); box-shadow: 0 0 0 2px rgba(17,17,17,.06); }
+.th-preview {
+  width: 100%; height: 44px; border-radius: var(--radius-sm); display: flex; align-items: center;
+  justify-content: center; font-size: 14px; font-weight: 700; border: 1px solid var(--border);
+}
+.th-light { background: #ffffff; color: #111111; }
+.th-warm { background: #fdf8f2; color: #3d2f1f; }
+.th-paper { background: #faf9f6; color: #2c2a26; }
+.th-dark { background: #1c1c21; color: #ececf1; }
 /* 上下文窗口指示 */
 .usage-bar { font-size: 11px; color: var(--text-3); margin-left: 8px; }
 /* 人设预设芯片 */
@@ -771,55 +821,90 @@ window.addEventListener('error', function (e) {
       </div>
       <div class="home-input-bar">
         <div class="home-input">
-          <button class="agent-settings-btn" id="btnAgentSettings" title="Agent 设置：模型 / 温度 / 人设">⚙</button>
           <input id="homeInput" placeholder="告诉小说猫你想写什么…">
           <button class="send" id="homeSend">↑</button>
         </div>
-        <p class="foot">写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
+        <p class="foot"><span class="settings-link" id="btnAgentSettings" title="设置">⚙ 设置</span> · 写不下去的时候，我都在。<span class="usage-bar" id="homeUsageBar" style="display:none"></span></p>
       </div>
     </section>
 
     <!-- Agent 设置弹窗 -->
     <div class="modal-mask" id="agentSettingsModal">
-      <div class="modal" style="width:460px;max-width:94vw">
-        <div class="modal-title">Agent 设置</div>
-        <div class="modal-field">
-          <label>模型（默认按任务自动路由）</label>
-          <select id="agentModelSel">
-            <option value="">自动（deepseek / kimi 按任务）</option>
-            <option value="deepseek-chat">deepseek-chat（主力）</option>
-            <option value="kimi-k2.6">kimi-k2.6（高阶推理）</option>
-          </select>
+      <div class="modal" style="width:500px;max-width:94vw">
+        <div class="modal-title">设置</div>
+        <div class="settings-tabs" id="settingsTabs">
+          <button class="settings-tab active" data-pane="agent">Agent</button>
+          <button class="settings-tab" data-pane="model">模型</button>
+          <button class="settings-tab" data-pane="appearance">外观</button>
         </div>
-        <div class="modal-field">
-          <label>温度（0=严谨 · 1=发散） <span id="agentTempVal">0.8</span></label>
-          <input type="range" id="agentTempSlider" min="0" max="1" step="0.1" value="0.8">
-        </div>
-        <div class="modal-field">
-          <label>人设 / 语气（可留空）</label>
-          <textarea id="agentPersonaInput" rows="2" placeholder="如：叫我阿薇，回复要简短温暖，像闺蜜一样"></textarea>
-        </div>
-        <div class="modal-field">
-          <label>人设预设（保存多套，快速切换）</label>
-          <div id="agentPresetList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-          <div style="display:flex;gap:8px">
-            <input id="agentPresetName" class="post-input" placeholder="预设名称，如：闺蜜/主编/严厉" style="flex:1;margin-bottom:0">
-            <button class="btn-pill small" id="btnSavePreset">＋ 存为预设</button>
+
+        <!-- Agent 设置 -->
+        <div class="settings-pane active" id="pane-agent">
+          <div class="modal-field">
+            <label>温度（0=严谨 · 1=发散） <span id="agentTempVal">0.8</span></label>
+            <input type="range" id="agentTempSlider" min="0" max="1" step="0.1" value="0.8">
+          </div>
+          <div class="modal-field">
+            <label>人设 / 语气（可留空）</label>
+            <textarea id="agentPersonaInput" rows="2" placeholder="如：叫我阿薇，回复要简短温暖，像闺蜜一样"></textarea>
+          </div>
+          <div class="modal-field">
+            <label>人设预设（保存多套，快速切换）</label>
+            <div id="agentPresetList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px">
+              <input id="agentPresetName" class="post-input" placeholder="预设名称，如：闺蜜/主编/严厉" style="flex:1;margin-bottom:0">
+              <button class="btn-pill small" id="btnSavePreset">＋ 存为预设</button>
+            </div>
+          </div>
+          <div class="modal-field">
+            <label>可用能力（Agent 会自动按需调用）</label>
+            <div class="skills-grid">
+              <div class="skill-chip">🔍 检索知识库</div>
+              <div class="skill-chip">✍️ 润色文风</div>
+              <div class="skill-chip">💡 头脑风暴灵感</div>
+              <div class="skill-chip">🎭 人设一致性检查</div>
+              <div class="skill-chip">🔗 情节一致性检查</div>
+              <div class="skill-chip">📝 多模态素材解析</div>
+              <div class="skill-chip">📊 策略报告</div>
+              <div class="skill-chip">🗣 情感陪伴</div>
+            </div>
           </div>
         </div>
-        <div class="modal-field">
-          <label>可用能力（Agent 会自动按需调用）</label>
-          <div class="skills-grid">
-            <div class="skill-chip">🔍 检索知识库</div>
-            <div class="skill-chip">✍️ 润色文风</div>
-            <div class="skill-chip">💡 头脑风暴灵感</div>
-            <div class="skill-chip">🎭 人设一致性检查</div>
-            <div class="skill-chip">🔗 情节一致性检查</div>
-            <div class="skill-chip">📝 多模态素材解析</div>
-            <div class="skill-chip">📊 策略报告</div>
-            <div class="skill-chip">🗣 情感陪伴</div>
+
+        <!-- 模型配置 -->
+        <div class="settings-pane" id="pane-model">
+          <div class="modal-field">
+            <label>问答模型（默认按任务自动路由）</label>
+            <select id="agentModelSel">
+              <option value="">自动（deepseek / kimi 按任务）</option>
+              <option value="deepseek-chat">deepseek-chat（主力）</option>
+              <option value="kimi-k2.6">kimi-k2.6（高阶推理）</option>
+            </select>
           </div>
+          <div class="modal-field">
+            <label>高阶推理模型（逻辑批判 / 深度分析）</label>
+            <select id="agentComplexSel">
+              <option value="kimi-k2.6">kimi-k2.6（高阶推理）</option>
+              <option value="deepseek-chat">deepseek-chat（回退主力）</option>
+            </select>
+          </div>
+          <p class="settings-hint">模型选择会覆盖全站所有对话（首页 + 创作页）。「自动」时按任务分级：问答走主力、逻辑批判走高阶。</p>
         </div>
+
+        <!-- 外观设置 -->
+        <div class="settings-pane" id="pane-appearance">
+          <div class="modal-field">
+            <label>主题风格</label>
+            <div class="theme-grid" id="themeGrid">
+              <div class="theme-card active" data-theme="default"><div class="th-preview th-light">Aa</div><span>明亮 · 默认</span></div>
+              <div class="theme-card" data-theme="warm"><div class="th-preview th-warm">Aa</div><span>暖白 · 护眼</span></div>
+              <div class="theme-card" data-theme="paper"><div class="th-preview th-paper">Aa</div><span>纸感 · 写作</span></div>
+              <div class="theme-card" data-theme="dark"><div class="th-preview th-dark">Aa</div><span>暗黑 · 夜晚</span></div>
+            </div>
+          </div>
+          <p class="settings-hint">主题以浅色系为主，暗黑仅作夜间备用。选择即时生效并记住。</p>
+        </div>
+
         <div class="modal-actions">
           <button class="btn-pill" id="btnAgentSettingsReset">重置</button>
           <button class="btn-pill primary" id="btnAgentSettingsSave">保存</button>
@@ -2837,22 +2922,30 @@ document.addEventListener('keydown', e => {
     .then(function (d) { badgeBackend = '✓ 后端已连接 (' + (d.model || 'ok') + ')'; updateBadge(); })
     .catch(function () { badgeBackend = '✗ 后端未连接'; updateBadge(); });
 // ===== Agent 设置（模型 / 温度 / 人设语气）=====
-var agentSettings = { model: '', temperature: 0.8, persona: '', presets: [] };
+var agentSettings = { model: '', complexModel: 'kimi-k2.6', temperature: 0.8, persona: '', presets: [], theme: 'default' };
 try {
   var saved = JSON.parse(localStorage.getItem('novel_island_agent') || '{}');
   if (saved && typeof saved === 'object') agentSettings = Object.assign(agentSettings, saved);
   if (!Array.isArray(agentSettings.presets)) agentSettings.presets = [];
 } catch (e) {}
+// 主题应用（默认 default 明亮）
+function applyTheme(theme) {
+  document.body.setAttribute('data-theme', theme || 'default');
+  var cards = document.querySelectorAll('#themeGrid .theme-card');
+  cards.forEach(function (c) { c.classList.toggle('active', c.dataset.theme === (theme || 'default')); });
+}
 function agentSettingsBody() {
   // 组装 ask 请求的 agent 设置字段（persona 拼进 query 前的系统层，由后端透传）
   var b = {};
   if (agentSettings.model) b.model = agentSettings.model;
+  if (agentSettings.complexModel && agentSettings.complexModel !== 'kimi-k2.6') b.complex_model = agentSettings.complexModel;
   if (agentSettings.temperature != null) b.temperature = Number(agentSettings.temperature);
   if (agentSettings.persona && agentSettings.persona.trim()) b.persona = agentSettings.persona.trim();
   return b;
 }
 function saveAgentSettings() {
   try { localStorage.setItem('novel_island_agent', JSON.stringify(agentSettings)); } catch (e) {}
+  applyTheme(agentSettings.theme);
 }
 function renderAgentPresets() {
   const wrap = document.getElementById('agentPresetList');
@@ -2882,11 +2975,33 @@ function renderAgentPresets() {
 }
 document.getElementById('btnAgentSettings').addEventListener('click', () => {
   document.getElementById('agentModelSel').value = agentSettings.model || '';
+  document.getElementById('agentComplexSel').value = agentSettings.complexModel || 'kimi-k2.6';
   document.getElementById('agentTempSlider').value = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
   document.getElementById('agentTempVal').textContent = String(agentSettings.temperature != null ? agentSettings.temperature : 0.8);
   document.getElementById('agentPersonaInput').value = agentSettings.persona || '';
   renderAgentPresets();
+  applyTheme(agentSettings.theme);
+  // 默认回到 Agent tab
+  document.querySelectorAll('#settingsTabs .settings-tab').forEach(function (t) { t.classList.remove('active'); });
+  document.querySelector('#settingsTabs .settings-tab[data-pane="agent"]').classList.add('active');
+  document.querySelectorAll('.settings-pane').forEach(function (pn) { pn.classList.remove('active'); });
+  document.getElementById('pane-agent').classList.add('active');
   document.getElementById('agentSettingsModal').classList.add('show');
+});
+// 设置 tab 切换
+document.getElementById('settingsTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.settings-tab');
+  if (!btn) return;
+  document.querySelectorAll('#settingsTabs .settings-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.settings-pane').forEach(pn => pn.classList.remove('active'));
+  document.getElementById('pane-' + btn.dataset.pane).classList.add('active');
+});
+// 主题选择（即时生效）
+document.getElementById('themeGrid').addEventListener('click', e => {
+  const card = e.target.closest('.theme-card');
+  if (!card) return;
+  applyTheme(card.dataset.theme);
 });
 document.getElementById('btnSavePreset').addEventListener('click', () => {
   const name = document.getElementById('agentPresetName').value.trim();
@@ -2903,19 +3018,24 @@ document.getElementById('agentTempSlider').addEventListener('input', e => {
 });
 document.getElementById('btnAgentSettingsSave').addEventListener('click', () => {
   agentSettings.model = document.getElementById('agentModelSel').value || '';
+  agentSettings.complexModel = document.getElementById('agentComplexSel').value || 'kimi-k2.6';
   agentSettings.temperature = parseFloat(document.getElementById('agentTempSlider').value) || 0.8;
   agentSettings.persona = document.getElementById('agentPersonaInput').value.trim();
+  const activeTheme = document.querySelector('#themeGrid .theme-card.active');
+  agentSettings.theme = activeTheme ? activeTheme.dataset.theme : 'default';
   saveAgentSettings();
   document.getElementById('agentSettingsModal').classList.remove('show');
 });
 document.getElementById('btnAgentSettingsReset').addEventListener('click', () => {
-  agentSettings = { model: '', temperature: 0.8, persona: '', presets: agentSettings.presets || [] };
+  agentSettings = { model: '', complexModel: 'kimi-k2.6', temperature: 0.8, persona: '', presets: agentSettings.presets || [], theme: 'default' };
   saveAgentSettings();
   document.getElementById('agentSettingsModal').classList.remove('show');
 });
 document.getElementById('agentSettingsModal').addEventListener('click', e => {
   if (e.target === document.getElementById('agentSettingsModal')) document.getElementById('agentSettingsModal').classList.remove('show');
 });
+// 初始化应用已保存主题
+applyTheme(agentSettings.theme);
 
 // ===== 多会话切换（对话历史分组 / 对比不同对话效果）=====
 async function renderChatSessions() {
