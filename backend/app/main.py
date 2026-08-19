@@ -470,34 +470,46 @@ def _detect_character_names(text: str) -> list:
     return uniq[:5]
 
 
-AUTO_BOOK_PROMPT = """你是「小说岛」的建书助手。作者在对话里已经聊出了一些创作想法，请从中提取建书信息。
+AUTO_BOOK_PROMPT = """你是「小说岛」的建书助手。作者在对话里已经聊出了一些创作想法，请判断是否已经可以开书，并提取建书信息。
 
 对话历史（作者说的话）：
 {history}
 
+判断标准（满足任一即 ready=true）：
+- 出现了明确书名（如"书名观南嘉措"）
+- 出现了明确角色名（如"主角叫江观南"）
+- 有清晰的主角/女主/男主设定描述（如"女主是美妆博主，性格很强硬"——没名字也算）
+- 有题材 + 至少一条具体设定（如"都市文，主角是律师"）
+- 作者粘贴了大段素材/正文（明显是作品内容）
+
 请输出 JSON：{{
-  "title": "书名（对话中明确出现的书名；没有明确书名就输出空字符串 ''，不要编造）",
+  "ready": true或false,
+  "title": "书名（明确书名；没有就空字符串 ''，不要编造）",
   "genre": "题材（如 都市/奇幻/悬疑，没有就空）",
-  "characters": ["角色名列表（对话中明确出现的作品角色，如 江观南；不要把'我/她/主角'这类代词当角色）"]
+  "characters": ["角色名列表（明确出现的角色名；没有名字就空数组）"]
 }}
 只输出 JSON。"""
 
 
-def _auto_create_book(session_id: str) -> int | None:
-    """从会话历史自动建书（出现角色或明确书名时调用）。返回 novel_id；失败/已建过返回 None"""
+def _auto_create_book(session_id: str, current_query: str = "") -> int | None:
+    """从会话历史自动建书（LLM 判断已有足够建书信息时调用）。返回 novel_id；失败/已建过返回 None"""
     if session_id in _AUTO_BOOKED:
         return None
     memory = memory_manager.get_memory(None, session_id)
     hist = memory.get_context()
     user_msgs = [m["content"] for m in hist if m.get("role") == "user"]
+    # 当前轮还没写入记忆，需并入判断
+    if current_query and current_query.strip():
+        user_msgs.append(current_query.strip())
     if not user_msgs:
         return None
     joined = "；".join(user_msgs[-10:])
-    # LLM 抽取书名/题材/角色（规则检测短语误报太多，改 LLM 一次性抽取）
-    title, genre, characters = "", "", []
+    # 触发条件扩展：单条大段素材（>80字）直接视为作品内容 → 开书入库
+    is_material = any(len(m) > 80 for m in user_msgs[-3:])
+    title, genre, characters, ready = "", "", [], False
     try:
         import json as _json
-        out = chat(AUTO_BOOK_PROMPT.format(history=joined[-600:]), "请建书。",
+        out = chat(AUTO_BOOK_PROMPT.format(history=joined[-600:]), "请判断并建书。",
                    temperature=0.2, max_tokens=250, task="extract")
         out = out.strip()
         if out.startswith("```"):
@@ -505,20 +517,21 @@ def _auto_create_book(session_id: str) -> int | None:
             if out.startswith("json"):
                 out = out[4:]
         data = _json.loads(out)
+        ready = bool(data.get("ready"))
         title = (data.get("title") or "").strip()
         genre = (data.get("genre") or "").strip()
         characters = [c.strip() for c in (data.get("characters") or []) if c and c.strip()]
     except Exception as e:
         print(f"[auto_book] 抽取失败: {e}")
-    # 触发条件：明确书名 OR 明确角色，任一即可开书；都没有 → 等作者继续聊
-    if not title and not characters:
+    # 触发条件：大段素材 OR LLM 判断 ready；都不满足 → 等作者继续聊
+    if not (is_material or ready):
         return None
-    # 书名缺省：用主角名兜底
+    # 书名缺省：用主角名或"未命名"兜底
     if not title:
         title = characters[0] if characters else "未命名"
     novel_id = novel_store.create_novel(title, 0, 0, genre)
     _AUTO_BOOKED.add(session_id)
-    print(f"[auto_book] session={session_id} 自动建书: 《{title}》({genre}) novel_id={novel_id}, 角色={characters}")
+    print(f"[auto_book] session={session_id} 自动建书: 《{title}》({genre}) novel_id={novel_id}, 角色={characters}, material={is_material}")
     # 把设定文本入库（带角色名提示，提升实体抽取质量）
     try:
         material = joined
@@ -533,6 +546,27 @@ def _auto_create_book(session_id: str) -> int | None:
 def _home_session_booked(session_id: str) -> bool:
     """该会话是否已自动建库（进程内标记，防重复建书）"""
     return session_id in _AUTO_BOOKED
+
+
+def _auto_create_book_from_material(material: str, session_id: str) -> int | None:
+    """无项目拖入素材时：直接自动建书（书名取素材首句前几字）并入库素材"""
+    if session_id in _AUTO_BOOKED:
+        return None
+    text = material.strip()
+    if not text:
+        return None
+    # 书名：取素材首句前 8 字（去掉标点）作临时名
+    import re as _re
+    first = _re.split(r"[。\n！？!?]", text)[0].strip()
+    title = first[:8] if first else "未命名"
+    novel_id = novel_store.create_novel(title, 0, 0, "")
+    _AUTO_BOOKED.add(session_id)
+    print(f"[auto_book] session={session_id} 素材自动建书: 《{title}》 novel_id={novel_id}")
+    try:
+        ingest_material(text, novel_id)
+    except Exception as e:
+        print(f"[auto_book] 素材入库失败: {e}")
+    return novel_id
 
 
 def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
@@ -768,10 +802,12 @@ def _empty_kb_stream_or_dict(req):
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
-    # ===== 对话式建库：素材解析入库（仅项目上下文；无项目走 LLM 引导）=====
+    # ===== 对话式建库：素材解析入库 =====
     if req.material and req.material.strip():
         if req.novel_id is None:
-            # 无项目收到素材：LLM 说明需要先建书（不硬编码）
+            # 无项目收到素材：自动建书（书名取素材前几字/未命名）并入库素材
+            if not _home_session_booked(req.session_id):
+                _auto_create_book_from_material(req.material, req.session_id)
             return {"answer": _llm_no_project_reply(f"我拖了一段素材进来：{req.material[:80]}…", session_id=req.session_id), "sources": []}
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
@@ -798,7 +834,7 @@ def ask(req: AskRequest):
             return _no_project_stream_or_dict(req, _llm_no_project_critic)
         # 对话式自动建库：作者已聊出角色但本会话还没建书 → 自动开书并入库
         if not _home_session_booked(req.session_id):
-            auto_nid = _auto_create_book(req.session_id)
+            auto_nid = _auto_create_book(req.session_id, current_query=req.query)
             if auto_nid:
                 # 建书成功：本次回复告知用户，后续轮次按项目走
                 return _no_project_stream_or_dict(req, _llm_no_project_booked_reply)
