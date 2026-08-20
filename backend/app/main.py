@@ -621,9 +621,8 @@ def ask(req: AskRequest):
             return {"answer": fallback_inspiration(req.query), "sources": [], "degraded": True}
         return {"answer": "知识库服务暂时不可用，回答可能不准确。请稍后再试，或换个问法。", "sources": [], "degraded": True}
 
-    # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
-    # 里程碑17：按 novel_id 存（切换项目历史不串）
-    memory_manager.get_memory(req.novel_id, req.session_id).add_turn(req.query, result["agent_response"])
+    # P2-6 节点独立化：短期记忆写入已由状态机内的 MemoryUpdateNode 完成
+    # （add_turn → 内存 + SQLite 落库 + 摘要评估），此处不再重复写
     # 创作页对话 → 增量入库当前项目（与首页路径一致）
     _sync_project_chat_to_kb(req.novel_id, req.session_id)
 

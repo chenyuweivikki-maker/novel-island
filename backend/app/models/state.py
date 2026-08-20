@@ -37,6 +37,7 @@ class NovelIslandState(TypedDict):
     model: str = ""                       # Agent 设置：模型覆盖（空=按 task 自动路由）
     complex_model: str = ""               # Agent 设置：高阶推理模型覆盖（逻辑批判等）
     current_intent: str                   # fact_qa | logic_critique | inspiration | companion
+    history_messages: list                # P2-6：MemoryRetrievalNode 组装的短期记忆上下文（含摘要压缩）
     retrieved_chunks: List[dict]          # 检索结果
     reranked_chunks: List[dict]           # 重排序后结果
     agent_response: str

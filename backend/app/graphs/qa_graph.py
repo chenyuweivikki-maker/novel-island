@@ -36,6 +36,8 @@ from langgraph.graph import StateGraph, END
 
 from ..models.state import NovelIslandState
 from ..nodes.qa_nodes import (
+    MemoryRetrievalNode,
+    MemoryUpdateNode,
     RetrieveNode,
     IntentRouterNode,
     AgentNode,
@@ -71,6 +73,7 @@ def build_qa_graph():
     graph = StateGraph(NovelIslandState)
 
     # 1. 加节点
+    graph.add_node("memory_retrieve", MemoryRetrievalNode())  # P2-6：对话开端，组装短期记忆
     graph.add_node("retrieve", RetrieveNode())
     graph.add_node("intent_router", IntentRouterNode())
     graph.add_node("agent", AgentNode())
@@ -79,9 +82,11 @@ def build_qa_graph():
     graph.add_node("logic_critique", LogicCritiqueNode())
     graph.add_node("character_critic", CharacterCriticNode())
     graph.add_node("companion", CompanionNode())  # Phase 0：情感陪伴
+    graph.add_node("memory_update", MemoryUpdateNode())  # P2-6：对话末端，写入短期记忆
 
-    # 2. 连边
-    graph.set_entry_point("retrieve")
+    # 2. 连边：入口先取短期记忆（MemoryRetrievalNode），再走检索
+    graph.set_entry_point("memory_retrieve")
+    graph.add_edge("memory_retrieve", "retrieve")
     graph.add_edge("retrieve", "intent_router")
 
     # 3. 条件边：intent_router 之后，根据路由函数返回值分流
@@ -105,26 +110,22 @@ def build_qa_graph():
     graph.add_edge("agent", "hallucination_critic")
 
     # 5. 质检后的条件边（循环回边）：
-    #    pass: true → end
-    #    pass: false 且有重试次数 → 打回 agent（循环）
+    #    pass: true → 记忆更新 → end；pass: false 且有重试次数 → 打回 agent（循环）
     graph.add_conditional_edges(
         "hallucination_critic",
         route_after_critic,
         {
             "agent": "agent",
-            "end": END,
+            "end": "memory_update",
         },
     )
 
-    # 6. 灵感分支直接结束（不质检）
-    graph.add_edge("multi_hop_inspiration", END)
-
-    # 7. 里程碑13：逻辑/人设检查分支直接结束（质检类节点，输出即结论）
-    graph.add_edge("logic_critique", END)
-    graph.add_edge("character_critic", END)
-
-    # 8. Phase 0：陪伴分支直接结束（PRD 后期可加 CharacterCritic 质检，保持人设）
-    graph.add_edge("companion", END)
+    # 6-8. 各分支统一汇合到 memory_update（P2-6：对话末端写短期记忆）→ end
+    graph.add_edge("multi_hop_inspiration", "memory_update")
+    graph.add_edge("logic_critique", "memory_update")
+    graph.add_edge("character_critic", "memory_update")
+    graph.add_edge("companion", "memory_update")
+    graph.add_edge("memory_update", END)
 
     # 9. 编译
     return graph.compile()

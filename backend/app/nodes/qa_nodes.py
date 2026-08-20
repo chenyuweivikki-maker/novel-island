@@ -16,6 +16,49 @@ from ..models.state import NovelIslandState
 from ..tools.kb_tools import AVAILABLE_TOOLS, TOOL_EXECUTORS
 
 
+class MemoryRetrievalNode:
+    """短期记忆检索节点 — P2-6 记忆系统独立化（PRD MemoryRetrievalNode）
+
+    位于对话链路开端：从短期记忆（对话历史，按 novel_id + session_id 分组）取上下文，
+    组装进 state['history_messages'] 供后续节点使用。历史超长时 get_context()
+    自动触发摘要压缩（PRD SummarizationNode 的职责，内联在此）。
+    """
+
+    name = "memory_retrieve"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        memory = memory_manager.get_memory(
+            state.get("novel_id"), state.get("session_id") or "default"
+        )
+        history = memory.get_context()
+        return {
+            "history_messages": list(history),
+            "current_step": self.name,
+        }
+
+
+class MemoryUpdateNode:
+    """记忆更新节点 — P2-6 记忆系统独立化（PRD MemoryUpdateNode）
+
+    位于对话链路末端（所有分支汇合后）：把本轮对话写入短期记忆
+    （add_turn → 写内存 + SQLite 落库），并触发一次摘要评估
+    （get_context() 超长自动压缩，PRD SummarizationNode 的职责）。
+    """
+
+    name = "memory_update"
+
+    def __call__(self, state: NovelIslandState) -> Dict[str, Any]:
+        query = state.get("user_query", "")
+        response = state.get("agent_response", "")
+        if query and response:
+            memory = memory_manager.get_memory(
+                state.get("novel_id"), state.get("session_id") or "default"
+            )
+            memory.add_turn(query, response)
+            memory.get_context()  # 触发摘要评估（超长自动压缩）
+        return {"current_step": self.name}
+
+
 class RetrieveNode:
     """检索节点：从知识库召回 Top-K 片段，写入 state['retrieved_chunks']"""
 
@@ -499,11 +542,9 @@ class AgentNode:
                 + "\n".join(f"- {i}" for i in state["critic_issues"])
             )
 
-        # 里程碑6：读取短期记忆（对话历史），拼进 prompt
-        # 里程碑17：按 novel_id 取记忆（切换项目历史不串）
-        # 里程碑：按 session_id 分组（同一本书可开多组对话便于对比）
-        # 如果历史超长，get_context 会自动做摘要压缩
-        history = memory_manager.get_memory(state.get("novel_id"), state.get("session_id") or "default").get_context()
+        # P2-6 节点独立化：短期记忆上下文由 MemoryRetrievalNode 提前组装进
+        # state['history_messages']（含超长自动摘要压缩），这里直接取用
+        history = state.get("history_messages") or []
         # 里程碑6修复：messages 必须以 system 开头（OpenAI协议要求）
         context_messages = [{'role': 'system', 'content': AGENT_SYSTEM_PROMPT}] + list(history)
         # 把"新问题+质检反馈"作为最后一条 user 消息
