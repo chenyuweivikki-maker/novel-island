@@ -151,6 +151,14 @@ def _llm_no_project_inspiration(query: str, novel_id: int | None = None, brief: 
     system = NO_PROJECT_INSPIRATION_PROMPT.format(history=history)
     if persona and persona.strip():
         system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
+    # 程序性记忆注入：作者近期的采纳/拒绝偏好（避开被拒方向，优先被采纳方向）
+    try:
+        from ..core.procedural_memory import preference_summary
+        pref = preference_summary(novel_id)
+        if pref:
+            system += f"\n\n【作者偏好参考】{pref}\n（推荐时避开作者拒绝过的方向，优先作者采纳过的方向）"
+    except Exception as e:
+        print(f"[memory] 偏好注入失败: {e}")
     try:
         reply = chat(
             system,

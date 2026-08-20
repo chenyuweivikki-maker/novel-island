@@ -225,10 +225,27 @@ function feedbackMsg(mid, kind, ev) {
   if (kind === 'good') {
     goodBtn.classList.add('feedback-on'); badBtn.classList.remove('feedback-on');
     trackEvent('accept_suggestion', { suggestion_type: 'qa', agent_source: 'fact_qa' });
+    reportFeedback('accept', mid);
   } else {
     badBtn.classList.add('feedback-on'); goodBtn.classList.remove('feedback-on');
     trackEvent('reject_suggestion', { feedback_reason: 'user_feedback', agent_source: 'fact_qa' });
+    reportFeedback('reject', mid);
   }
+}
+// 程序性记忆（PRD 四层记忆之四）：把用户对建议的采纳/拒绝上报，用于优化后续推荐
+function reportFeedback(feedback, mid) {
+  try {
+    const msg = (messages || []).find(m => m.id === mid);
+    const suggestion = (msg && msg.text ? msg.text : '').slice(0, 60);
+    if (!suggestion) return;
+    fetch(API_BASE + '/api/memory/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        novel_id: currentNovelId, session_id: sessionId,
+        suggestion_type: 'suggestion', suggestion: suggestion, feedback: feedback,
+      }),
+    }).catch(() => {});
+  } catch (e) {}
 }
 // 前端埋点统一入口
 function trackEvent(event, props) {
@@ -969,7 +986,7 @@ async function doPolish(text, style) {
     document.getElementById('polishNew').textContent = '润色失败: ' + e.message;
   }
 }
-document.getElementById('btnPolishCancel').addEventListener('click', () => document.getElementById('polishModal').classList.remove('show'));
+// btnPolishCancel 的绑定在下方（含程序性记忆上报）
 document.getElementById('btnPolishRegen').addEventListener('click', () => {
   const text = document.getElementById('polishOrig').textContent;
   document.getElementById('polishNew').textContent = 'AI 正在重新润色…';
@@ -991,6 +1008,31 @@ document.getElementById('btnPolishAccept').addEventListener('click', () => {
   mask.classList.remove('show');
   document.getElementById('saveResult').textContent = '✓ 已采纳润色结果';
   document.getElementById('btnPolishSel').style.display = 'none';
+  // 程序性记忆：采纳润色 → 记录偏好（后续润色/推荐参考）
+  try {
+    fetch(API_BASE + '/api/memory/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        novel_id: currentNovelId, session_id: sessionId,
+        suggestion_type: 'polish', suggestion: '润色风格：' + ((polishTarget && polishTarget.style) || '默认').slice(0, 40),
+        feedback: 'accept',
+      }),
+    }).catch(() => {});
+  } catch (e) {}
+});
+document.getElementById('btnPolishCancel').addEventListener('click', () => {
+  // 程序性记忆：放弃润色 → 记录拒绝
+  try {
+    fetch(API_BASE + '/api/memory/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        novel_id: currentNovelId, session_id: sessionId,
+        suggestion_type: 'polish', suggestion: '润色风格：' + ((polishTarget && polishTarget.style) || '默认').slice(0, 40),
+        feedback: 'reject',
+      }),
+    }).catch(() => {});
+  } catch (e) {}
+  document.getElementById('polishModal').classList.remove('show');
 });
 
 // ===== 卡文检测（P5：编辑停顿超 5 分钟 → 弹窗求助） =====

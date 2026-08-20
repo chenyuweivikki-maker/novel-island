@@ -162,8 +162,17 @@ def execute_brainstorm_plot_ideas(current_context: str, direction: str = "", nov
             + "。每个方向 2-4 句话，给出具体情节构思而非泛泛建议。\n\n"
             f"--- 已有内容 ---\n{ctx or '（暂无检索结果）'}\n\n--- 当前卡点 ---\n{current_context}"
         )
+        system = "你是资深网文作者的创作搭子，擅长给出具体、可落地、不套路的情节方向。分点输出。"
+        # 程序性记忆注入：作者近期的采纳/拒绝偏好（避开被拒方向，优先被采纳方向）
+        try:
+            from ..core.procedural_memory import preference_summary
+            pref = preference_summary(novel_id)
+            if pref:
+                system += f"\n\n【作者偏好参考】{pref}\n（推荐时避开作者拒绝过的方向，优先作者采纳过的方向）"
+        except Exception as e:
+            print(f"[memory] 偏好注入失败: {e}")
         answer = chat(
-            "你是资深网文作者的创作搭子，擅长给出具体、可落地、不套路的情节方向。分点输出。",
+            system,
             prompt, temperature=0.8, max_tokens=1200, task="inspire",
         )
         return {"ideas": answer.strip()}

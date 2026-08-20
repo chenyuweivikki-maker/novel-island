@@ -29,6 +29,7 @@ from .core.novel_store import novel_store
 from .core.inspiration_store import inspiration_store
 from .core.community_store import community_store
 from .core.semantic_cache import semantic_cache
+from .core.procedural_memory import record_feedback, preference_summary
 from .core.tracking import tracking, new_session_id
 from .core.fallback_templates import fallback_inspiration
 from .core.writing_report import generate_writing_report
@@ -245,6 +246,15 @@ class PolishRequest(BaseModel):
     text: str
     style: str = "保持作者原有风格，轻度润色"  # 目标风格描述
     intensity: float = 0.5  # 0=保守 1=大胆
+
+
+class MemoryFeedbackRequest(BaseModel):
+    """程序性记忆：用户对 AI 建议的反馈（采纳/拒绝）"""
+    novel_id: int | None = None
+    session_id: str = ""
+    suggestion_type: str = "generic"  # suggestion / inspiration / polish
+    suggestion: str = ""
+    feedback: str = "accept"          # accept / reject
 
 
 # ===== 写作后分析请求模型（P3-1 DataAnalyst）=====
@@ -1040,6 +1050,20 @@ def polish_text(req: PolishRequest):
         return {"polished": result.strip()}
     except Exception as e:
         return {"error": f"润色失败: {e}"}
+
+
+@app.post("/api/memory/feedback")
+def memory_feedback(req: MemoryFeedbackRequest):
+    """程序性记忆（PRD 四层记忆之四）：记录用户对 AI 建议的采纳/拒绝，
+    后续灵感/剧情推荐会参考（避开被拒绝的方向，优先被采纳的方向）。"""
+    record_feedback(req.novel_id, req.session_id, req.suggestion_type, req.suggestion, req.feedback)
+    return {"success": True}
+
+
+@app.get("/api/memory/preferences")
+def memory_preferences(novel_id: int | None = None):
+    """程序性记忆偏好摘要（供前端调试/展示；推荐注入在服务端自动完成）"""
+    return {"preferences": preference_summary(novel_id)}
 
 
 # ===== 写作后智能分析 API（P3-1 DataAnalyst Agent：历史诊断 + 市场机会 + 策略建议）=====
