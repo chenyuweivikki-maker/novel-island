@@ -150,14 +150,23 @@ async function renderChatSessions() {
       list.innerHTML = '<div class="side-item hide-when-collapsed" style="cursor:default;color:var(--text-3)">还没有对话，点下方＋新建</div>';
       return;
     }
-    let itemsHtml = homeSessions.map(s => `
-      <div class="side-item ${s.session_id === sessionId ? 'active' : ''}" data-session="${escAttr(s.session_id)}" title="${escAttr(s.last_msg || '')}">
+    const itemHtml = (s, archived) => `
+      <div class="side-item ${s.session_id === sessionId ? 'active' : ''} ${archived ? 'archived' : ''}" data-session="${escAttr(s.session_id)}" title="${escAttr(s.last_msg || '')}">
         <span class="hide-when-collapsed side-title">${esc((s.title || s.last_msg || '新对话').slice(0, 14))}</span>
+        <span class="hide-when-collapsed meta">${s.pinned ? '📌' : ''}</span>
         <span class="hide-when-collapsed session-ops">
-          <button class="del-session" data-export="${escAttr(s.session_id)}" title="导出对话">⤓</button>
-          <button class="del-session" data-del="${escAttr(s.session_id)}" title="删除该对话">×</button>
+          <button class="del-session side-menu-btn" data-menu="${escAttr(s.session_id)}" title="管理对话">⋮</button>
         </span>
-      </div>`).join('');
+      </div>`;
+    // 分组：置顶 + 活跃在前，归档移到底部「归档」分组
+    const active = homeSessions.filter(s => !s.archived);
+    const archived = homeSessions.filter(s => s.archived);
+    const sortActive = [...active].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    let itemsHtml = sortActive.map(s => itemHtml(s, false)).join('');
+    if (archived.length) {
+      itemsHtml += '<div class="side-group hide-when-collapsed">归档</div>' +
+        archived.map(s => itemHtml(s, true)).join('');
+    }
     // 本地占位：新会话还没落库（ensure 未回 / 失败）也要立刻出现在列表顶部，置顶高亮
     if (pendingSessionTitle && !inList) {
       itemsHtml = `<div class="side-item active" data-session="${escAttr(sessionId)}" title="${escAttr(pendingSessionTitle)}">
@@ -167,44 +176,87 @@ async function renderChatSessions() {
     list.innerHTML = itemsHtml;
     list.querySelectorAll('.side-item[data-session]').forEach(item => {
       item.addEventListener('click', e => {
-        if (e.target.classList.contains('del-session')) return;
+        if (e.target.classList.contains('del-session') || e.target.classList.contains('side-menu-btn')) return;
         switchChatSession(item.dataset.session);
       });
       // 双击改名
       item.addEventListener('dblclick', e => {
         if (e.target.classList.contains('del-session')) return;
-        const sid = item.dataset.session;
-        const curEl = item.querySelector('.side-title');
-        const cur = curEl ? curEl.textContent : '';
-        const name = prompt('重命名这段对话：', cur);
-        if (name == null) return;
-        const trimmed = name.trim();
-        if (!trimmed) return;
-        apiCall('/api/chat/session/rename', { scope: 'home', session_id: sid, title: trimmed })
-          .then(() => renderChatSessions())
-          .catch(err => alert('重命名失败: ' + err.message));
+        renameSessionDialog(item.dataset.session);
       });
     });
-    list.querySelectorAll('.del-session[data-export]').forEach(btn => {
+    // ⋮ 管理菜单（仿 DSH：重命名 / 置顶 / 归档 / 导出 / 删除）
+    list.querySelectorAll('.side-menu-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        exportSession(btn.dataset.export);
-      });
-    });
-    list.querySelectorAll('.del-session').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        e.stopPropagation();
-        const sid = btn.dataset.del;
-        if (!confirm('删除这段对话？历史记录将清空。')) return;
-        try {
-          await fetch(`${API_BASE}/api/chat/session?scope=home&session_id=${encodeURIComponent(sid)}`, { method: 'DELETE' });
-          if (sid === sessionId) newChatSession();
-          renderChatSessions();
-        } catch (err) { alert('删除失败: ' + err.message); }
+        const sid = btn.dataset.menu;
+        const item = list.querySelector('.side-item[data-session="' + sid + '"]');
+        const s = homeSessions.find(x => x.session_id === sid) || {};
+        openSessionMenu(btn, sid, s);
       });
     });
   } catch (e) { console.error(e); }
 }
+let sessionMenuEl = null;
+function closeSessionMenu() {
+  if (sessionMenuEl) { sessionMenuEl.remove(); sessionMenuEl = null; }
+  document.removeEventListener('click', closeSessionMenu);
+}
+function openSessionMenu(anchor, sid, s) {
+  closeSessionMenu();
+  const menu = document.createElement('div');
+  menu.className = 'session-menu';
+  const item = (label, fn) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      closeSessionMenu();
+      fn();
+    });
+    return b;
+  };
+  menu.appendChild(item('✏️ 重命名', () => renameSessionDialog(sid)));
+  menu.appendChild(item(s.pinned ? '📌 取消置顶' : '📌 置顶', () =>
+    apiCall('/api/chat/session/flag', { scope: 'home', session_id: sid, pinned: !s.pinned })
+      .then(renderChatSessions).catch(err => alert('操作失败: ' + err.message))));
+  menu.appendChild(item(s.archived ? '📂 取消归档' : '🗄 归档', () =>
+    apiCall('/api/chat/session/flag', { scope: 'home', session_id: sid, archived: !s.archived })
+      .then(() => { if (sid === sessionId) newChatSession(); renderChatSessions(); })
+      .catch(err => alert('操作失败: ' + err.message))));
+  menu.appendChild(item('⤓ 导出对话', () => exportSession(sid)));
+  menu.appendChild(item('🗑 删除对话', () => deleteSessionDialog(sid)));
+  document.body.appendChild(menu);
+  // 定位在按钮下方（右对齐）
+  const r = anchor.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = Math.min(r.right - 160, window.innerWidth - 180) + 'px';
+  menu.style.top = (r.bottom + 4) + 'px';
+  sessionMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeSessionMenu), 0);
+}
+function renameSessionDialog(sid) {
+  const item = document.querySelector('.side-item[data-session="' + sid + '"]');
+  const cur = item ? (item.querySelector('.side-title') || {}).textContent : '';
+  const name = prompt('重命名这段对话：', cur);
+  if (name == null) return;
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  apiCall('/api/chat/session/rename', { scope: 'home', session_id: sid, title: trimmed })
+    .then(() => renderChatSessions())
+    .catch(err => alert('重命名失败: ' + err.message));
+}
+function deleteSessionDialog(sid) {
+  if (!confirm('删除这段对话？历史记录将清空。')) return;
+  fetch(`${API_BASE}/api/chat/session?scope=home&session_id=${encodeURIComponent(sid)}`, { method: 'DELETE' })
+    .then(() => {
+      if (sid === sessionId) newChatSession();
+      renderChatSessions();
+    })
+    .catch(err => alert('删除失败: ' + err.message));
+}
+
+
 function switchChatSession(sid) {
   if (!sid) return;
   sessionId = sid;

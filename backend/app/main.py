@@ -1354,6 +1354,24 @@ def chat_session_rename(req: ChatSessionRenameRequest):
     return {"success": True}
 
 
+class ChatSessionFlagRequest(BaseModel):
+    """会话管理标记：归档 / 置顶（仿 DSH 对话管理）"""
+    scope: str = "home"
+    session_id: str
+    archived: bool = False
+    pinned: bool = False
+
+
+@app.post("/api/chat/session/flag")
+def chat_session_flag(req: ChatSessionFlagRequest):
+    """设置会话标记：归档（软归档：消息保留在库中，列表移入归档分组，可随时恢复）/ 置顶。
+    归档保存位置：仍在 chat_history 表内（archived=1 标记），不删除任何数据。
+    """
+    memory_manager.set_session_flag(req.scope, req.session_id, "archived", req.archived)
+    memory_manager.set_session_flag(req.scope, req.session_id, "pinned", req.pinned)
+    return {"success": True}
+
+
 # ===== 启动 =====
 if __name__ == "__main__":
     import uvicorn

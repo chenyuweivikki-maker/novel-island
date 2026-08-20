@@ -63,6 +63,11 @@ def _history_conn() -> sqlite3.Connection:
     # 迁移：synced 列（对话内容增量入库知识库的标记：1=已入库，0=待入库）
     if "synced" not in cols:
         conn.execute("ALTER TABLE chat_history ADD COLUMN synced INTEGER DEFAULT 0")
+    # 迁移：archived/pinned 列（会话归档与置顶标记）
+    if "archived" not in cols:
+        conn.execute("ALTER TABLE chat_history ADD COLUMN archived INTEGER DEFAULT 0")
+    if "pinned" not in cols:
+        conn.execute("ALTER TABLE chat_history ADD COLUMN pinned INTEGER DEFAULT 0")
     conn.commit()
     return conn
 
@@ -218,7 +223,7 @@ class MemoryManager:
 
     def list_sessions(self) -> List[Dict[str, object]]:
         """列出所有对话组（供前端对比不同对话）：
-        每个会话组返回：scope / session_id / 消息数 / 最后消息时间 / 最后消息预览
+        每个会话组返回：scope / session_id / 消息数 / 最后消息时间 / 标题 / 最后消息预览 / archived / pinned
         system 占位行（ensure_session 的空会话）不计入消息数，也不作为最后消息/标题。
         """
         try:
@@ -238,7 +243,8 @@ class MemoryManager:
                 ") AS title, "
                 "(SELECT content FROM chat_history h2 WHERE h2.scope = h.scope "
                 "   AND h2.session_id = h.session_id AND h2.role != 'system' "
-                " ORDER BY h2.id DESC LIMIT 1) AS last_msg "
+                " ORDER BY h2.id DESC LIMIT 1) AS last_msg, "
+                "MAX(archived) AS archived, MAX(pinned) AS pinned "
                 "FROM chat_history h GROUP BY scope, session_id ORDER BY last_at DESC"
             ).fetchall()
             conn.close()
@@ -250,12 +256,29 @@ class MemoryManager:
                     "last_at": r[3],
                     "title": r[4] or "",
                     "last_msg": (r[5] or "")[:80],
+                    "archived": bool(r[6]),
+                    "pinned": bool(r[7]),
                 }
                 for r in rows
             ]
         except Exception as e:
             print(f"[memory] 会话列表失败: {e}")
             return []
+
+    def set_session_flag(self, scope: str, session_id: str, flag: str, value: bool) -> None:
+        """设置会话级标记：archived（归档）/ pinned（置顶）——写该会话所有行"""
+        if flag not in ("archived", "pinned"):
+            return
+        try:
+            conn = _history_conn()
+            conn.execute(
+                f"UPDATE chat_history SET {flag} = ? WHERE scope = ? AND session_id = ?",
+                (1 if value else 0, scope, session_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[memory] 会话{flag}失败: {e}")
 
     def rename_session(self, scope: str, session_id: str, title: str) -> None:
         """重命名会话组（把新标题写进该会话所有行的 title 字段）"""

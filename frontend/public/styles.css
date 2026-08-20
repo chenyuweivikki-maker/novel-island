@@ -1,4 +1,3 @@
-<style>
 /* ═══════════════════════════════════════════════════════════
    小说岛 · 设计系统（Figma 规范 v1.0 · 黑白极简 · 大气留白 · 温暖陪伴）
    变量与 Figma Variables 一一对应
@@ -118,7 +117,7 @@ input, textarea { font-family: inherit; }
 .works h2 { font-size: 24px; font-weight: 600; margin-right: 12px; }
 .seg { display: flex; padding: 4px; background: var(--surface-2); border-radius: 10px; gap: 4px; }
 .seg button { border: none; background: transparent; font-size: 13px; color: var(--text-2); padding: 7px 16px; border-radius: var(--radius-sm); transition: all .15s; }
-.seg button.active { background: var(--text); color: var(--on-primary); font-weight: 500; }
+.seg button.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 .works .spacer { flex: 1; }
 .works-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(277px, 1fr)); gap: 16px; }
 .novel-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color .15s; cursor: pointer; }
@@ -173,9 +172,9 @@ input, textarea { font-family: inherit; }
   font-size: 13.5px; color: var(--text-2); cursor: pointer; transition: background .12s; white-space: nowrap;
 }
 .side-item:hover { background: var(--surface-2); color: var(--text); }
-.side-item.active { background: var(--text); color: var(--on-primary); }
+.side-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 .side-item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
-.side-item.active .meta { color: rgba(255,255,255,.7); }
+.side-item.active .meta { color: var(--text-3); }
 .side-new {
   margin: 4px 8px; align-self: flex-start; border: 1px dashed var(--border-strong); background: transparent;
   color: var(--text-2); font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);
@@ -197,7 +196,7 @@ input, textarea { font-family: inherit; }
 .chat-head .title { font-size: 15px; font-weight: 600; }
 .pill { font-size: 11px; padding: 3px 10px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); color: var(--text-2); background: var(--surface); }
 .pill.companion { border-color: var(--text); color: var(--text); background: var(--surface-2); }
-.pill.active-pill { background: var(--text); color: #fff; border-color: var(--text); }
+.pill.active-pill { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); font-weight: 600; }
 /* 纯状态文本（非可点击按钮）：写作中/已完结等 */
 .status-label { font-size: 11px; color: var(--text-3); letter-spacing: .5px; user-select: none; }
 
@@ -289,7 +288,7 @@ input, textarea { font-family: inherit; }
 .char-list { width: 200px; flex-shrink: 0; border-right: 1px solid var(--border); padding-right: 16px; }
 .char-list .cl-item { padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13.5px; color: var(--text-2); margin-bottom: 2px; }
 .char-list .cl-item:hover { background: var(--surface-2); }
-.char-list .cl-item.active { background: var(--text); color: #fff; font-weight: 500; }
+.char-list .cl-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 .char-list .cl-new { margin-top: 12px; font-size: 13px; color: var(--text-3); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 8px; text-align: center; cursor: pointer; }
 .char-detail { flex: 1; display: flex; gap: 24px; min-width: 0; }
 .portrait-col { width: 240px; flex-shrink: 0; }
@@ -354,7 +353,7 @@ input, textarea { font-family: inherit; }
 .ws-title { font-size: 11px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; padding: 0 8px 10px; }
 .ws-item { padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-2); cursor: pointer; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ws-item:hover { background: var(--surface-2); color: var(--text); }
-.ws-item.active { background: var(--text); color: #fff; font-weight: 500; }
+.ws-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 .ws-empty { padding: 8px 10px; font-size: 12px; color: var(--text-3); }
 .write-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .we-top { display: flex; align-items: center; gap: 12px; padding: 20px 32px 4px; font-size: 15px; font-weight: 600; }
@@ -426,7 +425,7 @@ input, textarea { font-family: inherit; }
   padding: 5px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; transition: all .12s;
 }
 .settings-tab:hover { border-color: var(--text); color: var(--text); }
-.settings-tab.active { background: var(--text); color: var(--on-primary); border-color: var(--text); font-weight: 500; }
+.settings-tab.active { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); font-weight: 600; }
 .settings-pane { display: none; }
 .settings-pane.active { display: block; }
 .settings-hint { font-size: 11px; color: var(--text-3); line-height: 1.6; margin-top: 4px; }
@@ -485,7 +484,7 @@ input, textarea { font-family: inherit; }
   transition: background-color .12s, color .12s, border-color .12s;
 }
 .insp-cat:hover { border-color: var(--text); color: var(--text); }
-.insp-cat.active { background: var(--text); color: var(--on-primary); border-color: var(--text); }
+.insp-cat.active { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); font-weight: 600; }
 .insp-cat .cnt { font-size: 11px; opacity: .7; }
 .insp-cat .more {
   display: none; border: none; background: none; color: inherit; font-size: 13px;
@@ -570,7 +569,7 @@ input, textarea { font-family: inherit; }
   padding: 6px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; transition: all .12s;
 }
 .comm-tab:hover { border-color: var(--text); color: var(--text); }
-.comm-tab.active { background: var(--text); color: var(--on-primary); border-color: var(--text); font-weight: 500; }
+.comm-tab.active { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); font-weight: 600; }
 .comm-posts { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 860px; margin: 0 auto; width: 100%; }
 .comm-post {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -606,7 +605,7 @@ input, textarea { font-family: inherit; }
   padding: 6px 14px; font-size: 13px; color: var(--text-2); cursor: pointer;
 }
 .post-type:hover { border-color: var(--text); }
-.post-type.active { background: var(--text); color: var(--on-primary); border-color: var(--text); }
+.post-type.active { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); font-weight: 600; }
 .post-input {
   width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   padding: 10px 14px; font-size: 14px; outline: none; margin-bottom: 12px; box-sizing: border-box;
@@ -764,3 +763,16 @@ input, textarea { font-family: inherit; }
 @media (min-width: 901px) and (max-width: 1200px) {
   .write-ai { width: 360px; min-width: 0; }
 }
+/* ── 对话管理菜单（仿 DSH：⋮ 三点菜单） ── */
+.session-menu {
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 4px; min-width: 160px; z-index: 9999;
+}
+.session-menu button {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  font-size: 13px; color: var(--text); padding: 8px 12px; border-radius: 6px; cursor: pointer;
+}
+.session-menu button:hover { background: var(--surface-2); }
+.side-item.archived .side-title { color: var(--text-3); }
+.side-item.archived .meta { display: none; }
