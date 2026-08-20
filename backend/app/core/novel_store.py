@@ -19,9 +19,10 @@ from typing import List, Dict, Any, Optional
 class NovelStore:
     """SQLite 章节存储"""
 
-    def __init__(self, db_path: str = "data/novels.db"):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    def __init__(self, db_path: str = ""):
+        # 支持 NOVELS_DB 环境变量覆盖（与 memory.py 的 CHAT_HISTORY_DB 一致，测试可隔离库）
+        self.db_path = db_path or os.environ.get("NOVELS_DB", "data/novels.db")
+        os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -95,29 +96,68 @@ class NovelStore:
         cols = [row[1] for row in conn.execute("PRAGMA table_info(novels)").fetchall()]
         if "genre" not in cols:
             conn.execute("ALTER TABLE novels ADD COLUMN genre TEXT DEFAULT ''")
+        # 会话绑定（首页对话自动建的书 ↔ session_id，供对话提到书名时同步更新书名）：
+        # session_id — 该作品由哪个首页会话创建/绑定；title_auto — 书名是否自动兜底（1=可被对话总结覆盖，0=已明确命名）
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(novels)").fetchall()]
+        if "session_id" not in cols:
+            conn.execute("ALTER TABLE novels ADD COLUMN session_id TEXT DEFAULT ''")
+        if "title_auto" not in cols:
+            conn.execute("ALTER TABLE novels ADD COLUMN title_auto INTEGER DEFAULT 0")
         conn.commit()
         conn.close()
 
-    def create_novel(self, title: str, expected_words: int = 0, chapter_words: int = 0, genre: str = "") -> int:
-        """创建作品，返回 novel_id（sort_order 排在当前最后，里程碑18支持字数设置，题材可选）"""
+    def create_novel(self, title: str, expected_words: int = 0, chapter_words: int = 0, genre: str = "",
+                     session_id: str = "", title_auto: int = 0) -> int:
+        """创建作品，返回 novel_id（sort_order 排在当前最后，里程碑18支持字数设置，题材可选）
+        session_id：首页对话自动建书时绑定会话（对话提书名可同步更新）；title_auto：书名是否自动兜底。
+        """
         conn = self._get_conn()
         max_order = conn.execute("SELECT MAX(sort_order) AS m FROM novels").fetchone()["m"]
         next_order = (max_order or 0) + 1
         cur = conn.execute(
-            "INSERT INTO novels (title, created_at, sort_order, expected_words, chapter_words, genre) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, time.time(), next_order, expected_words, chapter_words, genre),
+            "INSERT INTO novels (title, created_at, sort_order, expected_words, chapter_words, genre, session_id, title_auto) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, time.time(), next_order, expected_words, chapter_words, genre, session_id, title_auto),
         )
         conn.commit()
         novel_id = cur.lastrowid
         conn.close()
         return novel_id
 
-    def update_novel_title(self, novel_id: int, title: str):
-        """重命名作品（里程碑17）"""
+    def update_novel_title(self, novel_id: int, title: str, title_auto: int | None = None):
+        """重命名作品（里程碑17）。title_auto 传入时同步更新书名状态（0=明确命名，1=自动兜底可覆盖）"""
         conn = self._get_conn()
-        conn.execute("UPDATE novels SET title = ? WHERE id = ?", (title, novel_id))
+        if title_auto is None:
+            conn.execute("UPDATE novels SET title = ? WHERE id = ?", (title, novel_id))
+        else:
+            conn.execute("UPDATE novels SET title = ?, title_auto = ? WHERE id = ?", (title, title_auto, novel_id))
         conn.commit()
         conn.close()
+
+    def get_novel_by_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """按首页会话 id 找它自动建的书（对话提书名 → 同步更新创作/我的作品）"""
+        if not session_id:
+            return None
+        conn = self._get_conn()
+        row = conn.execute("SELECT * FROM novels WHERE session_id = ? ORDER BY id DESC LIMIT 1", (session_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def set_session_binding(self, novel_id: int, session_id: str):
+        """把作品绑定到首页会话（老会话回填用）"""
+        conn = self._get_conn()
+        conn.execute("UPDATE novels SET session_id = ? WHERE id = ?", (session_id, novel_id))
+        conn.commit()
+        conn.close()
+
+    def get_most_recent_unbound(self) -> Optional[Dict[str, Any]]:
+        """最近一本未绑定会话的书（老会话回填：无映射时尽量续接，避免重复建书）"""
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT * FROM novels WHERE session_id = '' OR session_id IS NULL ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
 
     def update_novel_genre(self, novel_id: int, genre: str):
         """修改作品题材（「我的作品」页分类联动；传空串=清除题材，回到未分类）"""

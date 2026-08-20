@@ -13,6 +13,7 @@ v2 变更：对话历史落 SQLite（data/chat_history.db），服务重启不�
 
 核心逻辑：
   add_turn(user_msg, ai_msg)  — 存一轮对话（写内存 + 落库）
+  ensure_session(title)       — 会话占位：无记录时先建一条 system 空行（列表立刻可见，主流 AI 产品「一开聊就进列表」）
   get_context()               — 返回历史，超长时自动摘要压缩
   restore()                   — 启动时从 SQLite 恢复最近 N 轮
   list_sessions()             — 列出所有会话组（供前端对比）
@@ -59,7 +60,10 @@ def _history_conn() -> sqlite3.Connection:
     cols = [r[1] for r in conn.execute("PRAGMA table_info(chat_history)").fetchall()]
     if "title" not in cols:
         conn.execute("ALTER TABLE chat_history ADD COLUMN title TEXT DEFAULT ''")
-        conn.commit()
+    # 迁移：synced 列（对话内容增量入库知识库的标记：1=已入库，0=待入库）
+    if "synced" not in cols:
+        conn.execute("ALTER TABLE chat_history ADD COLUMN synced INTEGER DEFAULT 0")
+    conn.commit()
     return conn
 
 
@@ -81,10 +85,11 @@ class ConversationMemory:
         try:
             conn = _history_conn()
             now = time.time()
-            # 首次写入时自动生成默认标题（取首条用户消息前12字）
+            # 首次写入真实消息时自动生成默认标题（取首条用户消息前12字）
+            # 用 role='user' 判断而非总数：system 占位行（ensure_session）不算真实首条
             title = ""
             row = conn.execute(
-                "SELECT COUNT(*) AS n FROM chat_history WHERE scope = ? AND session_id = ?",
+                "SELECT COUNT(*) AS n FROM chat_history WHERE scope = ? AND session_id = ? AND role = 'user'",
                 (self.scope, self.session_id),
             ).fetchone()
             if row and row[0] == 0:
@@ -102,13 +107,34 @@ class ConversationMemory:
         except Exception as e:
             print(f"[memory] 历史落库失败: {e}")
 
+    def ensure_session(self, title: str = ""):
+        """会话占位（主流 AI 产品模式）：(scope, session_id) 尚无记录时，
+        先插入一条 role='system' 的空行，让会话立刻出现在会话列表（置顶、可点击），
+        后续 add_turn 写入真实消息后占位行自然被覆盖/忽略。幂等，可反复调用。
+        """
+        try:
+            conn = _history_conn()
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM chat_history WHERE scope = ? AND session_id = ?",
+                (self.scope, self.session_id),
+            ).fetchone()
+            if row and row[0] == 0:
+                conn.execute(
+                    "INSERT INTO chat_history (scope, session_id, role, content, created_at, title) VALUES (?, ?, ?, ?, ?, ?)",
+                    (self.scope, self.session_id, "system", "", time.time(), title or "新对话"),
+                )
+                conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[memory] 会话占位失败: {e}")
+
     def restore(self):
         """从 SQLite 恢复最近轮次（服务重启后上下文不丢）"""
         try:
             conn = _history_conn()
             rows = conn.execute(
                 "SELECT role, content FROM chat_history WHERE scope = ? AND session_id = ? "
-                "ORDER BY id DESC LIMIT ?",
+                "AND role != 'system' ORDER BY id DESC LIMIT ?",
                 (self.scope, self.session_id, RESTORE_TURNS * 2),
             ).fetchall()
             conn.close()
@@ -193,13 +219,25 @@ class MemoryManager:
     def list_sessions(self) -> List[Dict[str, object]]:
         """列出所有对话组（供前端对比不同对话）：
         每个会话组返回：scope / session_id / 消息数 / 最后消息时间 / 最后消息预览
+        system 占位行（ensure_session 的空会话）不计入消息数，也不作为最后消息/标题。
         """
         try:
             conn = _history_conn()
             rows = conn.execute(
-                "SELECT scope, session_id, COUNT(*) AS n, MAX(created_at) AS last_at, "
-                "MAX(title) AS title, "
-                "(SELECT content FROM chat_history h2 WHERE h2.scope = h.scope AND h2.session_id = h.session_id "
+                "SELECT scope, session_id, "
+                "SUM(CASE WHEN role != 'system' THEN 1 ELSE 0 END) AS n, "
+                "MAX(created_at) AS last_at, "
+                "COALESCE("
+                "  (SELECT h2.title FROM chat_history h2 "
+                "   WHERE h2.scope = h.scope AND h2.session_id = h.session_id "
+                "     AND h2.role != 'system' AND h2.title != '' "
+                "   ORDER BY h2.id DESC LIMIT 1), "
+                "  (SELECT h2.title FROM chat_history h2 "
+                "   WHERE h2.scope = h.scope AND h2.session_id = h.session_id "
+                "     AND h2.role = 'system' ORDER BY h2.id DESC LIMIT 1) "
+                ") AS title, "
+                "(SELECT content FROM chat_history h2 WHERE h2.scope = h.scope "
+                "   AND h2.session_id = h.session_id AND h2.role != 'system' "
                 " ORDER BY h2.id DESC LIMIT 1) AS last_msg "
                 "FROM chat_history h GROUP BY scope, session_id ORDER BY last_at DESC"
             ).fetchall()
@@ -233,12 +271,12 @@ class MemoryManager:
             print(f"[memory] 会话重命名失败: {e}")
 
     def get_session_history(self, scope: str, session_id: str, limit: int = 100) -> List[Dict[str, str]]:
-        """读取某个对话组的完整历史（供前端查看/对比）"""
+        """读取某个对话组的完整历史（供前端查看/对比）——跳过 system 占位行"""
         try:
             conn = _history_conn()
             rows = conn.execute(
                 "SELECT role, content, created_at FROM chat_history "
-                "WHERE scope = ? AND session_id = ? ORDER BY id DESC LIMIT ?",
+                "WHERE scope = ? AND session_id = ? AND role != 'system' ORDER BY id DESC LIMIT ?",
                 (scope, session_id, limit),
             ).fetchall()
             conn.close()
@@ -249,6 +287,51 @@ class MemoryManager:
         except Exception as e:
             print(f"[memory] 会话历史读取失败: {e}")
             return []
+
+    def get_unsynced_user_messages(self, session_id: str) -> List[Dict[str, object]]:
+        """该首页会话里尚未入库知识库的用户消息（对话增量入库：人设/关系/事件自动填充）"""
+        try:
+            conn = _history_conn()
+            rows = conn.execute(
+                "SELECT id, content FROM chat_history "
+                "WHERE scope = 'home' AND session_id = ? AND role = 'user' AND synced = 0 "
+                "ORDER BY id ASC",
+                (session_id,),
+            ).fetchall()
+            conn.close()
+            return [{"id": r[0], "content": r[1]} for r in rows]
+        except Exception as e:
+            print(f"[memory] 未同步消息读取失败: {e}")
+            return []
+
+    def mark_messages_synced(self, session_id: str, ids: List[int]) -> None:
+        """把消息标记为已入库知识库（防重复抽取）"""
+        if not ids:
+            return
+        try:
+            conn = _history_conn()
+            marks = ",".join("?" * len(ids))
+            conn.execute(
+                f"UPDATE chat_history SET synced = 1 WHERE scope = 'home' AND session_id = ? AND id IN ({marks})",
+                [session_id, *ids],
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[memory] 同步标记失败: {e}")
+
+    def mark_all_synced(self, session_id: str) -> None:
+        """把该会话所有消息标记为已入库（自动建书时历史已整体入库，防止下一轮重复抽取）"""
+        try:
+            conn = _history_conn()
+            conn.execute(
+                "UPDATE chat_history SET synced = 1 WHERE scope = 'home' AND session_id = ? AND role = 'user'",
+                (session_id,),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[memory] 全部同步标记失败: {e}")
 
 
 memory_manager = MemoryManager()

@@ -10,6 +10,8 @@ FastAPI 入口 — 小说岛后端 API
 """
 import json
 import os
+import re
+import time
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
@@ -39,6 +41,16 @@ from .graphs.qa_graph import qa_app
 from .graphs.build_graph import build_app
 from .nodes.build_nodes import CHAPTER_OUTLINE_PROMPT, parse_outline_json
 from .nodes.qa_nodes import IntentRouterNode, CompanionNode
+# 业务服务（分类管理：路由编排留在本文件，业务逻辑按域拆在 app/services/）
+from .services.kb import ingest_material, next_guide_question
+from .services.auto_book import (
+    _AUTO_BOOKED, _auto_create_book, _home_session_booked, _auto_create_book_from_material,
+)
+from .services.title_sync import _maybe_sync_book_title
+from .services.chat import (
+    _no_project_stream_or_dict, _llm_no_project_reply, _llm_no_project_inspiration,
+    _llm_no_project_critic, _llm_no_project_booked_reply,
+)
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -313,60 +325,6 @@ def kb_status(novel_id: int | None = None):
     }
 
 
-# ===== 对话式建库（P3）：素材解析入库 + 空库引导提问 =====
-def ingest_material(text: str, novel_id: int | None) -> str:
-    """素材解析入库：跑建库状态机（清洗分块 → 并行抽取 → 图谱一致性 → 入库）→ 返回入库摘要
-
-    设计：作者在对话里拖入/粘贴素材，Agent 自动解析并增量入库（对话式建库）。
-    """
-    result = build_app.invoke({
-        "raw_input_files": [text],
-        "novel_id": novel_id,
-    })
-    out = result["final_output"]
-    chunks = result.get("processed_chunks", [])
-    # 向量库增量追加（里程碑9/11：按项目）
-    vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
-    vs.add_chunks(
-        [c["text"] for c in chunks],
-        [{"chunk_id": c["id"]} for c in chunks],
-    )
-    vs.save()
-
-    n_ent = len(out.get("entities", []))
-    n_rel = len(out.get("relationships", []))
-    n_evt = len(out.get("events", []))
-    summary = (
-        f"收到，素材已解析入库：提取 {n_ent} 个人物、{n_rel} 条关系、{n_evt} 个事件，"
-        f"新增 {len(chunks)} 个文本片段。"
-    )
-    conflicts = (result.get("consistency_report") or {}).get("conflicts", [])
-    if conflicts:
-        c = conflicts[0]
-        summary += f"\n⚠️ 检测到 1 处图谱冲突：[{c['dimension']}] {c['conflict']}"
-    summary += "\n\n" + next_guide_question(novel_id)
-    return summary
-
-
-def next_guide_question(novel_id: int | None) -> str:
-    """按流程询问（题材→主角→配角→大纲→设定），用图谱已有内容推断当前进度，无需额外状态"""
-    g = get_graph_for(novel_id)
-    n_ents = len(g) if g else 0
-    n_rels = len(g.all_relations()) if g and n_ents else 0
-    n_evts = len(g.get_timeline()) if g and n_ents else 0
-
-    if n_ents == 0:
-        return ("知识库还是空的，我们从人设聊起吧——这本书的主角是谁？\n"
-                "直接告诉我名字、性格、外貌都行；或者把素材（片段/设定）拖进对话框，我自动解析入库。")
-    if n_rels == 0:
-        return "主角已经有了。主要配角呢？他们和主角是什么关系？"
-    if n_evts == 0:
-        return "人物和关系都进库了，故事的大纲方向呢？想写一个什么故事？"
-    return ("库在慢慢长大啦。可以继续补充设定，也可以直接去「写作编辑器」写第一章——"
-            "保存后我会自动抽取人物、生成章纲、更新知识库。随时问我设定、逻辑或灵感的问题。")
-
-
-# ===== 建书意图（对话式建库开场）=====
 # 注意：关键词要精确，不能宽泛到「写一本」「新书」——否则「想写一本都市文」会被误判成建书意图
 NEW_BOOK_KEYWORDS = ["创建一本新书", "创建新书", "新建小说", "开新书", "开坑", "开始创作", "一本新书", "写一本新书"]
 # 题材提示词：无项目时用户已给出题材信息 → 直接引导建书（而不是反复问）
@@ -388,339 +346,6 @@ def _is_creative_query(query: str) -> bool:
 
 def _is_new_book_intent(query: str) -> bool:
     return any(kw in query for kw in NEW_BOOK_KEYWORDS)
-
-
-# ===== 无项目对话：LLM 建书引导（不硬编码，所有对话都走模型）=====
-NO_PROJECT_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫」，正在陪一位作者开启一本新书。
-
-当前状态：作者还没有创建任何作品，也没有上传任何素材。你的任务是自然地把对话推进到「建书」：
-1. 如果作者还没说书名/题材 → 温和地问书名和题材（都市/奇幻/悬疑/古风/科幻…），一次只问一个，别列清单
-2. 如果作者已经说了书名/题材 → 接住他说的话（引用书名/题材），肯定他的想法，然后顺着问下一个人设问题（主角是谁？主角是什么样的人？），保持自然的创作对话
-3. 如果作者提到"建书/开新书/创建" → 回应并引导，可以提示点左侧「＋ 新建项目」创建
-4. 如果作者在倾诉情绪/卡文 → 先接住情绪（温柔共情），再轻轻引导
-5. 语气：像朋友一样自然、简短（1-3 句话），不要机械，不要说"根据设定""作为AI"这类话
-6. 不要编造作者没说的书名或题材，不要重复刚才已经说过的话
-
-【动作描写规则】你是一只猫形写作搭子，可以偶尔在回复开头加一句动作描写增加生动感，但必须遵守：
-- 动作要多样化、轮换使用，避免每次都是同一种（不要反复用"尾巴拍拍你""眼睛一亮"）
-- 可轮换的动作示例：耳朵抖了抖 / 胡须微微颤动 / 用爪子轻轻拨了拨桌上的稿纸 / 打了个小小的哈欠 / 尾巴尖轻轻摆动 / 探过头来看了一眼屏幕 / 舔了舔爪子 / 眯起眼睛笑了笑 / 竖起耳朵认真听 / 在桌沿来回踱了两步 / 用脑袋蹭了蹭你的手 / 蜷成一团又直起身 / 尾巴绕了个圈 / 眨巴眨巴眼睛
-- 不要每次都加动作：大约每 2-3 条回复才用一次，其余时候直接说话
-- 动作要贴合对话气氛（安慰时温柔、聊到兴奋处活泼），一句话带过即可，不要喧宾夺主
-
-之前的对话（可能有）：
-{history}"""
-
-
-def _llm_no_project_reply(query: str, novel_id: int | None = None, brief: bool = False, session_id: str = "default",
-                            model: str = "", temperature: float | None = None, persona: str = "") -> str:
-    """无项目对话统一走 LLM（带短期记忆，记住书名/题材等上下文）"""
-    memory = memory_manager.get_memory(novel_id, session_id)
-    history = memory.get_context()
-    history_text = "\n".join(
-        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
-        for m in history[-6:]  # 最近几轮，避免超长
-    ) or "（无）"
-    system = NO_PROJECT_SYSTEM_PROMPT.format(history=history_text)
-    if persona and persona.strip():
-        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
-    user_prompt = f"作者说：{query}\n\n请以小说猫的口吻回应。"
-    try:
-        reply = chat(
-            system,
-            user_prompt,
-            temperature=temperature if temperature is not None else 0.8,
-            max_tokens=300,
-            task="companion",
-            model=model or None,
-        ).strip()
-    except Exception as e:
-        print(f"[ask] 无项目 LLM 引导失败: {e}")
-        reply = general_opening_fallback(query)
-    # 记忆该轮（无项目也记，让后续能接住书名/题材）
-    memory.add_turn(query, reply)
-    return reply
-
-
-# ===== 对话式自动建库：出现第一个角色时自动开书入库 =====
-_AUTO_BOOKED: set = set()  # 已自动建库的 session_id（防重复建书）
-
-
-def _detect_character_names(text: str) -> list:
-    """规则检测角色名：中文 2-4 字人名（排除常见非人名词）"""
-    import re as _re
-    stopwords = {"什么", "怎么", "我们", "你们", "他们", "自己", "一个", "这个", "那个", "不是",
-                 "就是", "但是", "因为", "所以", "如果", "还是", "没有", "可以", "告诉", "小说",
-                 "题材", "主角", "女主", "男主", "配角", "人设", "灵感", "剧情", "书"}
-    found = []
-    for m in _re.findall(r"[\u4e00-\u9fa5]{2,3}(?:[\u4e00-\u9fa5]{1})?", text):
-        name = m.strip()
-        if len(name) < 2 or len(name) > 4:
-            continue
-        if name in stopwords:
-            continue
-        if any(w in name for w in ("一个", "这个", "那个", "我们", "你们", "他们")):
-            continue
-        found.append(name)
-    seen = set()
-    uniq = []
-    for n in found:
-        if n not in seen:
-            seen.add(n)
-            uniq.append(n)
-    return uniq[:5]
-
-
-AUTO_BOOK_PROMPT = """你是「小说岛」的建书助手。作者在对话里已经聊出了一些创作想法，请判断是否已经可以开书，并提取建书信息。
-
-对话历史（作者说的话）：
-{history}
-
-判断标准（满足任一即 ready=true）：
-- 出现了明确书名（如"书名观南嘉措"）
-- 出现了明确角色名（如"主角叫江观南"）
-- 有清晰的主角/女主/男主设定描述（如"女主是美妆博主，性格很强硬"——没名字也算）
-- 有题材 + 至少一条具体设定（如"都市文，主角是律师"）
-- 作者粘贴了大段素材/正文（明显是作品内容）
-
-请输出 JSON：{{
-  "ready": true或false,
-  "title": "书名（明确书名；没有就空字符串 ''，不要编造）",
-  "genre": "题材（如 都市/奇幻/悬疑，没有就空）",
-  "characters": ["角色名列表（明确出现的角色名；没有名字就空数组）"]
-}}
-只输出 JSON。"""
-
-
-def _auto_create_book(session_id: str, current_query: str = "") -> int | None:
-    """从会话历史自动建书（LLM 判断已有足够建书信息时调用）。返回 novel_id；失败/已建过返回 None"""
-    if session_id in _AUTO_BOOKED:
-        return None
-    memory = memory_manager.get_memory(None, session_id)
-    hist = memory.get_context()
-    user_msgs = [m["content"] for m in hist if m.get("role") == "user"]
-    # 当前轮还没写入记忆，需并入判断
-    if current_query and current_query.strip():
-        user_msgs.append(current_query.strip())
-    if not user_msgs:
-        return None
-    joined = "；".join(user_msgs[-10:])
-    # 触发条件扩展：单条大段素材（>80字）直接视为作品内容 → 开书入库
-    is_material = any(len(m) > 80 for m in user_msgs[-3:])
-    title, genre, characters, ready = "", "", [], False
-    try:
-        import json as _json
-        out = chat(AUTO_BOOK_PROMPT.format(history=joined[-600:]), "请判断并建书。",
-                   temperature=0.2, max_tokens=250, task="extract")
-        out = out.strip()
-        if out.startswith("```"):
-            out = out.strip("`")
-            if out.startswith("json"):
-                out = out[4:]
-        data = _json.loads(out)
-        ready = bool(data.get("ready"))
-        title = (data.get("title") or "").strip()
-        genre = (data.get("genre") or "").strip()
-        characters = [c.strip() for c in (data.get("characters") or []) if c and c.strip()]
-    except Exception as e:
-        print(f"[auto_book] 抽取失败: {e}")
-    # 触发条件：大段素材 OR LLM 判断 ready；都不满足 → 等作者继续聊
-    if not (is_material or ready):
-        return None
-    # 书名缺省：用主角名或"未命名"兜底
-    if not title:
-        title = characters[0] if characters else "未命名"
-    novel_id = novel_store.create_novel(title, 0, 0, genre)
-    _AUTO_BOOKED.add(session_id)
-    print(f"[auto_book] session={session_id} 自动建书: 《{title}》({genre}) novel_id={novel_id}, 角色={characters}, material={is_material}")
-    # 把设定文本入库（带角色名提示，提升实体抽取质量）
-    try:
-        material = joined
-        if characters:
-            material += "。本故事主要角色：" + "、".join(characters)
-        ingest_material(material, novel_id)
-    except Exception as e:
-        print(f"[auto_book] 首次入库失败: {e}")
-    return novel_id
-
-
-def _home_session_booked(session_id: str) -> bool:
-    """该会话是否已自动建库（进程内标记，防重复建书）"""
-    return session_id in _AUTO_BOOKED
-
-
-def _auto_create_book_from_material(material: str, session_id: str) -> int | None:
-    """无项目拖入素材时：直接自动建书（书名取素材首句前几字）并入库素材"""
-    if session_id in _AUTO_BOOKED:
-        return None
-    text = material.strip()
-    if not text:
-        return None
-    # 书名：取素材首句前 8 字（去掉标点）作临时名
-    import re as _re
-    first = _re.split(r"[。\n！？!?]", text)[0].strip()
-    title = first[:8] if first else "未命名"
-    novel_id = novel_store.create_novel(title, 0, 0, "")
-    _AUTO_BOOKED.add(session_id)
-    print(f"[auto_book] session={session_id} 素材自动建书: 《{title}》 novel_id={novel_id}")
-    try:
-        ingest_material(text, novel_id)
-    except Exception as e:
-        print(f"[auto_book] 素材入库失败: {e}")
-    return novel_id
-
-
-def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
-    """无项目/空库分支统一出口：req.stream=True 时返回 SSE 流式，否则返回 dict。
-
-    让首页对话也具备打字机效果（和创作页一致）。reply_fn 是生成回复的函数，
-    流式模式用 chat_stream 逐 token 输出；非流式保持原逻辑。
-    """
-    if not req.stream:
-        return {"answer": reply_fn(req.query, *args, session_id=req.session_id,
-                                   model=req.model, temperature=req.temperature, persona=req.persona, **kwargs), "sources": []}
-
-    # 流式：先取记忆上下文（与 reply_fn 一致），再 chat_stream 生成
-    memory = memory_manager.get_memory(req.novel_id, req.session_id)
-    history = memory.get_context()
-    history_text = "\n".join(
-        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
-        for m in history[-6:]
-    ) or "（无）"
-    system_prompt = NO_PROJECT_SYSTEM_PROMPT.format(history=history_text)
-    if req.persona and req.persona.strip():
-        system_prompt += f"\n\n作者要求你的人设/语气：{req.persona.strip()}"
-    user_prompt = f"作者说：{req.query}\n\n请以小说猫的口吻回应。"
-
-    def generate():
-        full = ""
-        try:
-            for token in chat_stream(system_prompt, user_prompt,
-                                      temperature=req.temperature if req.temperature is not None else 0.8,
-                                      max_tokens=300, task="companion", model=req.model or None):
-                full += token
-                yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
-        except Exception as e:
-            print(f"[ask] 无项目流式引导失败: {e}")
-            fallback = general_opening_fallback(req.query)
-            if not full:
-                yield "data: " + json.dumps({"type": "token", "data": fallback}, ensure_ascii=False) + "\n\n"
-                full = fallback
-        # 记忆整轮（流式完成后统一写入）
-        if full:
-            memory.add_turn(req.query, full)
-        yield "data: " + json.dumps({"type": "done"}) + "\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-
-NO_PROJECT_INSPIRATION_PROMPT = """你是「小说岛」的写作搭子「小说猫」。作者还没建书，但向你要灵感或剧情建议。
-
-任务：给方向性灵感（不开书也能聊）：
-1. 接住作者的具体需求（题材/角色/卡点），给 2-3 个具体的灵感方向
-2. 每个方向一句话说清"怎么用"，不写完整大纲
-3. 结尾轻轻提一句：正式建书后可以把这些灵感存进灵感库，或点「＋ 新建项目」开书
-4. 语气自然简短（3-5 句），像朋友聊创作
-
-之前对话：
-{history}"""
-
-NO_PROJECT_CRITIC_PROMPT = """你是「小说岛」的写作搭子「小说猫」。作者想让你检查逻辑/人设，但还没建书、没有知识库可查。
-
-任务：
-1. 诚实说明：还没建书，我没有这本书的设定库可以核对
-2. 但可以基于作者刚说/之前聊到的内容，给一个轻量的初步判断（1-2 句）
-3. 引导：把已定的设定/章节内容告诉我（或点「＋ 新建项目」开书后拖进来），我就能认真检查
-4. 语气自然，不机械
-
-之前对话：
-{history}"""
-
-
-def _llm_no_project_inspiration(query: str, novel_id: int | None = None, brief: bool = False,
-                                session_id: str = "default", model: str = "", temperature: float | None = None,
-                                persona: str = "") -> str:
-    """无项目灵感：LLM 给方向性灵感（不进状态机，不需要知识库）"""
-    memory = memory_manager.get_memory(novel_id, session_id)
-    history = "\n".join(
-        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
-        for m in memory.get_context()[-6:]
-    ) or "（无）"
-    system = NO_PROJECT_INSPIRATION_PROMPT.format(history=history)
-    if persona and persona.strip():
-        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
-    try:
-        reply = chat(
-            system,
-            f"作者说：{query}",
-            temperature=0.9,
-            max_tokens=400,
-            task="inspire",
-            model=model or None,
-        ).strip()
-    except Exception as e:
-        print(f"[ask] 无项目灵感失败: {e}")
-        reply = "这个方向很有的写！正式建书后（点「＋ 新建项目」）我可以结合你的人物和设定给你更贴的灵感。"
-    memory.add_turn(query, reply)
-    return reply
-
-
-def _llm_no_project_critic(query: str, novel_id: int | None = None, brief: bool = False,
-                           session_id: str = "default", model: str = "", temperature: float | None = None,
-                           persona: str = "") -> str:
-    """无项目逻辑/人设检查：诚实说明无库可查 + 轻量判断 + 引导建书"""
-    memory = memory_manager.get_memory(novel_id, session_id)
-    history = "\n".join(
-        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
-        for m in memory.get_context()[-6:]
-    ) or "（无）"
-    system = NO_PROJECT_CRITIC_PROMPT.format(history=history)
-    if persona and persona.strip():
-        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
-    try:
-        reply = chat(
-            system,
-            f"作者说：{query}",
-            temperature=0.5,
-            max_tokens=300,
-            task="logic",
-            model=model or None,
-        ).strip()
-    except Exception as e:
-        print(f"[ask] 无项目检查失败: {e}")
-        reply = "这本书还没建库，我暂时没法认真核对逻辑/人设。点「＋ 新建项目」开书后把设定和章节放进来，我就能查了。"
-    memory.add_turn(query, reply)
-    return reply
-
-
-def _llm_no_project_booked_reply(query: str, novel_id: int | None = None, brief: bool = False,
-                                 session_id: str = "default", model: str = "", temperature: float | None = None,
-                                 persona: str = "") -> str:
-    """自动建书成功后的告知回复：告知已开书入库，引导继续补设定或去创作页"""
-    memory = memory_manager.get_memory(None, session_id)
-    history = "\n".join(
-        f"{'作者' if m['role'] == 'user' else '小说猫'}: {m['content']}"
-        for m in memory.get_context()[-6:]
-    ) or "（无）"
-    system = NO_PROJECT_SYSTEM_PROMPT.format(history=history)
-    system += ("\n\n【重要】就在刚才，你已经自动为作者建好了书，并把聊过的设定（角色/题材）入库了！"
-               "这条回复要做两件事：① 用一两句话告诉作者书已建好、设定已入库 ② 继续自然地问下一个设定问题"
-               "（比如：配角是谁？故事想从哪里开始？），保持建书对话的连贯。不要重复问书名/题材（已经有了）。")
-    if persona and persona.strip():
-        system += f"\n\n作者要求你的人设/语气：{persona.strip()}"
-    try:
-        reply = chat(system, f"作者说：{query}", temperature=0.8, max_tokens=300,
-                     task="companion", model=model or None).strip()
-    except Exception as e:
-        print(f"[ask] 建书告知失败: {e}")
-        reply = "书已经自动建好了，聊过的设定也入库了！我们可以继续补人设、配角，或者你点「创作」进去看看建好的书。"
-    memory.add_turn(query, reply)
-    return reply
-
-    if any(g in query for g in GENRE_HINTS) or ("叫" in query and len(query) >= 6):
-        return "好呀，书名和题材我记下了！点左侧「＋ 新建项目」创建这本书，我把这些信息直接入库，再陪你搭人设和大纲。"
-    return ("嗨，我是你的写作搭子小说猫。还没进入任何作品，我们先从开一本新书开始："
-            "书名想叫什么？什么题材（都市 / 奇幻 / 悬疑 / 古风 / 科幻…）？"
-            "定了之后，我陪你把人设、配角、大纲一步步搭起来——有零散素材也可以直接拖进来，我帮你整理入库。")
 
 
 # ===== 空库对话：LLM 引导建库（带图谱进度上下文，不硬编码）=====
@@ -808,6 +433,7 @@ def ask(req: AskRequest):
             # 无项目收到素材：自动建书（书名取素材前几字/未命名）并入库素材
             if not _home_session_booked(req.session_id):
                 _auto_create_book_from_material(req.material, req.session_id)
+            _maybe_sync_book_title(req.session_id, req.query)
             return {"answer": _llm_no_project_reply(f"我拖了一段素材进来：{req.material[:80]}…", session_id=req.session_id), "sources": []}
         answer = ingest_material(req.material, req.novel_id)
         return {"answer": answer, "sources": []}
@@ -825,6 +451,7 @@ def ask(req: AskRequest):
         # 情感低落 → 纯陪伴优先（即使提到题材也不机械引导）
         if intent == "companion":
             comp = CompanionNode()({"user_query": req.query, "retrieved_chunks": []})
+            _maybe_sync_book_title(req.session_id, req.query)
             return {"answer": comp["agent_response"], "sources": []}
         # 灵感意图（无库也能给方向性建议，不机械引导建书）
         if intent == "inspiration":
@@ -1051,9 +678,12 @@ def graph_path(start: str, end: str, novel_id: int | None = None):
 
 @app.get('/api/timeline')
 def timeline(novel_id: int | None = None):
-    """情节大事年表接口（里程碑15）：按入库顺序返回每章情节摘要，可按项目"""
+    """情节大事年表接口（里程碑15）：只返回来自正文（章节）的事件——
+    对话里聊的剧情不生成时间线，只有保存章节后才会记录（按入库顺序返回每章情节摘要）。"""
     g = get_graph_for(novel_id)
-    timeline_data = g.get_timeline()
+    all_events = g.get_timeline()
+    # 只保留打上章节标记的事件（save_chapter 增量入库时携带 chapter_id；对话入库的不带）
+    timeline_data = [e for e in all_events if e.get("chapter_id") is not None]
     return {
         "timeline": timeline_data,
         "total": len(timeline_data),
@@ -1661,6 +1291,21 @@ class ChatSessionRenameRequest(BaseModel):
     scope: str = "home"
     session_id: str
     title: str
+
+
+class ChatSessionEnsureRequest(BaseModel):
+    scope: str = "home"
+    session_id: str
+    title: str = ""
+
+
+@app.post("/api/chat/session/ensure")
+def chat_session_ensure(req: ChatSessionEnsureRequest):
+    """会话占位（主流 AI 产品「一开聊就进列表」）：会话无记录时先建一条 system 空行，
+    让会话立刻出现在左侧列表；已有记录则幂等跳过。前端在新建对话 / 发送首条消息时调用。
+    """
+    memory_manager.get_memory(None if req.scope == "home" else int(req.scope), req.session_id).ensure_session(req.title)
+    return {"success": True}
 
 
 @app.post("/api/chat/session/rename")
