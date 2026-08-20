@@ -46,7 +46,7 @@ from .services.kb import ingest_material, next_guide_question
 from .services.auto_book import (
     _AUTO_BOOKED, _auto_create_book, _home_session_booked, _auto_create_book_from_material,
 )
-from .services.title_sync import _maybe_sync_book_title
+from .services.title_sync import _maybe_sync_book_title, _sync_project_chat_to_kb
 from .services.chat import (
     _no_project_stream_or_dict, _llm_no_project_reply, _llm_no_project_inspiration,
     _llm_no_project_critic, _llm_no_project_booked_reply,
@@ -390,7 +390,10 @@ def _llm_empty_kb_reply(query: str, novel_id: int | None, session_id: str = "def
 def _empty_kb_stream_or_dict(req):
     """空库分支：req.stream=True 时 SSE 流式（打字机），否则 dict。"""
     if not req.stream:
-        return {"answer": _llm_empty_kb_reply(req.query, req.novel_id, req.session_id), "sources": []}
+        answer = _llm_empty_kb_reply(req.query, req.novel_id, req.session_id)
+        # 创作页对话 → 增量入库当前项目（与首页路径一致）
+        _sync_project_chat_to_kb(req.novel_id, req.session_id)
+        return {"answer": answer, "sources": []}
     g = get_graph_for(req.novel_id)
     entities = ", ".join(g.all_entities()[:8]) if g else "（无）"
     rels = ", ".join(f"{r.get('source')}-{r.get('relation')}->{r.get('target')}" for r in (g.all_relations() if g else [])[:8]) or "（无）"
@@ -419,6 +422,8 @@ def _empty_kb_stream_or_dict(req):
                 full = fallback
         if full:
             memory.add_turn(req.query, full)
+        # 创作页对话 → 增量入库当前项目（与首页路径一致）
+        _sync_project_chat_to_kb(req.novel_id, req.session_id)
         yield "data: " + json.dumps({"type": "done"}) + "\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -555,9 +560,18 @@ def ask(req: AskRequest):
                 for r in results
             ]
             yield "data: " + json.dumps({"type": "retrieval", "data": retrieval_data}, ensure_ascii=False) + "\n\n"
-            # 再流式输出回答
-            for token in chat_stream(RAG_SYSTEM_PROMPT, user_prompt):
-                yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
+            # 再流式输出回答（收集全文，完成后写记忆 + 增量入库，与首页路径一致）
+            full = ""
+            try:
+                for token in chat_stream(RAG_SYSTEM_PROMPT, user_prompt):
+                    full += token
+                    yield "data: " + json.dumps({"type": "token", "data": token}, ensure_ascii=False) + "\n\n"
+            except Exception as e:
+                print(f"[ask] 项目流式生成失败: {e}")
+            if full:
+                memory_manager.get_memory(req.novel_id, req.session_id).add_turn(req.query, full)
+            # 创作页对话 → 增量入库当前项目
+            _sync_project_chat_to_kb(req.novel_id, req.session_id)
             yield "data: " + json.dumps({"type": "done"}) + "\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
@@ -600,6 +614,8 @@ def ask(req: AskRequest):
     # 里程碑6：把这一轮对话存进短期记忆（下次提问能"记得"）
     # 里程碑17：按 novel_id 存（切换项目历史不串）
     memory_manager.get_memory(req.novel_id, req.session_id).add_turn(req.query, result["agent_response"])
+    # 创作页对话 → 增量入库当前项目（与首页路径一致）
+    _sync_project_chat_to_kb(req.novel_id, req.session_id)
 
     # 写入语义缓存（只缓存有检索依据的回答，降低幻觉扩散）
     if result["retrieved_chunks"]:

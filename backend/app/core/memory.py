@@ -288,15 +288,16 @@ class MemoryManager:
             print(f"[memory] 会话历史读取失败: {e}")
             return []
 
-    def get_unsynced_user_messages(self, session_id: str) -> List[Dict[str, object]]:
-        """该首页会话里尚未入库知识库的用户消息（对话增量入库：人设/关系/事件自动填充）"""
+    def get_unsynced_user_messages(self, session_id: str, scope: str = "home") -> List[Dict[str, object]]:
+        """某会话里尚未入库知识库的用户消息（对话增量入库：人设/关系/事件自动填充）。
+        scope='home'（首页闲聊）或 str(novel_id)（创作页项目对话）。"""
         try:
             conn = _history_conn()
             rows = conn.execute(
                 "SELECT id, content FROM chat_history "
-                "WHERE scope = 'home' AND session_id = ? AND role = 'user' AND synced = 0 "
+                "WHERE scope = ? AND session_id = ? AND role = 'user' AND synced = 0 "
                 "ORDER BY id ASC",
-                (session_id,),
+                (scope, session_id),
             ).fetchall()
             conn.close()
             return [{"id": r[0], "content": r[1]} for r in rows]
@@ -304,7 +305,7 @@ class MemoryManager:
             print(f"[memory] 未同步消息读取失败: {e}")
             return []
 
-    def mark_messages_synced(self, session_id: str, ids: List[int]) -> None:
+    def mark_messages_synced(self, session_id: str, ids: List[int], scope: str = "home") -> None:
         """把消息标记为已入库知识库（防重复抽取）"""
         if not ids:
             return
@@ -312,21 +313,21 @@ class MemoryManager:
             conn = _history_conn()
             marks = ",".join("?" * len(ids))
             conn.execute(
-                f"UPDATE chat_history SET synced = 1 WHERE scope = 'home' AND session_id = ? AND id IN ({marks})",
-                [session_id, *ids],
+                f"UPDATE chat_history SET synced = 1 WHERE scope = ? AND session_id = ? AND id IN ({marks})",
+                [scope, session_id, *ids],
             )
             conn.commit()
             conn.close()
         except Exception as e:
             print(f"[memory] 同步标记失败: {e}")
 
-    def mark_all_synced(self, session_id: str) -> None:
+    def mark_all_synced(self, session_id: str, scope: str = "home") -> None:
         """把该会话所有消息标记为已入库（自动建书时历史已整体入库，防止下一轮重复抽取）"""
         try:
             conn = _history_conn()
             conn.execute(
-                "UPDATE chat_history SET synced = 1 WHERE scope = 'home' AND session_id = ? AND role = 'user'",
-                (session_id,),
+                "UPDATE chat_history SET synced = 1 WHERE scope = ? AND session_id = ? AND role = 'user'",
+                (scope, session_id),
             )
             conn.commit()
             conn.close()

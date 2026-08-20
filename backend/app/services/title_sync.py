@@ -69,7 +69,7 @@ def _llm_summarize_title(text: str) -> str:
 
 
 def _sync_chat_to_kb(session_id: str) -> None:
-    """对话内容增量入库（人设/关系/剧情自动填充创作页）：
+    """首页对话内容增量入库（人设/关系/剧情自动填充创作页）：
     把该首页会话里尚未入库的用户消息合并进知识库（build 状态机抽取人物/关系/事件），
     这样「人设卡片」「人物关系图」会自动根据对话内容长出来。幂等（synced 标记防重复）。
     """
@@ -93,6 +93,29 @@ def _sync_chat_to_kb(session_id: str) -> None:
         print(f"[kb_sync] session={session_id} 对话增量入库 {len(batch)} 条 → 《{novel['title']}》")
     except Exception as e:
         print(f"[kb_sync] 失败: {e}")
+
+
+def _sync_project_chat_to_kb(novel_id: int, session_id: str) -> None:
+    """创作页对话内容增量入库（与首页路径一致，作用域固定为当前小说项目）：
+    把该项目会话里尚未入库的用户消息提取进该项目知识库（人设/关系/事件自动填充）。
+    """
+    try:
+        scope = str(novel_id)
+        rows = memory_manager.get_unsynced_user_messages(session_id, scope=scope)
+        if not rows:
+            return
+        meaningful = [r for r in rows if len((r["content"] or "").strip()) >= 8]
+        if not meaningful:
+            memory_manager.mark_messages_synced(session_id, [r["id"] for r in rows], scope=scope)
+            return
+        # 最近最多 3 条合并入库（控制成本，避免一次抽太多）
+        batch = meaningful[-3:]
+        text = "\n\n".join(r["content"] for r in batch)
+        ingest_material(text, novel_id)
+        memory_manager.mark_messages_synced(session_id, [r["id"] for r in rows], scope=scope)
+        print(f"[kb_sync] project={novel_id} 创作页对话增量入库 {len(batch)} 条")
+    except Exception as e:
+        print(f"[kb_sync] 项目同步失败: {e}")
 
 
 def _maybe_sync_book_title(session_id: str, query: str = "") -> None:

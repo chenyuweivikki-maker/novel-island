@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from ..core.llm_client import chat, chat_stream
 from ..core.memory import memory_manager
 from ..core.fallback_templates import general_opening_fallback
-from .title_sync import _maybe_sync_book_title
+from .title_sync import _maybe_sync_book_title, _sync_project_chat_to_kb
 
 NO_PROJECT_SYSTEM_PROMPT = """你是「小说岛」的写作搭子「小说猫」，正在陪一位作者开启一本新书。
 
@@ -67,11 +67,17 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
     让首页对话也具备打字机效果（和创作页一致）。reply_fn 是生成回复的函数，
     流式模式用 chat_stream 逐 token 输出；非流式保持原逻辑。
     """
+    # 同步分流：创作页对话（novel_id 非空）→ 增量入库当前项目；首页 → 书名同步 + 入库映射书
+    def _after_turn():
+        if req.novel_id is not None:
+            _sync_project_chat_to_kb(req.novel_id, req.session_id)
+        else:
+            _maybe_sync_book_title(req.session_id, req.query)
+
     if not req.stream:
         answer = reply_fn(req.query, *args, session_id=req.session_id,
                           model=req.model, temperature=req.temperature, persona=req.persona, **kwargs)
-        # 对话提书名 → 同步更新创作/我的作品的书名
-        _maybe_sync_book_title(req.session_id, req.query)
+        _after_turn()
         return {"answer": answer, "sources": []}
 
     # 流式：先取记忆上下文（与 reply_fn 一致），再 chat_stream 生成
@@ -103,8 +109,8 @@ def _no_project_stream_or_dict(req, reply_fn, *args, **kwargs):
         # 记忆整轮（流式完成后统一写入）
         if full:
             memory.add_turn(req.query, full)
-        # 对话提书名 → 同步更新创作/我的作品的书名（add_turn 之后，历史已含本轮）
-        _maybe_sync_book_title(req.session_id, req.query)
+        # 同步（add_turn 之后，历史已含本轮）
+        _after_turn()
         yield "data: " + json.dumps({"type": "done"}) + "\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
