@@ -26,13 +26,14 @@ function showView(view) {
   if (view === 'inspiration') { loadInspiration(); }
   if (view === 'community') { loadCommunity(); }
   if (view === 'home') {
-    // 点「首页」→ 回到吉祥物欢迎页（参考 Figma 首页：吉祥物 + 标题 + 引导 chips + 输入框）。
-    // 每次进入首页都重置为欢迎页；用户点左侧对话列表才加载并显示对话内容。
+    // 点「首页」/左上角 Logo → 回到吉祥物欢迎页（参考 Figma 首页：吉祥物 + 标题 + 引导 chips + 输入框）。
+    // 每次进入首页都重置为欢迎页（清空消息区 + 显示欢迎块）；
+    // 只有用户点左侧对话列表（switchChatSession）才加载并显示对应会话内容。
     try {
       const homeList = document.getElementById('homeMsgList');
       if (homeList) homeList.innerHTML = '';
       const hw = document.getElementById('homeWelcome');
-      if (hw) hw.style.display = 'flex';
+      if (hw) hw.hidden = false;
     } catch (e) {}
   }
   if (view === 'chat') {

@@ -83,7 +83,14 @@ input, textarea { font-family: inherit; }
   display: flex; flex-direction: column; align-items: center; gap: 16px;
 }
 .home-msgs .msg { max-width: 640px; width: 100%; }
-.home-welcome { display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* 欢迎块独立于消息列表（消息列表清空/填充都不会误删它）。
+   无消息时占据中部留白区；有消息时隐藏，消息区接管。 */
+.home-welcome {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  padding: 24px; overflow-y: auto;
+}
+.home-welcome[hidden] { display: none; }
 .home-welcome .mascot { width: 200px; max-width: 90vw; margin-bottom: 8px; }
 .home-welcome h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: 0.5px; margin: 12px 0 8px; }
 .home-welcome .sub { color: var(--text-2); font-size: 15px; margin-bottom: 28px; }

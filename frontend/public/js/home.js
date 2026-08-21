@@ -7,6 +7,7 @@ function homeAsk(q) {
   document.getElementById('homeInput').value = '';
   autoResizeInput(document.getElementById('homeInput'));
   clearDraft();  // 消息已发出，清空该会话草稿
+  setWelcomeVisible(false);  // 发出消息 → 隐藏吉祥物欢迎页，进入对话模式
   appendMsg('user', q, null, 'homeMsgList');
   // 主流 AI 产品模式：发出消息的瞬间，左侧列表立刻出现本会话（先本地占位，再后端建占位）
   pendingSessionTitle = q.slice(0, 12);
@@ -258,16 +259,19 @@ function deleteSessionDialog(sid) {
 }
 
 
+function setWelcomeVisible(show) {
+  // 欢迎块是消息列表的兄弟节点，显隐用 hidden 属性统一控制
+  const hw = document.getElementById('homeWelcome');
+  if (hw) hw.hidden = !show;
+}
 function switchChatSession(sid) {
   if (!sid) return;
   sessionId = sid;
   try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
   pendingSessionTitle = null;  // 切换到已有会话，清掉占位
-  // 清空首页消息区，加载该会话历史
+  // 清空首页消息区，加载该会话历史（欢迎块是独立节点，不受影响）
   const list = document.getElementById('homeMsgList');
   list.innerHTML = '';
-  const hw = document.getElementById('homeWelcome');
-  if (hw) hw.style.display = 'none';
   loadChatHistory();  // 内部会 restoreDraft（恢复该会话草稿）
   renderChatSessions();
 }
@@ -276,8 +280,7 @@ function newChatSession() {
   try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
   const list = document.getElementById('homeMsgList');
   list.innerHTML = '';
-  const hw = document.getElementById('homeWelcome');
-  if (hw) { hw.style.display = 'flex'; }
+  setWelcomeVisible(true);
   // 未发送消息的对话不进入列表（无占位）：发消息时 homeAsk 才会 ensure 建会话
   pendingSessionTitle = null;
   renderChatSessions();
@@ -308,14 +311,13 @@ async function loadChatHistory() {
     const data = await apiGet(`/api/chat/history?scope=home&session_id=${encodeURIComponent(sessionId)}`);
     const hist = data.history || [];
     const list = document.getElementById('homeMsgList');
-    const hw = document.getElementById('homeWelcome');
     if (!hist.length) {
-      if (hw) hw.style.display = 'flex';
+      setWelcomeVisible(true);
       restoreDraft();  // 空会话：恢复草稿
       return;
     }
-    if (hw) hw.style.display = 'none';
     list.innerHTML = '';
+    setWelcomeVisible(false);
     hist.forEach(m => {
       appendMsg(m.role === 'user' ? 'user' : 'agent', m.content, null, 'homeMsgList');
     });
@@ -350,6 +352,7 @@ try {
   const hi = document.getElementById('homeInput');
   if (hi) hi.addEventListener('input', saveDraft);
 } catch (e) {}
-// 初始化时渲染会话列表 + 恢复当前会话历史（含草稿）
+// 初始化时只渲染会话列表。
+// 默认进入首页显示吉祥物欢迎页（main.js 的 showView('home') 已重置消息区）；
+// 点左侧会话列表（switchChatSession）才加载对应会话历史（含草稿）。
 renderChatSessions();
-loadChatHistory();
