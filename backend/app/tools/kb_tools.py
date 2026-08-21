@@ -8,7 +8,7 @@
 """
 from typing import List, Dict, Any
 
-from ..core.retriever import get_retriever_for
+from ..core.hybrid_retriever import hybrid_search
 
 
 # ===== 工具定义（JSON Schema，发给 LLM 的"说明书"）=====
@@ -38,24 +38,23 @@ SEARCH_KB_TOOL = {
 
 # ===== 工具执行函数（LLM 决定调用后，代码跑这个）=====
 def execute_search_kb(query: str, top_k: int = 5, novel_id: int | None = None) -> List[Dict[str, Any]]:
-    """执行 search_kb：检索知识库，返回格式化后的片段列表
+    """执行 search_kb：混合检索知识库（向量+TF-IDF），返回格式化后的片段列表
 
     注意：这个函数是"给代码跑"的，不是给 LLM 的。
     它把检索结果转成可读文本，方便塞回 LLM 上下文。
     里程碑17：novel_id 由工具上下文注入（不在 LLM 可见的工具参数里），
     确保 Agent 检索的是当前项目的内容。
     """
-    r = get_retriever_for(novel_id)
-    results = r.search(query, top_k)
+    results = hybrid_search(query, top_k, novel_id)
 
     # 把结果整理成 LLM 能看懂的格式
     return [
         {
-            "chunk_id": r2["chunk"].id,
-            "score": round(r2["score"], 4),
-            "text": r2["chunk"].text,
+            "chunk_id": r["chunk"].id,
+            "score": round(r["score"], 4),
+            "text": r["chunk"].text,
         }
-        for r2 in results
+        for r in results
     ]
 
 
@@ -149,12 +148,9 @@ def execute_polish_writing_style(original_text: str, target_style: str = "保持
 def execute_brainstorm_plot_ideas(current_context: str, direction: str = "", novel_id: int | None = None) -> Dict[str, Any]:
     """执行灵感拓展（单跳，直接基于上下文生成；多跳由 MultiHopInspirationNode 负责）"""
     from ..core.llm_client import chat
-    from ..core.retriever import get_retriever_for
-    from ..core.vector_store import vector_store_manager
-    from ..core.llm_client import build_rag_prompt
+    from ..core.hybrid_retriever import hybrid_search
     try:
-        r = get_retriever_for(novel_id)
-        results = r.search(current_context, 4) if r.is_ready else []
+        results = hybrid_search(current_context, 4, novel_id)
         ctx = "\n".join(f"· {x['chunk'].text[:200]}" for x in results)
         prompt = (
             f"基于以下小说已有内容，为作者提供 3 个不同的后续情节方向"

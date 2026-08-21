@@ -308,6 +308,9 @@ def build_kb(req: BuildRequest):
             [{"chunk_id": c["id"]} for c in chunks],
         )
     vs.save()
+    # 同步重建 TF-IDF（否则问答检索不到刚入库的内容）
+    from .services.kb import _rebuild_tfidf
+    _rebuild_tfidf(req.novel_id)
 
     return {
         "success": True,

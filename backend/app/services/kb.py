@@ -2,9 +2,24 @@
 
 从 main.py 拆分（分类管理）：main.py 只保留路由编排，本模块管「文本 → 知识库」的入库链路。
 """
+from ..core.chunker import Chunk
 from ..core.llm_client import chat  # noqa: F401（next_guide_question 未来可能用 LLM）
+from ..core.retriever import get_retriever_for
 from ..core.vector_store import vector_store, vector_store_manager
 from ..graphs.build_graph import build_app
+
+
+def _rebuild_tfidf(novel_id: int | None) -> None:
+    """入库后同步重建 TF-IDF 检索器（向量库与 TF-IDF 双路保持一致）
+
+    TF-IDF 索引纯内存且 build_index 是整体重建（非增量）。
+    每次入库后从向量库全量重建该项目的检索器，保证 /api/kb/ask 的
+    空库判断和混合检索（hybrid_search 依赖 r.chunks 索引向量结果）不落后于向量库。
+    """
+    vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
+    if vs.is_ready:
+        chunks = [Chunk(id=i, text=t, char_count=len(t)) for i, t in enumerate(vs.texts)]
+        get_retriever_for(novel_id).build_index(chunks)
 
 
 def ingest_material(text: str, novel_id: int | None) -> str:
@@ -25,6 +40,8 @@ def ingest_material(text: str, novel_id: int | None) -> str:
         [{"chunk_id": c["id"]} for c in chunks],
     )
     vs.save()
+    # 同步重建 TF-IDF（否则问答检索不到刚入库的内容）
+    _rebuild_tfidf(novel_id)
 
     n_ent = len(out.get("entities", []))
     n_rel = len(out.get("relationships", []))
