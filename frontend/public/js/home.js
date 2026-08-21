@@ -6,6 +6,7 @@ function homeAsk(q) {
   if (!q) return;
   document.getElementById('homeInput').value = '';
   autoResizeInput(document.getElementById('homeInput'));
+  clearDraft();  // 消息已发出，清空该会话草稿
   appendMsg('user', q, null, 'homeMsgList');
   // 主流 AI 产品模式：发出消息的瞬间，左侧列表立刻出现本会话（先本地占位，再后端建占位）
   pendingSessionTitle = q.slice(0, 12);
@@ -216,16 +217,16 @@ function openSessionMenu(anchor, sid, s) {
     });
     return b;
   };
-  menu.appendChild(item('✏️ 重命名', () => renameSessionDialog(sid)));
+  menu.appendChild(item('🗑 删除对话', () => deleteSessionDialog(sid)));
   menu.appendChild(item(s.pinned ? '📌 取消置顶' : '📌 置顶', () =>
     apiCall('/api/chat/session/flag', { scope: 'home', session_id: sid, pinned: !s.pinned })
       .then(renderChatSessions).catch(err => alert('操作失败: ' + err.message))));
+  menu.appendChild(item('✏️ 重命名', () => renameSessionDialog(sid)));
   menu.appendChild(item(s.archived ? '📂 取消归档' : '🗄 归档', () =>
     apiCall('/api/chat/session/flag', { scope: 'home', session_id: sid, archived: !s.archived })
       .then(() => { if (sid === sessionId) newChatSession(); renderChatSessions(); })
       .catch(err => alert('操作失败: ' + err.message))));
   menu.appendChild(item('⤓ 导出对话', () => exportSession(sid)));
-  menu.appendChild(item('🗑 删除对话', () => deleteSessionDialog(sid)));
   document.body.appendChild(menu);
   // 定位在按钮下方（右对齐）
   const r = anchor.getBoundingClientRect();
@@ -267,7 +268,7 @@ function switchChatSession(sid) {
   list.innerHTML = '';
   const hw = document.getElementById('homeWelcome');
   if (hw) hw.style.display = 'none';
-  loadChatHistory();
+  loadChatHistory();  // 内部会 restoreDraft（恢复该会话草稿）
   renderChatSessions();
 }
 function newChatSession() {
@@ -277,14 +278,30 @@ function newChatSession() {
   list.innerHTML = '';
   const hw = document.getElementById('homeWelcome');
   if (hw) { hw.style.display = 'flex'; }
-  // 新建即占位（主流 AI 产品模式）：列表立刻出现「新对话」项置顶高亮；
-  // 后端 ensure 建 system 占位行，成功后用真实记录替换（刷新也不丢）
-  pendingSessionTitle = '新对话';
+  // 未发送消息的对话不进入列表（无占位）：发消息时 homeAsk 才会 ensure 建会话
+  pendingSessionTitle = null;
   renderChatSessions();
-  apiCall('/api/chat/session/ensure', { scope: 'home', session_id: sessionId, title: '新对话' })
-    .then(() => renderChatSessions())
-    .catch(() => {});
+  restoreDraft();  // 恢复该会话输入框草稿（未发送内容保留）
   showView('home');
+}
+// ===== 输入框草稿（未发送内容本地保存，刷新/切会话不丢）=====
+function draftKey() { return 'novel_island_draft_' + sessionId; }
+function saveDraft() {
+  try {
+    const el = document.getElementById('homeInput');
+    localStorage.setItem(draftKey(), el ? el.value : '');
+  } catch (e) {}
+}
+function restoreDraft() {
+  try {
+    const el = document.getElementById('homeInput');
+    if (!el) return;
+    el.value = localStorage.getItem(draftKey()) || '';
+    autoResizeInput(el);
+  } catch (e) {}
+}
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch (e) {}
 }
 async function loadChatHistory() {
   try {
@@ -294,6 +311,7 @@ async function loadChatHistory() {
     const hw = document.getElementById('homeWelcome');
     if (!hist.length) {
       if (hw) hw.style.display = 'flex';
+      restoreDraft();  // 空会话：恢复草稿
       return;
     }
     if (hw) hw.style.display = 'none';
@@ -302,6 +320,7 @@ async function loadChatHistory() {
       appendMsg(m.role === 'user' ? 'user' : 'agent', m.content, null, 'homeMsgList');
     });
     list.scrollTop = list.scrollHeight;
+    restoreDraft();  // 有历史的会话：也恢复草稿
   } catch (e) { console.error(e); }
 }
 // 导出会话对话为 markdown/txt
@@ -326,6 +345,11 @@ async function exportSession(sid) {
   } catch (e) { alert('导出失败: ' + e.message); }
 }
 document.getElementById('btnNewChatSession').addEventListener('click', newChatSession);
-// 初始化时渲染会话列表 + 恢复当前会话历史
+// 输入框草稿：输入即保存（未发送内容跨刷新/切会话保留）
+try {
+  const hi = document.getElementById('homeInput');
+  if (hi) hi.addEventListener('input', saveDraft);
+} catch (e) {}
+// 初始化时渲染会话列表 + 恢复当前会话历史（含草稿）
 renderChatSessions();
 loadChatHistory();

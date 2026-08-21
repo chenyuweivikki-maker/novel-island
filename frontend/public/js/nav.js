@@ -25,6 +25,16 @@ function showView(view) {
   if (view === 'works') { loadWorks(); }
   if (view === 'inspiration') { loadInspiration(); }
   if (view === 'community') { loadCommunity(); }
+  if (view === 'home') {
+    // 点「首页」→ 回到吉祥物欢迎页（参考 Figma 首页：吉祥物 + 标题 + 引导 chips + 输入框）。
+    // 每次进入首页都重置为欢迎页；用户点左侧对话列表才加载并显示对话内容。
+    try {
+      const homeList = document.getElementById('homeMsgList');
+      if (homeList) homeList.innerHTML = '';
+      const hw = document.getElementById('homeWelcome');
+      if (hw) hw.style.display = 'flex';
+    } catch (e) {}
+  }
   if (view === 'chat') {
     if (!currentNovelId) selectDefaultChat();
     renderSidebar();
