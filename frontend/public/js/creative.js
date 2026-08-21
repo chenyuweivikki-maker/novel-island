@@ -149,7 +149,7 @@ function appendMsg(role, text, opts, containerId) {
   div.innerHTML = `<div class="avatar">${avatar}</div><div class="body">${tag}${esc(text).replace(/\n/g, '<br>')}${toolsHtml}${src}</div>${actions}`;
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
-  if (containerId === 'homeMsgList') { var hw = document.getElementById('homeWelcome'); if (hw) hw.style.display = 'none'; }
+  if (containerId === 'homeMsgList') { if (typeof setWelcomeVisible === 'function') setWelcomeVisible(false); }
   return mid;
 }
 // 重新生成：删除该条之后的消息，用同一问题重新问（流式）

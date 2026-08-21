@@ -260,9 +260,11 @@ function deleteSessionDialog(sid) {
 
 
 function setWelcomeVisible(show) {
-  // 欢迎块是消息列表的兄弟节点，显隐用 hidden 属性统一控制
+  // 欢迎块与消息区互斥：显示欢迎块时隐藏消息区（反之亦然），避免争抢空间
   const hw = document.getElementById('homeWelcome');
   if (hw) hw.hidden = !show;
+  const list = document.getElementById('homeMsgList');
+  if (list) list.classList.toggle('visible', !show);
 }
 function switchChatSession(sid) {
   if (!sid) return;

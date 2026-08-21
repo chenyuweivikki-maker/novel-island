@@ -78,38 +78,40 @@ input, textarea { font-family: inherit; }
 /* ── 首页 ── */
 .home { height: 100%; display: flex; flex-direction: column; position: relative; }
 .view.active.home { display: flex; }
+/* 消息区与欢迎块互斥：默认隐藏，有消息时加 .visible 才显示（避免两者争抢空间） */
 .home-msgs {
   flex: 1; min-height: 0; overflow-y: auto; padding: 48px 24px 24px;
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  display: none; flex-direction: column; align-items: center; gap: 16px;
 }
+.home-msgs.visible { display: flex; }
 .home-msgs .msg { max-width: 640px; width: 100%; }
 /* 欢迎块独立于消息列表（消息列表清空/填充都不会误删它）。
-   无消息时占据中部留白区；有消息时隐藏，消息区接管。 */
+   显示时独占全部中间空间，内容靠上（吉祥物在页面中上部，贴近 Figma 首页）；有消息时 hidden 隐藏。 */
 .home-welcome {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center;
+  align-items: center; justify-content: flex-start; text-align: center;
   padding: 24px; overflow-y: auto;
 }
 .home-welcome[hidden] { display: none; }
-.home-welcome .mascot { width: 200px; max-width: 90vw; margin-bottom: 8px; }
+.home-welcome .mascot { width: 240px; max-width: 90vw; margin: 6vh 0 4px; }
 .home-welcome h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: 0.5px; margin: 12px 0 8px; }
 .home-welcome .sub { color: var(--text-2); font-size: 15px; margin-bottom: 28px; }
 .home-input-bar {
   flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg);
-  padding: 16px 24px 18px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 24px 12px; display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
 .home-input-bar .home-input { max-width: 640px; }
-.home-input-bar .foot { color: var(--text-3); font-size: 12px; letter-spacing: 1px; }
+.home-input-bar .foot { color: var(--text-3); font-size: 12px; letter-spacing: 1px; line-height: 1.4; }
 .home-input {
   width: 100%; max-width: 640px; display: flex; align-items: center; gap: 12px;
   background: var(--surface); border: 1.5px solid var(--text); border-radius: var(--radius-pill);
-  padding: 14px 14px 14px 24px; transition: box-shadow .15s;
+  padding: 10px 10px 10px 22px; transition: box-shadow .15s;
 }
 .home-input:focus-within { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
 .home-input textarea {
   flex: 1; border: none; outline: none; resize: none; overflow-y: auto; line-height: 1.5;
   font-size: 16px; color: var(--text); background: transparent; font-family: inherit; max-height: 120px;
-  display: flex; align-items: center; padding: 8px 0;
+  display: flex; align-items: center; padding: 6px 0;
 }
 .home-input textarea::placeholder { color: var(--text-3); }
 .home-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }

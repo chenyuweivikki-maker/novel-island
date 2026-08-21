@@ -32,8 +32,7 @@ function showView(view) {
     try {
       const homeList = document.getElementById('homeMsgList');
       if (homeList) homeList.innerHTML = '';
-      const hw = document.getElementById('homeWelcome');
-      if (hw) hw.hidden = false;
+      if (typeof setWelcomeVisible === 'function') setWelcomeVisible(true);
     } catch (e) {}
   }
   if (view === 'chat') {
