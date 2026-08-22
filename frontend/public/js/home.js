@@ -283,8 +283,10 @@ function newChatSession() {
   const list = document.getElementById('homeMsgList');
   list.innerHTML = '';
   setWelcomeVisible(true);
-  // 未发送消息的对话不进入列表（无占位）：发消息时 homeAsk 才会 ensure 建会话
-  pendingSessionTitle = null;
+  // 本地占位「新对话」（不发后端请求、不落库，刷新即消失）：
+  // 点「＋新建对话」立刻在列表看到反馈，避免误以为没开成功、消息悄悄进旧会话；
+  // 发消息时 homeAsk 会覆盖成消息内容并 ensure 建真实会话（未发送仍不建会话）
+  pendingSessionTitle = '新对话';
   renderChatSessions();
   restoreDraft();  // 恢复该会话输入框草稿（未发送内容保留）
   showView('home');

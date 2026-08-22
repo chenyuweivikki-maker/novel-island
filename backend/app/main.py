@@ -58,9 +58,13 @@ app = FastAPI(title="小说岛 API", version="0.1.0")
 
 @app.middleware("http")
 async def no_cache_html(request, call_next):
-    """开发期：HTML 页面禁用缓存，避免前端迭代时浏览器吃旧版"""
+    """开发期：HTML + 静态资源（JS/CSS）禁用缓存。
+    HTML 已 no-store；JS/CSS 若不处理，浏览器会吃旧版（etag 需重验证、无 cache-control
+    时还有启发式缓存窗口），导致用户"开着新网站跑着旧代码"——会话列表不刷新等怪问题。
+    """
     resp = await call_next(request)
-    if request.url.path.endswith((".html",)) or request.url.path in ("/",):
+    path = request.url.path
+    if path.endswith((".html", ".js", ".css")) or path in ("/",) or path.startswith("/static/"):
         resp.headers["Cache-Control"] = "no-store"
     return resp
 
