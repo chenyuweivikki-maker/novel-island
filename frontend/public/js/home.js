@@ -4,6 +4,14 @@ function enterNovel(id, title) {
 }
 function homeAsk(q) {
   if (!q) return;
+  // 欢迎页/空状态发消息 → 自动开一条新对话（否则会话 id 仍是上次那条旧会话，
+  // 新消息会被塞进旧会话，左侧列表也不会出现新对话）。
+  if (!homeSessionActive) {
+    sessionId = freshHomeSessionId();
+    try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
+    clearDraft();  // 新会话没有该 id 的旧草稿
+    homeSessionActive = true;
+  }
   document.getElementById('homeInput').value = '';
   autoResizeInput(document.getElementById('homeInput'));
   clearDraft();  // 消息已发出，清空该会话草稿
@@ -271,6 +279,7 @@ function switchChatSession(sid) {
   sessionId = sid;
   try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
   pendingSessionTitle = null;  // 切换到已有会话，清掉占位
+  homeSessionActive = true;    // 明确进入该会话，后续消息归属它
   // 清空首页消息区，加载该会话历史（欢迎块是独立节点，不受影响）
   const list = document.getElementById('homeMsgList');
   list.innerHTML = '';
@@ -278,7 +287,7 @@ function switchChatSession(sid) {
   renderChatSessions();
 }
 function newChatSession() {
-  sessionId = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  sessionId = freshHomeSessionId();
   try { localStorage.setItem('novel_island_session', sessionId); } catch (e) {}
   const list = document.getElementById('homeMsgList');
   list.innerHTML = '';
@@ -290,6 +299,9 @@ function newChatSession() {
   renderChatSessions();
   restoreDraft();  // 恢复该会话输入框草稿（未发送内容保留）
   showView('home');
+  // showView 会把 homeSessionActive 重置为 false（欢迎态），这里补回 true：
+  // 用户已明确点「＋新建对话」，随后输入的消息应归属刚刚创建的这条新会话。
+  homeSessionActive = true;
 }
 // ===== 输入框草稿（未发送内容本地保存，刷新/切会话不丢）=====
 function draftKey() { return 'novel_island_draft_' + sessionId; }

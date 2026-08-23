@@ -27,6 +27,15 @@ if (!sessionId) {
 // 新建对话 / 发出首条消息时，后端会话还没落库，先用这个标题在左侧列表渲染一个置顶项；
 // 后端 ensure 成功或一轮回复落库后，用真实数据替换。null = 无占位。
 var pendingSessionTitle = null;
+// 首页「当前会话是否已挂上一条真实线程」：
+// false = 处于欢迎页/空状态（此时在输入框发消息 → 自动开一条新对话，避免续用上次的旧会话）；
+// true  = 已通过「＋新建对话」或点左侧历史会话（switchChatSession）明确进入某条会话，随后的消息归属于当前 sessionId。
+// showView('home') 切回欢迎页会重置为 false；newChatSession / switchChatSession 会置回 true。
+var homeSessionActive = false;
+// 生成一个新的首页会话 id（与 newChatSession 同一格式）
+function freshHomeSessionId() {
+  return 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
 
 // ═══ 关键交互绑定提前注册（防御性重构）═══
 // 创作页 sub-tab 用 document 级事件委托，注册后永久生效：

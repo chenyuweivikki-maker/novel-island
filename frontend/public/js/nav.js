@@ -33,6 +33,9 @@ function showView(view) {
       const homeList = document.getElementById('homeMsgList');
       if (homeList) homeList.innerHTML = '';
       if (typeof setWelcomeVisible === 'function') setWelcomeVisible(true);
+      // 回到欢迎页 → 重置为「无活动线程」：此后在欢迎页输入并发送会新建一条对话
+      // （newChatSession 会在 showView 之后把该标记补回 true）
+      if (typeof homeSessionActive !== 'undefined') homeSessionActive = false;
     } catch (e) {}
   }
   if (view === 'chat') {
