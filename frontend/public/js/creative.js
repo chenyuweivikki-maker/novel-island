@@ -119,6 +119,7 @@ function switchSubPage(subpage) {
   if (subpage === 'chars' || subpage === 'graph') refreshKBViews();
   if (subpage === 'timeline') renderTimeline();
   if (subpage === 'chapter_outline') renderChapterOutlines();
+  if (subpage === 'outline') loadOutline();
   if (subpage === 'backgrounds') loadBackgrounds();
   if (subpage === 'write') loadChapters();
 }
@@ -794,6 +795,39 @@ async function deleteBackground(id) {
     loadBackgrounds();
   } catch (e) { alert('删除失败: ' + e.message); }
 }
+// ===== 全文大纲（P9：单文本块，自动保存）=====
+async function loadOutline() {
+  const ta = document.getElementById('outlineText');
+  const st = document.getElementById('outlineStatus');
+  if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/outline`);
+    ta.value = data.outline || '';
+    if (st) st.textContent = '已载入';
+  } catch (e) { if (st) st.textContent = '加载失败: ' + e.message; }
+}
+async function saveOutline() {
+  const ta = document.getElementById('outlineText');
+  const st = document.getElementById('outlineStatus');
+  if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
+  if (st) st.textContent = '保存中…';
+  try {
+    await apiCall(`/api/novel/${currentNovelId}/outline`, { outline: ta.value });
+    if (st) st.textContent = '✓ 已保存';
+  } catch (e) { if (st) st.textContent = '保存失败: ' + e.message; }
+}
+document.getElementById('btnSaveOutline').addEventListener('click', saveOutline);
+(function () {
+  const ta = document.getElementById('outlineText');
+  if (!ta) return;
+  let t = null;
+  ta.addEventListener('input', () => {
+    const st = document.getElementById('outlineStatus');
+    if (st) st.textContent = '编辑中…';
+    clearTimeout(t);
+    t = setTimeout(saveOutline, 1500); // 停顿 1.5s 自动保存
+  });
+})();
 document.getElementById('btnAddBackground').addEventListener('click', () => {
   if (!currentNovelId) { alert('请先选择一本小说'); return; }
   document.getElementById('bgModal').classList.add('show');

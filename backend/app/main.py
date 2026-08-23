@@ -765,6 +765,23 @@ def update_novel_genre(novel_id: int, req: NovelGenreRequest):
     return {"novel_id": novel_id, "genre": req.genre}
 
 
+class OutlineSaveRequest(BaseModel):
+    outline: str = ""  # 全文大纲（单文本块，自动保存）
+
+
+@app.get("/api/novel/{novel_id}/outline")
+def get_novel_outline(novel_id: int):
+    """读取作品全文大纲（P9）"""
+    return {"novel_id": novel_id, "outline": novel_store.get_novel_outline(novel_id)}
+
+
+@app.post("/api/novel/{novel_id}/outline")
+def save_novel_outline(novel_id: int, req: OutlineSaveRequest):
+    """保存作品全文大纲（P9，单文本块自动保存）"""
+    novel_store.update_novel_outline(novel_id, req.outline.strip())
+    return {"success": True, "novel_id": novel_id}
+
+
 @app.post("/api/novels/reorder")
 def reorder_novels(req: NovelReorderRequest):
     """拖拽排序：按新顺序重新分配 sort_order（里程碑17）"""

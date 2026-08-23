@@ -244,14 +244,16 @@ window.addEventListener('error', function (e) {
             </div>
           </div>
 
-          <!-- 全文大纲（P9，读写接口待后端） -->
+          <!-- 全文大纲（P9） -->
           <div class="page" id="page-outline">
             <div class="tab-pad">
               <div class="tab-actions">
                 <h3 style="margin:0">全文大纲</h3>
-                <span class="status" id="outlineStatus">（读写接口待后端补齐，当前为占位）</span>
+                <span class="status" id="outlineStatus"></span>
+                <span class="spacer"></span>
+                <button class="btn-pill primary" id="btnSaveOutline">保存大纲</button>
               </div>
-              <textarea id="outlineText" placeholder="在这里梳理全文大纲：主线 / 分卷 / 章节走向……&#10;写完可用「保存大纲」（后端就绪后生效）" style="min-height:360px;width:100%;font-size:14px;line-height:1.9"></textarea>
+              <textarea id="outlineText" placeholder="在这里梳理全文大纲：主线 / 分卷 / 章节走向……" style="min-height:360px;width:100%;font-size:14px;line-height:1.9"></textarea>
             </div>
           </div>
 
