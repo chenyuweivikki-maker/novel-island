@@ -114,7 +114,7 @@ input, textarea { font-family: inherit; }
   display: flex; align-items: center; padding: 6px 0;
 }
 .home-input textarea::placeholder { color: var(--text-3); }
-.home-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
+.home-input .send { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #E5E5E5; background: #F7F7F7; color: #111; font-size: 16px; line-height: 1; flex-shrink: 0; transition: transform .12s; }
 .home-input .send:hover { transform: scale(1.05); }
 .home-chips { margin-top: 22px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
 .chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-size: 13px; padding: 8px 18px; border-radius: var(--radius-pill); transition: all .15s; }
@@ -282,7 +282,7 @@ input, textarea { font-family: inherit; }
   font-size: 16px; padding: 8px 0; background: transparent; font-family: inherit; max-height: 120px;
 }
 .chat-input textarea::placeholder { color: var(--text-3); }
-.chat-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
+.chat-input .send { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #E5E5E5; background: #F7F7F7; color: #111; font-size: 16px; line-height: 1; flex-shrink: 0; transition: transform .12s; }
 .chat-input .send:hover { transform: scale(1.05); }
 .attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; color: var(--text-2); }
 .attach-chip button { border: none; background: none; color: var(--text-3); font-size: 12px; }
@@ -519,7 +519,7 @@ input, textarea { font-family: inherit; }
   font-family: inherit;
 }
 .insp-input-box textarea::placeholder { color: var(--text-3); font-size: 15px; }
-.insp-input-box .send { width: 40px; height: 40px; border-radius: var(--radius-sm); border: none; background: var(--text); color: #fff; font-size: 17px; flex-shrink: 0; }
+.insp-input-box .send { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #E5E5E5; background: #F7F7F7; color: #111; font-size: 16px; line-height: 1; flex-shrink: 0; }
 .insp-input-box #inspNovelSel {
   flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--radius-pill);
   font-size: 12px; color: var(--text-2); background: var(--surface); padding: 8px 10px;
@@ -680,7 +680,7 @@ input, textarea { font-family: inherit; }
   transition: box-shadow .15s;
 }
 .write-ai .wa-input textarea:focus { box-shadow: 0 0 0 3px rgba(17,17,17,.06); }
-.write-ai .wa-input .send { width: 42px; height: 42px; border-radius: 8px; border: none; background: var(--text); color: #fff; font-size: 18px; flex-shrink: 0; transition: transform .12s; }
+.write-ai .wa-input .send { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #E5E5E5; background: #F7F7F7; color: #111; font-size: 16px; line-height: 1; flex-shrink: 0; transition: transform .12s; }
 .write-ai .wa-input .send:hover { transform: scale(1.05); }
 
 /* ── 润色 Review 弹窗 ── */
