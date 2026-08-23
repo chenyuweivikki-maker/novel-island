@@ -46,6 +46,7 @@ from .nodes.qa_nodes import IntentRouterNode, CompanionNode
 from .services.kb import ingest_material, next_guide_question
 from .services.auto_book import (
     _AUTO_BOOKED, _auto_create_book, _home_session_booked, _auto_create_book_from_material,
+    _try_create_book_from_title,
 )
 from .services.title_sync import _maybe_sync_book_title, _sync_project_chat_to_kb
 from .services.chat import (
@@ -465,6 +466,9 @@ def ask(req: AskRequest):
         if req.novel_id is not None:
             # 已在作品里：不打断当前创作，LLM 引导侧栏新建
             return _no_project_stream_or_dict(req, _llm_no_project_reply, req.novel_id, brief=True)
+        # 无项目：本轮已给出明确书名 → 立即建书（只带书名+题材，后续对话增量补设定）；
+        # 没有明确书名 → 照常接住引导，不提前建项目。
+        _try_create_book_from_title(req.session_id, req.query)
         return _no_project_stream_or_dict(req, _llm_no_project_reply)
 
     # ===== 无项目（首页/默认对话）：意图路由 + 各分支 LLM（建书主路由）=====

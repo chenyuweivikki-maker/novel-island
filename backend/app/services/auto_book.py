@@ -4,15 +4,51 @@
 """
 import json
 import re
-import time
 
 from ..core.llm_client import chat
 from ..core.memory import memory_manager
 from ..core.novel_store import novel_store
 from .kb import ingest_material
+from .title_sync import _extract_explicit_title
 
 # 已自动建库的 session_id（进程内缓存，防重复建书；持久化绑定以 novels.session_id 为准）
 _AUTO_BOOKED: set = set()
+
+# 常见题材词（无明确书名时给建书兜底 genre；有明确题材短语时优先用短语）
+_GENRE_HINTS = ["都市", "奇幻", "悬疑", "古风", "科幻", "言情", "百合", "武侠", "末世",
+                "穿越", "电竞", "校园", "职场", "修仙", "刑侦", "年代", "重生", "娱乐圈"]
+
+
+def _extract_genre(text: str) -> str:
+    """从对话里抽一个题材：优先取「...小说/文/题材/类型」前的短语（如 现代都市百合），
+    否则从常见题材词里做子串匹配兜底；都没有返回 ''。"""
+    if not text:
+        return ""
+    m = re.search(r"(?:是一本|是本|题材是|类型是|属于|背景是)\s*([\u4e00-\u9fa5]{2,8}?)(?:小说|文|题材|类型)", text)
+    if m:
+        g = m.group(1).strip()
+        if 2 <= len(g) <= 8:
+            return g
+    for g in _GENRE_HINTS:
+        if g in text:
+            return g
+    return ""
+
+
+def _try_create_book_from_title(session_id: str, query: str = "") -> int | None:
+    """对话里出现明确书名（《》/「书名是/叫XXX」）且该会话尚未建书 → 立即建书。
+    只带「书名 + 题材」（title_auto=0 表示已明确命名），不在此刻把整段历史入库——
+    人物/人设等后续对话会通过 _sync_chat_to_kb 增量补进知识库。返回 novel_id；否则 None。"""
+    if session_id in _AUTO_BOOKED or novel_store.get_novel_by_session(session_id):
+        return None
+    title = _extract_explicit_title(query or "")
+    if not title:
+        return None
+    genre = _extract_genre(query or "")
+    novel_id = novel_store.create_novel(title, 0, 0, genre, session_id=session_id, title_auto=0)
+    _AUTO_BOOKED.add(session_id)
+    print(f"[auto_book] session={session_id} 明确书名即建书: 《{title}》({genre}) novel_id={novel_id}")
+    return novel_id
 
 
 def _detect_character_names(text: str) -> list:
@@ -69,13 +105,11 @@ def _auto_create_book(session_id: str, current_query: str = "") -> int | None:
     if existing:
         _AUTO_BOOKED.add(session_id)
         return existing["id"]
-    # 老会话回填：库里最近一本「未绑定会话」的书（主角名/素材名兜底建的）→ 绑定续接，避免重复建书
-    orphan = novel_store.get_most_recent_unbound()
-    if orphan and time.time() - orphan["created_at"] < 3600:
-        novel_store.set_session_binding(orphan["id"], session_id)
-        _AUTO_BOOKED.add(session_id)
-        print(f"[auto_book] session={session_id} 回填绑定已有书《{orphan['title']}》 novel_id={orphan['id']}")
-        return orphan["id"]
+    # 明确书名 → 立即建书（只带书名+题材；人物/人设靠后续对话增量入库）。
+    # 不再做「回填最近一本未绑定书」的内容无关绑定：那会让不同书的对话串到同一个项目。
+    nid = _try_create_book_from_title(session_id, current_query)
+    if nid:
+        return nid
     memory = memory_manager.get_memory(None, session_id)
     hist = memory.get_context()
     user_msgs = [m["content"] for m in hist if m.get("role") == "user"]

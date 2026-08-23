@@ -25,7 +25,9 @@ def _extract_explicit_title(text: str) -> str:
         return ""
     for pat in EXPLICIT_TITLE_PATTERNS:
         for m in re.finditer(pat, text):
-            t = m.group(1).strip()
+            t = m.group(1).strip().strip("《》「」 “”‘’\"")
+            # 去掉口语/问句尾巴（吧/啊/呀/呢/哦/了/嘛/呗 等）
+            t = re.sub(r"[吧啊呀呢哦了嘛呗啦哇]{1,2}$", "", t).strip()
             if not t or len(t) < 2 or len(t) > 20:
                 continue
             if t in TITLE_STOPWORDS or any(w in t for w in TITLE_STOPWORDS):
