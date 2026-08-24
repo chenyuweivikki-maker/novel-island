@@ -244,7 +244,7 @@ window.addEventListener('error', function (e) {
             </div>
           </div>
 
-          <!-- 全文大纲（P9） -->
+          <!-- 全文大纲（P9，分块结构化） -->
           <div class="page" id="page-outline">
             <div class="tab-pad">
               <div class="tab-actions">
@@ -253,7 +253,26 @@ window.addEventListener('error', function (e) {
                 <span class="spacer"></span>
                 <button class="btn-pill primary" id="btnSaveOutline">保存大纲</button>
               </div>
-              <textarea id="outlineText" placeholder="在这里梳理全文大纲：主线 / 分卷 / 章节走向……" style="min-height:360px;width:100%;font-size:14px;line-height:1.9"></textarea>
+              <div class="outline-sec">
+                <div class="os-title">一句话梗概（故事核）</div>
+                <textarea class="outline-field" id="outlineLogline" placeholder="用一句话说清：题材 + 主角 + 核心冲突"></textarea>
+              </div>
+              <div class="outline-sec">
+                <div class="os-title">主题立意</div>
+                <textarea class="outline-field" id="outlineTheme" placeholder="这个故事想表达的内核 / 情感 / 态度"></textarea>
+              </div>
+              <div class="outline-sec">
+                <div class="os-title">主线脉络 · 分卷结构</div>
+                <textarea class="outline-field" id="outlinePlot" placeholder="开头 / 发展 / 高潮 / 结局（或按分卷拆）"></textarea>
+              </div>
+              <div class="outline-sec">
+                <div class="os-title">核心冲突与转折</div>
+                <textarea class="outline-field" id="outlineConflict" placeholder="主要矛盾 + 关键事件 / 转折点"></textarea>
+              </div>
+              <div class="outline-sec">
+                <div class="os-title">结局设定</div>
+                <textarea class="outline-field" id="outlineEnding" placeholder="主要角色最终走向，HE / BE / 开放"></textarea>
+              </div>
             </div>
           </div>
 

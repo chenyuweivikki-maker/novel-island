@@ -766,19 +766,32 @@ def update_novel_genre(novel_id: int, req: NovelGenreRequest):
 
 
 class OutlineSaveRequest(BaseModel):
-    outline: str = ""  # 全文大纲（单文本块，自动保存）
+    sections: dict = {}  # 分块大纲：{logline,theme,plot,conflict,ending}; 向后兼容旧 outline 字符串
+
+
+def _parse_outline_sections(raw: str) -> dict:
+    """把存储的大纲解析成分块 dict。新数据为 JSON；旧纯文本兜底到 plot 分块，避免丢内容。"""
+    if not raw:
+        return {}
+    try:
+        d = json.loads(raw)
+        if isinstance(d, dict):
+            return d
+    except Exception:
+        pass
+    return {"plot": raw}  # 旧版单文本块 → 归入「主线」
 
 
 @app.get("/api/novel/{novel_id}/outline")
 def get_novel_outline(novel_id: int):
-    """读取作品全文大纲（P9）"""
-    return {"novel_id": novel_id, "outline": novel_store.get_novel_outline(novel_id)}
+    """读取作品全文大纲（P9）：返回分块 dict"""
+    return {"novel_id": novel_id, "outline": _parse_outline_sections(novel_store.get_novel_outline(novel_id))}
 
 
 @app.post("/api/novel/{novel_id}/outline")
 def save_novel_outline(novel_id: int, req: OutlineSaveRequest):
-    """保存作品全文大纲（P9，单文本块自动保存）"""
-    novel_store.update_novel_outline(novel_id, req.outline.strip())
+    """保存作品全文大纲（P9）：存储为 JSON 字符串（novels.outline 列复用，不加列）"""
+    novel_store.update_novel_outline(novel_id, json.dumps(req.sections, ensure_ascii=False))
     return {"success": True, "novel_id": novel_id}
 
 

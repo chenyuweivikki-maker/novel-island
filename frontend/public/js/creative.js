@@ -795,37 +795,42 @@ async function deleteBackground(id) {
     loadBackgrounds();
   } catch (e) { alert('删除失败: ' + e.message); }
 }
-// ===== 全文大纲（P9：单文本块，自动保存）=====
+// ===== 全文大纲（P9：分块结构化，自动保存）=====
+const OUTLINE_FIELDS = ['logline', 'theme', 'plot', 'conflict', 'ending'];
+function _outlineFieldEl(key) { return document.getElementById('outline' + key.charAt(0).toUpperCase() + key.slice(1)); }
 async function loadOutline() {
-  const ta = document.getElementById('outlineText');
   const st = document.getElementById('outlineStatus');
   if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
   try {
     const data = await apiGet(`/api/novel/${currentNovelId}/outline`);
-    ta.value = data.outline || '';
+    const sec = data.outline || {};
+    OUTLINE_FIELDS.forEach(k => { const el = _outlineFieldEl(k); if (el) el.value = (sec[k] || ''); });
     if (st) st.textContent = '已载入';
   } catch (e) { if (st) st.textContent = '加载失败: ' + e.message; }
 }
 async function saveOutline() {
-  const ta = document.getElementById('outlineText');
   const st = document.getElementById('outlineStatus');
   if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
+  const sections = {};
+  OUTLINE_FIELDS.forEach(k => { const el = _outlineFieldEl(k); sections[k] = el ? el.value : ''; });
   if (st) st.textContent = '保存中…';
   try {
-    await apiCall(`/api/novel/${currentNovelId}/outline`, { outline: ta.value });
+    await apiCall(`/api/novel/${currentNovelId}/outline`, { sections: sections });
     if (st) st.textContent = '✓ 已保存';
   } catch (e) { if (st) st.textContent = '保存失败: ' + e.message; }
 }
 document.getElementById('btnSaveOutline').addEventListener('click', saveOutline);
 (function () {
-  const ta = document.getElementById('outlineText');
-  if (!ta) return;
   let t = null;
-  ta.addEventListener('input', () => {
-    const st = document.getElementById('outlineStatus');
-    if (st) st.textContent = '编辑中…';
-    clearTimeout(t);
-    t = setTimeout(saveOutline, 1500); // 停顿 1.5s 自动保存
+  OUTLINE_FIELDS.forEach(k => {
+    const el = _outlineFieldEl(k);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const st = document.getElementById('outlineStatus');
+      if (st) st.textContent = '编辑中…';
+      clearTimeout(t);
+      t = setTimeout(saveOutline, 1500); // 停顿 1.5s 自动保存
+    });
   });
 })();
 document.getElementById('btnAddBackground').addEventListener('click', () => {

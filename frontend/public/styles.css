@@ -291,6 +291,11 @@ input, textarea { font-family: inherit; }
 .tab-pad { padding: 32px; max-width: 880px; margin: 0 auto; }
 .tab-pad h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
 .tab-actions { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+/* 全文大纲（P9）：分块卡片 */
+.outline-sec { margin-bottom: 16px; }
+.outline-sec .os-title { font-size: 14px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.outline-field { width: 100%; min-height: 84px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; line-height: 1.7; resize: vertical; color: var(--text); background: var(--surface); }
+.outline-field:focus { outline: none; border-color: var(--text); }
 
 /* 人设卡片三区 */
 .char-layout { display: flex; gap: 24px; height: 100%; padding: 24px 32px; }
