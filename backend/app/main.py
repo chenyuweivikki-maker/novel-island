@@ -48,7 +48,7 @@ from .services.auto_book import (
     _AUTO_BOOKED, _auto_create_book, _home_session_booked, _auto_create_book_from_material,
     _try_create_book_from_title,
 )
-from .services.title_sync import _maybe_sync_book_title, _sync_project_chat_to_kb
+from .services.title_sync import _maybe_sync_book_title, _sync_project_chat_to_kb, _maybe_capture_outline
 from .services.chat import (
     _no_project_stream_or_dict, _llm_no_project_reply, _llm_no_project_inspiration,
     _llm_no_project_critic, _llm_no_project_booked_reply,
@@ -450,6 +450,13 @@ def _empty_kb_stream_or_dict(req):
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
+    # 对话→大纲自动捕获：项目对话里作者提到大纲内容（梗概/主题/主线/冲突/结局）→ 写入大纲。
+    # 在项目（novel_id 非空）请求开头统一执行，保证所有路径（含素材/空库短路）都能捕获。
+    if req.novel_id is not None:
+        try:
+            _maybe_capture_outline(req.novel_id, req.query or "")
+        except Exception as e:
+            print(f"[outline_capture] ask 捕获失败: {e}")
     # ===== 对话式建库：素材解析入库 =====
     if req.material and req.material.strip():
         if req.novel_id is None:

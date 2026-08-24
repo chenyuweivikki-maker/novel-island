@@ -91,6 +91,8 @@ def _sync_chat_to_kb(session_id: str) -> None:
         batch = meaningful[-3:]
         text = "\n\n".join(r["content"] for r in batch)
         ingest_material(text, novel["id"])
+        # 对话中作者提到大纲内容 → 自动捕获进大纲（首页会话绑定书后同样生效）
+        _maybe_capture_outline(novel["id"], text)
         memory_manager.mark_messages_synced(session_id, [r["id"] for r in rows])
         print(f"[kb_sync] session={session_id} 对话增量入库 {len(batch)} 条 → 《{novel['title']}》")
     except Exception as e:
@@ -118,6 +120,75 @@ def _sync_project_chat_to_kb(novel_id: int, session_id: str) -> None:
         print(f"[kb_sync] project={novel_id} 创作页对话增量入库 {len(batch)} 条")
     except Exception as e:
         print(f"[kb_sync] 项目同步失败: {e}")
+
+
+# ===== 对话→大纲自动捕获（作者提到大纲内容就入库）=====
+OUTLINE_CAPTURE_PROMPT = """你是「小说岛」的大纲助手。下面是这本书当前的大纲，以及作者在对话里刚说的话。
+
+当前大纲：
+{current}
+
+作者的话：
+{message}
+
+请判断作者的话是否提供了大纲信息（梗概/主题/主线/冲突/结局）。如果某块有新信息，就给出更新后的该块内容；没提到的块不要给；都没有就返回 {{}}。
+
+只输出 JSON，例如：{{"logline":"一句话梗概","theme":"主题"}}（只含作者说到且有信息的块）。"""
+
+# 大纲信号词：命中才尝试捕获，控制 LLM 调用成本
+_OUTLINE_SIGNALS = ["梗概", "一句话", "故事", "讲的是", "讲一个", "主题", "立意", "主线", "分卷",
+                    "冲突", "转折", "结局", "结尾", "大纲", "上卷", "中卷", "下卷", "想写", "这个故事", "这本书讲"]
+_OUTLINE_KEYS = ("logline", "theme", "plot", "conflict", "ending")
+
+
+def _parse_outline_partial(text: str) -> dict:
+    """解析 LLM 输出，只保留非空且属于大纲五块的字段"""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if t.startswith("json"):
+            t = t[4:]
+    try:
+        d = json.loads(t)
+        if isinstance(d, dict):
+            return {k: str(v).strip() for k, v in d.items()
+                    if k in _OUTLINE_KEYS and str(v or "").strip()}
+    except Exception:
+        pass
+    return {}
+
+
+def _maybe_capture_outline(novel_id: int, message: str) -> None:
+    """对话中作者提到大纲内容 → 自动捕获进大纲（保存在 novels.outline 的 JSON 里）。"""
+    if not novel_id or not message or len(message.strip()) < 6:
+        return
+    if not any(kw in message for kw in _OUTLINE_SIGNALS):
+        return
+    # 取当前大纲（兼容旧纯文本）
+    raw = novel_store.get_novel_outline(novel_id)
+    try:
+        cur = json.loads(raw) if raw else {}
+        if not isinstance(cur, dict):
+            cur = {"plot": raw}
+    except Exception:
+        cur = {"plot": raw} if raw else {}
+    try:
+        out = chat(OUTLINE_CAPTURE_PROMPT.format(current=json.dumps(cur, ensure_ascii=False), message=message),
+                   "请判断并更新大纲。", temperature=0.2, max_tokens=200, task="extract")
+    except Exception as e:
+        print(f"[outline_capture] LLM 失败: {e}")
+        return
+    update = _parse_outline_partial(out)
+    if not update:
+        return
+    changed = False
+    for k, v in update.items():
+        if v and cur.get(k) != v:
+            cur[k] = v
+            changed = True
+    if changed:
+        novel_store.update_novel_outline(novel_id, json.dumps(cur, ensure_ascii=False))
+        print(f"[outline_capture] 对话捕获大纲 novel={novel_id} 更新块: {list(update.keys())}")
 
 
 def _maybe_sync_book_title(session_id: str, query: str = "") -> None:
