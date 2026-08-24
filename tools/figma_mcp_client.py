@@ -13,13 +13,13 @@ figma_mcp_client.py — 小说岛 Figma MCP 客户端（官方 figma-developer-m
   python3 figma_mcp_client.py --ping
 
   # 2. 拉取整份文件数据（页面/Frame 层级 + 内容 + 组件信息，含设计变量）
-  python3 figma_mcp_client.py --file <file_key> --get-data --output figma/file-data.json
+  python3 figma_mcp_client.py --file <file_key> --get-data --output design/figma/file-data.json
 
   # 3. 拉取某个节点的数据（URL 带 node-id 时用它精确定位）
-  python3 figma_mcp_client.py --file <file_key> --node "1:234" --get-data --output figma/node.json
+  python3 figma_mcp_client.py --file <file_key> --node "1:234" --get-data --output design/figma/node.json
 
-  # 4. 批量下载节点图片到工作区 figma-images/（PNG @2x，含 SVG 图标）
-  python3 figma_mcp_client.py --file <file_key> --images --nodes "1:2,1:5,123:4" --local-path figma-images
+  # 4. 批量下载节点图片到工作区 design/figma-images/（PNG @2x，含 SVG 图标）
+  python3 figma_mcp_client.py --file <file_key> --images --nodes "1:2,1:5,123:4" --local-path design/figma-images
 
 file_key 从 Figma 文件链接拿：https://www.figma.com/design/<file_key>/xxx
 """
@@ -237,8 +237,8 @@ def main() -> None:
     parser.add_argument("--get-data", action="store_true", help="拉取文件/节点数据（get_figma_data）")
     parser.add_argument("--images", action="store_true", help="批量下载节点图片（配合 --nodes）")
     parser.add_argument("--nodes", help="图片节点 ID 列表，逗号分隔，如 1:2,1:5,123:4")
-    parser.add_argument("--local-path", default="figma-images",
-                        help="图片保存目录（相对工作区根，默认 figma-images）")
+    parser.add_argument("--local-path", default="design/figma-images",
+                        help="图片保存目录（相对工作区根，默认 design/figma-images）")
     parser.add_argument("--png-scale", type=float, default=2.0, help="PNG 导出倍率（默认 2）")
     parser.add_argument("--output", help="输出文件路径（数据模式）")
     args = parser.parse_args()
