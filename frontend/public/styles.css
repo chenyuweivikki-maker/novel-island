@@ -193,6 +193,11 @@ input, textarea { font-family: inherit; }
 .side-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 .side-item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
 .side-item.active .meta { color: var(--text-3); }
+.side-item .side-more {
+  border: none; background: none; color: var(--text-3); font-size: 13px; line-height: 1;
+  cursor: pointer; padding: 0 2px; flex-shrink: 0;
+}
+.side-item .side-more:hover { color: var(--text); }
 .side-new {
   margin: 4px 8px; align-self: flex-start; border: 1px dashed var(--border-strong); background: transparent;
   color: var(--text-2); font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);

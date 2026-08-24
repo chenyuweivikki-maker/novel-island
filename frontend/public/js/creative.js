@@ -11,6 +11,7 @@ function renderSidebar() {
       <div class="side-item ${n.id === currentNovelId ? 'active' : ''}" data-novel-id="${n.id}" draggable="true">
         <span class="hide-when-collapsed side-title">${esc(n.title)}</span>
         <span class="hide-when-collapsed meta">${((n.total_words || 0) / 10000).toFixed(1)}万字</span>
+        <button class="side-more hide-when-collapsed" title="管理项目" onclick="event.stopPropagation(); openSideNovelMenu(event, ${n.id}, '${escAttr(n.title)}')">⋯</button>
       </div>`).join('');
     list.querySelectorAll('.side-item').forEach(item => {
       item.addEventListener('click', e => {
@@ -25,6 +26,37 @@ function renderSidebar() {
       });
     });
   }).catch(() => {});
+}
+// ===== 侧栏项目拖拽排序（修复：此前 reorderProjects 被调用但从未定义）=====
+async function reorderProjects(dragId, targetId) {
+  try {
+    const data = await apiGet('/api/novels');
+    const ids = (data.novels || []).map(n => n.id);
+    const from = ids.indexOf(Number(dragId));
+    const to = ids.indexOf(Number(targetId));
+    if (from < 0 || to < 0) return;
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    await apiCall('/api/novels/reorder', { ordered_ids: ids });
+    renderSidebar();
+    loadWorks();
+  } catch (e) { alert('排序失败: ' + e.message); }
+}
+// ===== 侧栏项目 ⋯ 菜单（重命名/删除，复用 works.js 的 renameNovel/deleteNovel）=====
+function openSideNovelMenu(e, id, title) {
+  e.stopPropagation();
+  if (novelMenuEl) novelMenuEl.remove(); novelMenuEl = null;
+  const menu = document.createElement('div');
+  menu.className = 'novel-menu';
+  menu.innerHTML = `
+    <button onclick="renameNovel(${id}, '${escAttr(title)}')">✏️ 重命名</button>
+    <button class="danger" onclick="deleteNovel(${id}, '${escAttr(title)}')">🗑 删除</button>`;
+  document.body.appendChild(menu);
+  const r = e.target.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = Math.min(r.right + 4, window.innerWidth - 150) + 'px';
+  menu.style.top = Math.min(r.top, window.innerHeight - 130) + 'px';
+  novelMenuEl = menu;
 }
 try {
   document.getElementById('btnSideCollapse').addEventListener('click', () => {

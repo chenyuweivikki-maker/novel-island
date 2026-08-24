@@ -79,14 +79,21 @@ async function renameNovel(id, cur) {
   try {
     await apiCall(`/api/novel/${id}/rename`, { title: name.trim() });
     loadWorks();
+    if (typeof renderSidebar === 'function') renderSidebar(); // 同步左侧「小说项目」列表
   } catch (e) { alert('重命名失败: ' + e.message); }
 }
 async function deleteNovel(id, title) {
   if (novelMenuEl) novelMenuEl.remove(); novelMenuEl = null;
   if (!confirm(`确定删除《${title}》？将同时删除它的章节、背景、知识库，且不可恢复。`)) return;
   try {
-    await fetch(`${API_BASE}/api/novel/${id}`, { method: 'DELETE' });
+    const r = await fetch(`${API_BASE}/api/novel/${id}`, { method: 'DELETE' });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || r.statusText); }
+    if (currentNovelId === id) {           // 删的是当前选中项目 → 重置创作页
+      currentNovelId = null;
+      if (typeof selectDefaultChat === 'function') selectDefaultChat();
+    }
     loadWorks();
+    if (typeof renderSidebar === 'function') renderSidebar(); // 同步左侧「小说项目」列表
   } catch (e) { alert('删除失败: ' + e.message); }
 }
 // ===== 拖拽排序（仅在「全部/全部」非筛选视图下有意义，保持未筛选项相对顺序）=====
