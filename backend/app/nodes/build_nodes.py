@@ -25,8 +25,9 @@ from ..models.state import NovelIslandState
 ENTITY_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取所有人物实体及属性。
 
 规则：
-1. 只抽取原文明确出现的人物，不要编造。
-2. 每个人物记录：名字、身份、以及以下属性（原文有才写，没有留空）：
+1. 只抽取原文**逐字出现**的人物，不要编造。名字必须能在输入文本里找到字面。
+2. 严禁由题材（都市/百合/悬疑等）、角色数量、剧情设定联想补充任何输入里**没有出现**的名字（如配角、情侣、其他角色、书名当人物），一律不要抽。
+3. 每个人物记录：名字、身份、以及以下属性（原文有才写，没有留空）：
    - 职业（做什么工作）
    - 年龄（年龄/年龄段）
    - 外貌（身高/长相/穿着）
@@ -38,19 +39,20 @@ ENTITY_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅�
    - 物品（随身/拥有的重要物品）
    - 宠物（养的动物及名字）
    - 事件（该人物经历的关键事件）
-3. 输出严格的 JSON 数组，格式：
+4. 输出严格的 JSON 数组，格式：
 [{"name": "角色名", "identity": "身份", "attributes": {"职业": "...", "年龄": "...", "外貌": "...", "性格": "...", "家庭": "...", "经历": "...", "创伤": "...", "动机": "...", "物品": "...", "宠物": "...", "事件": "..."}}]
-4. attributes 里只放原文明确提到的，没有的键可以省略。
-5. 只输出 JSON，不要其他文字。"""
+5. attributes 里只放原文明确提到的，没有的键可以省略。
+6. 只输出 JSON，不要其他文字。"""
 
 RELATION_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取人物之间的关系。
 
 规则：
-1. 只抽取原文明确体现的人物关系，不要编造。
-2. 关系类型用简单词：朋友、恋人、房东租客、同事、家人、前任、邻居等。
-3. 输出严格的 JSON 数组，格式：
+1. 只抽取原文**明确体现**的人物关系，不要编造。
+2. 关系双方的名字必须都**逐字出现**在输入文本里；严禁为输入中未出现/脑补的人物建立关系，严禁由题材联想出情侣/家人等关系。
+3. 关系类型用简单词：朋友、恋人、房东租客、同事、家人、前任、邻居等。
+4. 输出严格的 JSON 数组，格式：
 [{"source": "人物A", "relation": "关系", "target": "人物B", "weight": 1到10的整数}]
-4. 只输出 JSON，不要其他文字。"""
+5. 只输出 JSON，不要其他文字。"""
 
 
 EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取关键事件。
@@ -132,6 +134,33 @@ def _extract_json_array(llm_output: str) -> List[dict]:
         return []
 
 
+def _name_in_text(name: Any, text: str) -> bool:
+    """硬校验：抽取出的实体名/角色名必须**逐字出现**在入库原文里，否则视为 LLM 幻觉，丢弃。
+
+    这是防"脑补角色"的机制保障——LLM 即使违反 prompt 编造名字（如从"都市百合"联想出
+    不存在的配角），只要它在原文里找不到字面，就进不了知识图谱。
+    """
+    if not name or not isinstance(name, str):
+        return False
+    n = name.replace(" ", "").strip()
+    t = (text or "").replace(" ", "")
+    return bool(n) and n in t
+
+
+# 不该当"人物实体/图谱节点"的通用词（LLM 常把书名场景词误抽成实体）
+_ENTITY_STOPWORDS = {"书", "新书", "小说", "作者", "主角", "女主", "男主", "配角",
+                     "剧情", "题材", "灵感", "写作", "章节", "故事", "大纲", "人设",
+                     "作品", "本文", "本文书", "一个", "这个", "那个"}
+
+
+def _is_entity_name(name: Any, text: str) -> bool:
+    """实体名合法性：必须逐字出现在原文 + 且不是"书/主角/剧情"这类通用词"""
+    n = (name or "").replace(" ", "").strip()
+    if not n or n in _ENTITY_STOPWORDS:
+        return False
+    return _name_in_text(n, text)
+
+
 class BuildNode:
     """建库节点：清洗 + 分块，写入 processed_chunks"""
 
@@ -171,6 +200,8 @@ class EntityExtractNode:
 
         llm_output = chat(ENTITY_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
         entities = _extract_json_array(llm_output)
+        # 硬过滤：名字必须在原文逐字出现 + 非通用词，杜绝 LLM 从题材/语境脑补不存在的角色
+        entities = [e for e in entities if isinstance(e, dict) and _is_entity_name(e.get("name", ""), text_pool)]
 
         # 注意：并行分支只写自己独占的字段，不写 current_step（会与另一分支冲突）
         return {
@@ -208,6 +239,13 @@ class RelationExtractNode:
         text_pool = "".join(c["text"] for c in chunks)[:6000]
         llm_output = chat(RELATION_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
         relations = _extract_json_array(llm_output)
+        # 硬过滤：关系双方名字都必须逐字出现在原文 + 非通用词，杜绝为脑补角色建边
+        relations = [
+            r for r in relations
+            if isinstance(r, dict)
+            and _is_entity_name(r.get("source", ""), text_pool)
+            and _is_entity_name(r.get("target", ""), text_pool)
+        ]
 
         # 并行分支：只写自己独占的字段
         return {

@@ -47,3 +47,6 @@ output/
 .claude/
 .workbuddy/
 backend/data/
+
+# 临时数据备份（含真实小说数据，不进版本库）
+_*_backup_*.json
