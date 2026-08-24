@@ -141,6 +141,15 @@ input, textarea { font-family: inherit; }
 .novel-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .novel-card p { font-size: 13px; color: var(--text-2); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .novel-card .meta { margin-top: 14px; font-size: 12px; color: var(--text-3); }
+.novel-card .nc-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.novel-card .nc-more { margin-left: auto; border: none; background: transparent; color: var(--text-3); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.novel-card .nc-more:hover { color: var(--text); }
+.novel-card.drag-over { border-color: var(--text); box-shadow: 0 0 0 2px rgba(17,17,17,.08); }
+.novel-card.dragging { opacity: .5; }
+.novel-menu { position: fixed; z-index: 200; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 4px 20px rgba(0,0,0,.1); padding: 4px; min-width: 128px; }
+.novel-menu button { display: block; width: 100%; text-align: left; border: none; background: transparent; padding: 8px 12px; font-size: 13px; color: var(--text-2); border-radius: var(--radius-sm); cursor: pointer; }
+.novel-menu button:hover { background: var(--surface-2); color: var(--text); }
+.novel-menu button.danger { color: #C0392B; }
 .work-row {
   display: flex; align-items: center; gap: 24px; margin-top: 24px;
   border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
@@ -417,6 +426,9 @@ input, textarea { font-family: inherit; }
 .modal-mask.show { display: flex; }
 .modal { background: var(--surface); border-radius: var(--radius); width: 420px; max-width: 92vw; padding: 24px; box-shadow: 0 4px 32px rgba(0,0,0,.08); cursor: default; }
 .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.modal-sub { font-size: 13px; color: var(--text-3); margin: -8px 0 16px; line-height: 1.6; }
+.modal-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-form-row .modal-field { margin-bottom: 12px; }
 .modal-field { margin-bottom: 12px; }
 .modal-field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
 .modal-field input, .modal-field textarea, .modal-field select { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; outline: none; }

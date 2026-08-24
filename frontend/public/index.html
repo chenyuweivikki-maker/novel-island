@@ -430,14 +430,23 @@ window.addEventListener('error', function (e) {
 <!-- ═══════ 新建小说弹窗 ═══════ -->
 <div class="modal-mask" id="newNovelModal">
   <div class="modal">
-    <div class="modal-title">新建小说 · 填写基本信息，开始你的创作</div>
-    <div class="modal-field"><label>小说名称</label><input id="newNovelTitle" placeholder="给你的故事起个名字…"></div>
-    <div class="modal-field"><label>题材（可选，用于「我的作品」分类）</label><input id="newNovelGenre" list="genreOptions" placeholder="如：都市 / 奇幻 / 科幻…"><datalist id="genreOptions"><option value="都市"><option value="奇幻"><option value="科幻"><option value="悬疑"><option value="古风"><option value="言情"><option value="武侠"><option value="末世"><option value="穿越"><option value="电竞"><option value="校园"><option value="职场"><option value="修仙"><option value="刑侦"><option value="年代"><option value="重生"><option value="娱乐圈"></datalist></div>
-    <div class="modal-field"><label>预计总字数</label><input id="newNovelExpectedWords" placeholder="例：200,000"></div>
-    <div class="modal-field"><label>每章字数</label><input id="newNovelChapterWords" placeholder="例：3,000"></div>
+    <div class="modal-title">新建小说</div>
+    <p class="modal-sub">先起个名字、定个方向，后面我们在对话里一起把它写出来。</p>
+    <div class="modal-field">
+      <label>小说名称</label>
+      <input id="newNovelTitle" placeholder="给你的故事起个名字…" autocomplete="off">
+    </div>
+    <div class="modal-field">
+      <label>题材（可选，用于「我的作品」分类）</label>
+      <input id="newNovelGenre" list="genreOptions" placeholder="如：都市 / 奇幻 / 科幻…"><datalist id="genreOptions"><option value="都市"><option value="奇幻"><option value="科幻"><option value="悬疑"><option value="古风"><option value="言情"><option value="武侠"><option value="末世"><option value="穿越"><option value="电竞"><option value="校园"><option value="职场"><option value="修仙"><option value="刑侦"><option value="年代"><option value="重生"><option value="娱乐圈"></datalist>
+    </div>
+    <div class="modal-form-row">
+      <div class="modal-field"><label>预计总字数</label><input id="newNovelExpectedWords" placeholder="如 200,000" autocomplete="off"></div>
+      <div class="modal-field"><label>每章字数</label><input id="newNovelChapterWords" placeholder="如 3,000" autocomplete="off"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-pill" id="btnCancelNewNovel">取消</button>
-      <button class="btn-pill primary" id="btnConfirmNewNovel">创建</button>
+      <button class="btn-pill primary" id="btnConfirmNewNovel">创建作品</button>
     </div>
   </div>
 </div>

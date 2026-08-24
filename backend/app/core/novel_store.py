@@ -174,6 +174,20 @@ class NovelStore:
         conn.commit()
         conn.close()
 
+    def delete_novel(self, novel_id: int) -> None:
+        """删除作品及其关联数据（章节/背景/伏笔），并把该作品的灵感移回默认收件库（novel_id=0）。
+        知识库文件（graph/vector）与内存缓存的清理由调用方（DELETE /api/novel/{id}）负责。"""
+        conn = self._get_conn()
+        try:
+            conn.execute("DELETE FROM foreshadowings WHERE novel_id = ?", (novel_id,))
+            conn.execute("DELETE FROM chapters WHERE novel_id = ?", (novel_id,))
+            conn.execute("DELETE FROM backgrounds WHERE novel_id = ?", (novel_id,))
+            conn.execute("UPDATE inspirations SET novel_id = 0 WHERE novel_id = ?", (novel_id,))
+            conn.execute("DELETE FROM novels WHERE id = ?", (novel_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     def add_chapter(self, novel_id: int, content: str, title: str = "", outline: str = "",
                     foreshadowing: str = "[]", setup: str = "") -> int:
         """保存章节，返回 chapter_id（里程碑18：可带章纲 outline；P2-3：伏笔/预设）"""

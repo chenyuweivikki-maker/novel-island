@@ -880,6 +880,33 @@ def reorder_novels(req: NovelReorderRequest):
     return {"success": True}
 
 
+@app.delete("/api/novel/{novel_id}")
+def delete_novel(novel_id: int):
+    """删除作品：DB 关联数据（章节/背景/伏笔/灵感归属） + 知识库文件 + 内存缓存"""
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    for path in (os.path.join(data_dir, f"graph_{novel_id}.json"),
+                 os.path.join(data_dir, f"vector_{novel_id}.npz")):
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception as e:
+            print(f"[novel] 删除知识库文件失败 {path}: {e}")
+    try:
+        graph_manager.remove_graph(novel_id)
+    except Exception:
+        pass
+    try:
+        vector_store_manager.remove_store(novel_id)
+    except Exception:
+        pass
+    try:
+        retriever_manager._retrievers.pop(novel_id, None)
+    except Exception:
+        pass
+    novel_store.delete_novel(novel_id)
+    return {"success": True}
+
+
 @app.post("/api/chapter")
 def save_chapter(req: ChapterSaveRequest):
     """保存章节 + 触发增量更新（写作→知识库闭环）
