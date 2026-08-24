@@ -15,8 +15,7 @@ import json
 from typing import Dict, Any, List, Optional
 
 from ..core.llm_client import chat
-from ..core.retriever import get_retriever_for
-from ..core.vector_store import vector_store, vector_store_manager
+from ..core.hybrid_retriever import hybrid_search
 from ..core.graph_store import get_graph_for
 
 CONSISTENCY_SYSTEM_PROMPT = """你是「小说岛」的情节一致性检查员，负责对照"新章节"和"旧章节片段"，找出情节矛盾。
@@ -76,18 +75,8 @@ def check_plot_consistency(
 
     返回：[{"conflict": "...", "old": "...", "new": "...", "severity": "high|medium|low"}, ...]
     """
-    # 1. 检索旧片段（里程碑17：按项目取向量库和 TF-IDF 检索器）
-    r = get_retriever_for(novel_id)
-    vs = vector_store_manager.get_store(novel_id) if novel_id is not None else vector_store
-    if vs.is_ready:
-        vector_hits = vs.search(new_content, top_k)
-        old_chunks = []
-        for hit in vector_hits:
-            chunk_id = hit["metadata"].get("chunk_id", hit["index"])
-            if 0 <= chunk_id < len(r.chunks):
-                old_chunks.append({"chunk": r.chunks[chunk_id], "score": hit["score"]})
-    else:
-        old_chunks = r.search(new_content, top_k)
+    # 1. 检索旧片段（统一入口 hybrid_search：向量 + TF-IDF 双路召回，架构债收敛）
+    old_chunks = hybrid_search(new_content, top_k, novel_id)
 
     if not old_chunks:
         return []

@@ -9,6 +9,7 @@
 from typing import Any, Dict
 
 from ..core.retriever import get_retriever_for
+from ..core.hybrid_retriever import hybrid_search
 from ..core.llm_client import chat, chat_with_tools, RAG_SYSTEM_PROMPT, build_rag_prompt
 from ..core.memory import memory_manager
 from ..core.graph_store import get_graph_for
@@ -68,8 +69,8 @@ class RetrieveNode:
         query = state.get("user_query", "")
         top_k = state.get("top_k", 5)
 
-        # 检索（里程碑17：按项目取检索器，避免跨项目污染）
-        results = get_retriever_for(state.get("novel_id")).search(query, top_k)
+        # 检索（里程碑17：按项目取检索器；架构债收敛——统一走 hybrid_search 混合检索）
+        results = hybrid_search(query, top_k, state.get("novel_id"))
 
         # 把检索结果写回背包 —— 这就是 Node 的"返回值=要改写的字段"
         return {
@@ -393,11 +394,10 @@ class MultiHopInspirationNode:
         clues = _parse_clues(clue_output)
 
         # ---- Hop2：用线索二次检索（召回前文伏笔），去重合并 ----
-        retriever = get_retriever_for(novel_id)
         chunks_2: list = []
         seen_ids = {r["chunk"].id for r in chunks_1}
         for clue in clues[:3]:  # 最多用 3 条线索，每条检索一次
-            for r in retriever.search(clue, top_k):
+            for r in hybrid_search(clue, top_k, novel_id):
                 if r["chunk"].id not in seen_ids:
                     seen_ids.add(r["chunk"].id)
                     chunks_2.append(r)

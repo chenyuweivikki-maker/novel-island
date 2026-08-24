@@ -531,24 +531,8 @@ def ask(req: AskRequest):
                 "precise": precise,
             }
 
-    # 里程碑11：按项目取向量库
-    vs = vector_store_manager.get_store(req.novel_id) if req.novel_id is not None else vector_store
-
-    # 混合检索（向量 + TF-IDF）
-    if vs.is_ready:
-        vector_hits = vs.search(req.query, req.top_k)
-        # 把向量结果转成和 retriever 兼容的格式（用 metadata 里的 chunk_id）
-        results = []
-        for hit in vector_hits:
-            chunk_id = hit["metadata"].get("chunk_id", hit["index"])
-            # 从 TF-IDF 库里找对应 chunk（保持原有 Chunk 结构）
-            if 0 <= chunk_id < len(r.chunks):
-                results.append({"chunk": r.chunks[chunk_id], "score": hit["score"], "index": chunk_id})
-        # 向量没结果就回退 TF-IDF
-        if not results:
-            results = r.search(req.query, req.top_k)
-    else:
-        results = r.search(req.query, req.top_k)
+    # 混合检索（统一入口 hybrid_search：向量 + TF-IDF 双路召回，架构债收敛）
+    results = hybrid_search(req.query, req.top_k, req.novel_id)
 
     if not results:
         # 检索无结果：LLM 说明未找到并引导（不硬编码一句空话）
@@ -670,11 +654,11 @@ def ask(req: AskRequest):
 
 @app.post("/api/kb/retrieve")
 def retrieve(query: str, top_k: int = 5, novel_id: int | None = None):
-    """纯检索接口，不调用LLM（里程碑17：可按项目）"""
+    """纯检索接口，不调用LLM（里程碑17：可按项目；统一走 hybrid_search）"""
     r = get_retriever_for(novel_id)
     if not r.is_ready:
         return {"error": "知识库未构建"}
-    results = r.search(query, top_k)
+    results = hybrid_search(query, top_k, novel_id)
     return {
         "results": [
             {
