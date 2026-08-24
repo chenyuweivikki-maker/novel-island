@@ -11,6 +11,7 @@
   build → [extract_entities, extract_events] → output
 """
 import json
+import re
 from typing import Any, Dict, List
 
 from ..core.chunker import clean_text, chunk_text
@@ -58,7 +59,7 @@ RELATION_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅
 EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取关键事件。
 
 规则：
-1. 只抽取原文明确提到的关键情节/事件，不要编造。
+1. 只抽取原文明确提到的关键情节/事件，不要编造。严禁脑补：不虚构原文没有的人物、情节、结局或冲突，不推测作者还没说的事。
 2. 每个事件记录：简述、涉及的章节或阶段（如原文有）、后续影响（如原文可推断）。
 3. 输出严格的 JSON 数组，格式：
 [{"summary": "事件简述", "stage": "事件发生的阶段", "impact": "后续影响"}]
@@ -112,7 +113,7 @@ CHAPTER_SUMMARY_EXTRACT_PROMPT = """你是「小说岛」的编辑，负责把�
 规则：
 1. 把片段按时间顺序拆成 1-5 个情节单元（一个情节单元 = 一个完整的推进事件，如"初次相遇""矛盾爆发"）。
 2. 每个情节单元用一句话概括（20-60字），按原文先后顺序排列。
-3. 只概括原文明确发生的事，不要编造、不要推测、不要评论。
+3. 只概括原文明确发生的事，不要编造、不要推测、不要评论。严禁脑补：不虚构原文没有的人物、情节、结局或冲突。
 4. 输出严格的 JSON 数组，格式：
 [{"summary": "情节单元的一句话概括", "order": 0}, {"summary": "...", "order": 1}]
 5. order 从 0 开始递增，必须与数组顺序一致。
@@ -161,6 +162,33 @@ def _is_entity_name(name: Any, text: str) -> bool:
     return _name_in_text(n, text)
 
 
+# ===== 属性(personal)原文证据校验：防 LLM 给真实角色脑补"原文没提过"的人设 =====
+def _attr_has_evidence(value: Any, text: str) -> bool:
+    """判断某属性值是否有原文线索：值本身是原文子串，或其 2+ 字中文词能命中原文。
+
+    只留"原文明确提到/能对上"的属性，避免 LLM 从几个词发散出整套虚假人设。
+    宁缺毋滥：校验不过就丢弃（作者随时可自己在人设卡里补充）。
+    """
+    v = (str(value or "") or "").strip()
+    if not v:
+        return False
+    t = (text or "").replace(" ", "")
+    if v.replace(" ", "") in t:
+        return True
+    # 保守取 3+ 字连续中文词做子串命中（2 字词太泛，如"独立/温柔"可能误判为有据）
+    for seg in re.findall(r"[\u4e00-\u9fa5]{3,}", v):
+        if seg in t:
+            return True
+    return False
+
+
+def _sanitize_attrs(attrs: Any, text: str) -> dict:
+    """逐键过滤实体的 attributes，只保留有原文证据的属性"""
+    if not isinstance(attrs, dict):
+        return {}
+    return {k: v for k, v in attrs.items() if _attr_has_evidence(v, text)}
+
+
 class BuildNode:
     """建库节点：清洗 + 分块，写入 processed_chunks"""
 
@@ -200,8 +228,12 @@ class EntityExtractNode:
 
         llm_output = chat(ENTITY_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
         entities = _extract_json_array(llm_output)
-        # 硬过滤：名字必须在原文逐字出现 + 非通用词，杜绝 LLM 从题材/语境脑补不存在的角色
+        # 硬过滤 1：名字必须在原文逐字出现 + 非通用词，杜绝 LLM 从题材/语境脑补不存在的角色
         entities = [e for e in entities if isinstance(e, dict) and _is_entity_name(e.get("name", ""), text_pool)]
+        # 硬过滤 2：属性(personal)只保留原文有线索的，防 LLM 给真实角色脑补"原文没提过"的人设
+        for e in entities:
+            if isinstance(e.get("attributes"), dict):
+                e["attributes"] = _sanitize_attrs(e.get("attributes"), text_pool)
 
         # 注意：并行分支只写自己独占的字段，不写 current_step（会与另一分支冲突）
         return {

@@ -150,13 +150,12 @@ def _auto_create_book(session_id: str, current_query: str = "") -> int | None:
     _AUTO_BOOKED.add(session_id)
     # 建书时历史已整体入库 → 标记已同步，防止下一轮重复抽取
     memory_manager.mark_all_synced(session_id)
+    # 创建后立即把对话原文入库（只入库"作者说过的原话"，不加任何人工补充——
+    # 之前追加"本故事主要角色：XXX"会给 LLM 一份诱导，让它围绕这些角色脑补关系/人设，
+    # 违反"对话是项目记忆唯一来源、不编造"的原则）
     print(f"[auto_book] session={session_id} 自动建书: 《{title}》({genre}) novel_id={novel_id}, 角色={characters}, material={is_material}")
-    # 把设定文本入库（带角色名提示，提升实体抽取质量）
     try:
-        material = joined
-        if characters:
-            material += "。本故事主要角色：" + "、".join(characters)
-        ingest_material(material, novel_id)
+        ingest_material(joined, novel_id)
     except Exception as e:
         print(f"[auto_book] 首次入库失败: {e}")
     return novel_id
