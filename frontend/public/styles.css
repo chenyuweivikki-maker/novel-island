@@ -291,9 +291,16 @@ input, textarea { font-family: inherit; }
 .tab-pad { padding: 32px; max-width: 880px; margin: 0 auto; }
 .tab-pad h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
 .tab-actions { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
-/* 全文大纲（P9）：分块卡片 */
-.outline-sec { margin-bottom: 16px; }
-.outline-sec .os-title { font-size: 14px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+/* 全文大纲（P9）：结果展示卡片 */
+.outline-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; background: var(--surface); }
+.outline-card .oc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.outline-card .oc-title { font-size: 14px; font-weight: 600; color: var(--text-2); flex: 1; }
+.outline-card .oc-edit { font-size: 12px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 12px; cursor: pointer; }
+.outline-card .oc-edit:hover { color: var(--text); }
+.outline-card .oc-content { font-size: 14px; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
+.outline-card .oc-empty { font-size: 13px; color: var(--text-3); }
+.outline-card .oc-edit-wrap { margin-top: 8px; }
+.outline-card .oc-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
 .outline-field { width: 100%; min-height: 84px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; line-height: 1.7; resize: vertical; color: var(--text); background: var(--surface); }
 .outline-field:focus { outline: none; border-color: var(--text); }
 

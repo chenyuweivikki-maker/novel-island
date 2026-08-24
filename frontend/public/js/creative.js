@@ -795,44 +795,93 @@ async function deleteBackground(id) {
     loadBackgrounds();
   } catch (e) { alert('删除失败: ' + e.message); }
 }
-// ===== 全文大纲（P9：分块结构化，自动保存）=====
-const OUTLINE_FIELDS = ['logline', 'theme', 'plot', 'conflict', 'ending'];
-function _outlineFieldEl(key) { return document.getElementById('outline' + key.charAt(0).toUpperCase() + key.slice(1)); }
+// ===== 全文大纲（P9：结果展示页 + 一键生成 + 手动补充）=====
+const OUTLINE_SECTIONS = [
+  { key: 'logline', title: '一句话梗概（故事核）', ph: '用一句话说清：题材 + 主角 + 核心冲突' },
+  { key: 'theme', title: '主题立意', ph: '这个故事想表达的内核 / 情感 / 态度' },
+  { key: 'plot', title: '主线脉络 · 分卷结构', ph: '开头 / 发展 / 高潮 / 结局（或按分卷拆）' },
+  { key: 'conflict', title: '核心冲突与转折', ph: '主要矛盾 + 关键事件 / 转折点' },
+  { key: 'ending', title: '结局设定', ph: '主要角色最终走向，HE / BE / 开放' },
+];
+let outlineData = {};
+let outlineEditingKey = null;
+
+function _ocWrap() { return document.getElementById('outlineSections'); }
+function renderOutlineSections() {
+  const wrap = _ocWrap();
+  if (!wrap) return;
+  wrap.innerHTML = OUTLINE_SECTIONS.map(sec => {
+    const val = outlineData[sec.key] || '';
+    const editing = outlineEditingKey === sec.key;
+    return `
+      <div class="outline-card" data-key="${sec.key}">
+        <div class="oc-head">
+          <span class="oc-title">${esc(sec.title)}</span>
+          <button class="oc-edit" data-key="${sec.key}" title="补充或修改">${val ? '✏️ 修改' : '＋ 补充'}</button>
+        </div>
+        <div class="oc-body" data-key="${sec.key}">
+          ${val ? `<div class="oc-content">${esc(val)}</div>` : '<div class="oc-empty">还没有——在对话里告诉我，或点右上「＋ 补充」</div>'}
+        </div>
+        <div class="oc-edit-wrap" style="${editing ? '' : 'display:none'}">
+          <textarea class="outline-field" data-key="${sec.key}" placeholder="${esc(sec.ph)}">${esc(editing ? val : '')}</textarea>
+          <div class="oc-actions">
+            <button class="btn-pill small" data-action="cancel" data-key="${sec.key}">取消</button>
+            <button class="btn-pill primary small" data-action="save" data-key="${sec.key}">保存</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  // 进入编辑
+  wrap.querySelectorAll('.oc-edit').forEach(b => b.addEventListener('click', () => {
+    outlineEditingKey = b.dataset.key;
+    renderOutlineSections();
+    const ta = _ocWrap().querySelector('.oc-edit-wrap[data-key="' + b.dataset.key + '"] textarea');
+    if (ta) { ta.value = outlineData[b.dataset.key] || ''; ta.focus(); }
+  }));
+  // 取消
+  wrap.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => {
+    outlineEditingKey = null; renderOutlineSections();
+  }));
+  // 保存
+  wrap.querySelectorAll('[data-action="save"]').forEach(b => b.addEventListener('click', () => {
+    const key = b.dataset.key;
+    const ta = _ocWrap().querySelector('.oc-edit-wrap[data-key="' + key + '"] textarea');
+    outlineData[key] = ta ? ta.value : '';
+    outlineEditingKey = null;
+    saveOutlineSections();
+    renderOutlineSections();
+  }));
+}
 async function loadOutline() {
   const st = document.getElementById('outlineStatus');
   if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
   try {
     const data = await apiGet(`/api/novel/${currentNovelId}/outline`);
-    const sec = data.outline || {};
-    OUTLINE_FIELDS.forEach(k => { const el = _outlineFieldEl(k); if (el) el.value = (sec[k] || ''); });
+    outlineData = data.outline || {};
+    outlineEditingKey = null;
+    renderOutlineSections();
     if (st) st.textContent = '已载入';
   } catch (e) { if (st) st.textContent = '加载失败: ' + e.message; }
 }
-async function saveOutline() {
+async function saveOutlineSections() {
   const st = document.getElementById('outlineStatus');
-  if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
-  const sections = {};
-  OUTLINE_FIELDS.forEach(k => { const el = _outlineFieldEl(k); sections[k] = el ? el.value : ''; });
+  if (!currentNovelId) return;
   if (st) st.textContent = '保存中…';
   try {
-    await apiCall(`/api/novel/${currentNovelId}/outline`, { sections: sections });
+    await apiCall(`/api/novel/${currentNovelId}/outline`, { sections: outlineData });
     if (st) st.textContent = '✓ 已保存';
   } catch (e) { if (st) st.textContent = '保存失败: ' + e.message; }
 }
-document.getElementById('btnSaveOutline').addEventListener('click', saveOutline);
-(function () {
-  let t = null;
-  OUTLINE_FIELDS.forEach(k => {
-    const el = _outlineFieldEl(k);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      const st = document.getElementById('outlineStatus');
-      if (st) st.textContent = '编辑中…';
-      clearTimeout(t);
-      t = setTimeout(saveOutline, 1500); // 停顿 1.5s 自动保存
-    });
-  });
-})();
+document.getElementById('btnGenOutline').addEventListener('click', async () => {
+  const st = document.getElementById('outlineStatus');
+  if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
+  if (st) st.textContent = '正在生成大纲…（约 10-30 秒）';
+  try {
+    const data = await apiCall(`/api/novel/${currentNovelId}/outline/generate`, {});
+    if (data.success) { outlineData = data.outline || {}; outlineEditingKey = null; renderOutlineSections(); if (st) st.textContent = '✓ 已生成并保存'; }
+    else { if (st) st.textContent = (data.error || '生成失败'); }
+  } catch (e) { if (st) st.textContent = '生成失败: ' + e.message; }
+});
 document.getElementById('btnAddBackground').addEventListener('click', () => {
   if (!currentNovelId) { alert('请先选择一本小说'); return; }
   document.getElementById('bgModal').classList.add('show');
