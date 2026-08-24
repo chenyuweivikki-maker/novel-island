@@ -31,17 +31,27 @@ async function loadInspCats() {
     list.querySelectorAll('.insp-cat').forEach(el => {
       el.addEventListener('click', e => {
         if (e.target.classList.contains('more')) { openInspMenu(e, el.dataset.cat); return; }
-        inspCategory = el.dataset.cat;
-        document.querySelectorAll('#inspCats .insp-cat').forEach(x => x.classList.remove('active'));
-        el.classList.add('active');
-        loadInspItems();
+        selectInspCat(el.dataset.cat);
       });
     });
-    const all = document.querySelector('#inspCats .insp-cat[data-cat="auto"]');
+    // 自动分类（静态元素）：同步 active 态（inspCategory='auto' 时高亮）
+    const autoEl = document.querySelector('#inspCats .insp-cat[data-cat="auto"]');
+    if (autoEl) autoEl.classList.toggle('active', inspCategory === 'auto');
     const cntAll = (data.categories || []).reduce((s, c) => s + c.count, 0);
     document.getElementById('inspCntAll').textContent = cntAll;
   } catch (e) { console.error(e); }
 }
+// 选中某个分类（自动分类或具体分类）：统一处理 active 高亮 + 刷新条目
+function selectInspCat(cat) {
+  inspCategory = cat;
+  document.querySelectorAll('#inspCats .insp-cat').forEach(x => x.classList.remove('active'));
+  const els = document.querySelectorAll('#inspCats .insp-cat');
+  for (let i = 0; i < els.length; i++) { if (els[i].dataset.cat === cat) { els[i].classList.add('active'); break; } }
+  loadInspItems();
+}
+// 「自动分类」是静态元素，之前没绑点击，导致点了其他分类就回不去 —— 这里补上
+document.getElementById('inspCatAuto').addEventListener('click', () => selectInspCat('auto'));
+
 async function loadInspItems() {
   const list = document.getElementById('inspItems');
   // 输入框/分类中提示只在「自动分类」tab 显示（其他分类是确定类目，直接浏览）
