@@ -65,6 +65,15 @@ class NovelStore:
             created_at REAL NOT NULL,
             FOREIGN KEY (novel_id) REFERENCES novels(id)
         );
+        CREATE TABLE IF NOT EXISTS chapter_backups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            novel_id INTEGER NOT NULL,
+            chapter_id INTEGER NOT NULL,
+            kind TEXT DEFAULT 'save',
+            content TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            FOREIGN KEY (novel_id) REFERENCES novels(id)
+        );
         """)
         conn.commit()
         # 里程碑17：给老库补 sort_order 列（拖拽排序），新库建表时不会带这列，用迁移方式加
@@ -211,6 +220,35 @@ class NovelStore:
         )
         conn.commit()
         conn.close()
+
+    # ===== 写操作备份/回滚（P2-7）=====
+    def save_chapter_backup(self, novel_id: int, chapter_id: int, kind: str, content: str) -> None:
+        """写操作前自动把旧章节内容备份进 chapter_backups（回滚用）"""
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO chapter_backups (novel_id, chapter_id, kind, content, created_at) VALUES (?,?,?,?,?)",
+            (novel_id, chapter_id, kind, content, time.time()),
+        )
+        conn.commit()
+        conn.close()
+
+    def list_chapter_backups(self, novel_id: int) -> List[Dict[str, Any]]:
+        """列出某作品的所有章节备份（不含全文，含长度/时间）"""
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT id, chapter_id, kind, length(content) AS chars, created_at "
+            "FROM chapter_backups WHERE novel_id = ? ORDER BY id DESC LIMIT 50",
+            (novel_id,),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_chapter_backup(self, backup_id: int) -> Optional[Dict[str, Any]]:
+        """读取某条备份全文（回滚用）"""
+        conn = self._get_conn()
+        r = conn.execute("SELECT * FROM chapter_backups WHERE id = ?", (backup_id,)).fetchone()
+        conn.close()
+        return dict(r) if r else None
 
     def list_chapters(self, novel_id: int) -> List[Dict[str, Any]]:
         """列出某作品的所有章节（不含正文，含章纲/伏笔/预设，里程碑18/P2-3）"""

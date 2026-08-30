@@ -773,6 +773,10 @@ def save_chapter(req: ChapterSaveRequest):
 
     # 1. 保存章节（有 chapter_id 则更新，无则新增）；更新时章纲也重新生成覆盖
     if req.chapter_id:
+        # P2-7：写操作前自动备份旧章节内容（回滚机制）
+        _old = novel_store.get_chapter(req.chapter_id)
+        if _old and _old.get("content"):
+            novel_store.save_chapter_backup(req.novel_id, req.chapter_id, "save", _old["content"])
         # 更新：先删旧数据（向量/图谱），再加新内容
         vs.remove_by_chapter(req.chapter_id)
         g.remove_by_chapter(req.chapter_id)
@@ -896,6 +900,26 @@ def get_chapter(chapter_id: int):
     if not chapter:
         return {"error": "章节不存在"}
     return chapter
+
+
+@app.get("/api/novel/{novel_id}/backups")
+def list_backups(novel_id: int):
+    """列出一本作品的所有章节自动备份（P2-7 回滚机制）"""
+    return {"backups": novel_store.list_chapter_backups(novel_id)}
+
+
+@app.post("/api/novel/{novel_id}/backups/{backup_id}/rollback")
+def rollback_backup(novel_id: int, backup_id: int):
+    """回滚章节到某次备份：用备份内容覆盖当前章节正文（P2-7）"""
+    backup = novel_store.get_chapter_backup(backup_id)
+    if not backup or backup["novel_id"] != novel_id:
+        return {"error": "备份不存在"}
+    # 回滚前，把当前章节也备份一份（可再撤销回滚）
+    cur = novel_store.get_chapter(backup["chapter_id"])
+    if cur and cur.get("content"):
+        novel_store.save_chapter_backup(novel_id, backup["chapter_id"], "rollback", cur["content"])
+    novel_store.update_chapter(backup["chapter_id"], backup["content"])
+    return {"success": True, "chapter_id": backup["chapter_id"]}
 
 
 @app.get('/api/cost')
