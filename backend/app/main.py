@@ -1125,6 +1125,49 @@ def list_foreshadowings(novel_id: int, status: str = ""):
     }
 
 
+@app.get("/api/novel/{novel_id}/pacing")
+def novel_pacing(novel_id: int):
+    """节奏/情绪曲线分析（P2-4，无 LLM 统计）：
+    基于每章字数分布 + 该章事件密度，估算"张力/紧张度"曲线（0-1），并给出结构诊断。
+    """
+    chapters = novel_store.list_chapters(novel_id)
+    if not chapters:
+        return {"chapters": [], "curve": [], "summary": "还没有章节，保存章节后才能生成节奏分析。"}
+    g = get_graph_for(novel_id)
+    rows = []
+    for c in chapters:
+        full = novel_store.get_chapter(c["id"]) or {}
+        content = full.get("content") or ""
+        chars = len(content)
+        evts = sum(1 for e in g.get_timeline() if e.get("chapter_id") == c["id"])
+        rows.append({"id": c["id"], "title": c.get("title") or "", "chars": chars, "events": evts})
+    if not rows:
+        return {"chapters": [], "curve": [], "summary": "还没有章节。"}
+    max_chars = max((r["chars"] for r in rows), default=0) or 1
+    max_evts = max((r["events"] for r in rows), default=0) or 1
+    for r in rows:
+        # 张力 = 字数占比 60% + 事件密度 40%（确定性，无 LLM）
+        r["tension"] = round(0.6 * (r["chars"] / max_chars) + 0.4 * (r["events"] / max_evts), 3)
+    # 结构诊断
+    longest = max(rows, key=lambda r: r["chars"])
+    shortest = min(rows, key=lambda r: r["chars"])
+    dense = max(rows, key=lambda r: r["events"]) if any(r["events"] for r in rows) else None
+    parts = [f"全本 {len(rows)} 章，共 {sum(r['chars'] for r in rows)} 字。"]
+    if longest["chars"] > 0:
+        parts.append(f"字数峰值：第 {longest['id']} 章《{longest['title']}》最长（{longest['chars']} 字），可能是节奏高点/高潮。")
+    parts.append(f"字数低谷：第 {shortest['id']} 章《{shortest['title']}》最短（{shortest['chars']} 字），注意是否太短/过渡。")
+    if dense and dense["events"] > 0:
+        parts.append(f"事件最密：第 {dense['id']} 章《{dense['title']}》含 {dense['events']} 个情节事件，冲突/推进集中。")
+    avg = sum(r["chars"] for r in rows) / len(rows)
+    if avg > 0:
+        parts.append(f"平均每章约 {int(avg)} 字。")
+    return {
+        "chapters": rows,
+        "curve": [{"id": r["id"], "title": r["title"], "tension": r["tension"]} for r in rows],
+        "summary": "\n".join(parts),
+    }
+
+
 @app.patch("/api/foreshadowing/{fh_id}")
 def resolve_foreshadowing(fh_id: int):
     """标记伏笔已解决（填坑）"""

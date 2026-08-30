@@ -770,7 +770,34 @@ function renderMindMap(container, items, labelFn, emptyText) {
     </div>`;
   }).join('');
 }
+async function renderPacing() {
+  // P2-4：节奏/情绪曲线（每章张力），无 LLM 统计
+  const wrap = document.getElementById('timelinePacing');
+  if (!wrap || !currentNovelId) { if (wrap) wrap.style.display = 'none'; return; }
+  try {
+    const data = await apiGet(`/api/novel/${currentNovelId}/pacing`);
+    const curve = data.curve || [];
+    if (!curve.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    const W = 760, H = 120, pad = 10;
+    const max = Math.max(...curve.map(c => c.tension), 0.01);
+    const xAt = i => pad + i * (W - 2 * pad) / Math.max(curve.length - 1, 1);
+    const yAt = t => H - pad - (t / max) * (H - 2 * pad);
+    const pts = curve.map((c, i) => `${xAt(i)},${yAt(c.tension)}`).join(' ');
+    const dots = curve.map((c, i) =>
+      `<circle cx="${xAt(i)}" cy="${yAt(c.tension)}" r="3.2" fill="#666"><title>第${c.id}章 ${esc(c.title || '')} · 张力${c.tension}</title></circle>`).join('');
+    wrap.innerHTML = `<div class="pacing-card">
+      <div class="pacing-head">📈 节奏 / 情绪曲线（每章张力：字数↑ + 事件密度）</div>
+      <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="#888" stroke-width="2"/>
+        ${dots}
+      </svg>
+      <div class="pacing-summary">${esc(data.summary || '')}</div>
+    </div>`;
+  } catch (e) { wrap.style.display = 'none'; }
+}
 async function renderTimeline() {
+  renderPacing();
   const container = document.getElementById('timelineList');
   try {
     const params = currentNovelIdNum() ? `?novel_id=${currentNovelIdNum()}` : '';
