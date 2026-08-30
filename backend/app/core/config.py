@@ -34,5 +34,10 @@ class Settings:
     CHUNK_OVERLAP: int = 60     # 重叠字数
     TOP_K: int = 5              # 检索返回数量
 
+    # ===== 额度 / 熔断（P3-2，默认 0 = 不限制，.env 里可开启）=====
+    DAILY_COST_LIMIT: float = float(os.getenv("DAILY_COST_LIMIT", "0"))      # 单日成本上限(元)，超限自动降级模型
+    DAILY_ASK_LIMIT: int = int(os.getenv("DAILY_ASK_LIMIT", "0"))            # 单日对话次数上限，超限熔断提示
+    KB_CAPACITY_LIMIT: int = int(os.getenv("KB_CAPACITY_LIMIT", "0"))        # 每本知识库字数上限，超限阻止入库
+
 
 settings = Settings()

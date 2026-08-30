@@ -23,7 +23,7 @@ from .core.chunker import clean_text, chunk_text
 from .core.retriever import get_retriever_for, retriever, retriever_manager
 from .core.llm_client import chat, chat_stream, RAG_SYSTEM_PROMPT, build_rag_prompt
 from .core.memory import memory_manager
-from .core.model_router import get_cost_summary, clear_cost_logs
+from .core.model_router import get_cost_summary, clear_cost_logs, daily_llm_calls
 from .core.graph_store import graph, graph_manager, get_graph_for
 from .core.novel_store import novel_store
 from .core.inspiration_store import inspiration_store
@@ -358,6 +358,10 @@ def kb_status(novel_id: int | None = None):
 @app.post("/api/kb/ask")
 def ask(req: AskRequest):
     """提问：检索 Top-K → LLM 生成回答（含对话式建库：素材解析入库 + 空库引导）"""
+    # P3-2 日对话额限额（DAILY_ASK_LIMIT>0 才生效）：超限熔断提示
+    if getattr(settings, "DAILY_ASK_LIMIT", 0) > 0 and daily_llm_calls() > settings.DAILY_ASK_LIMIT:
+        return {"answer": "今日对话已达上限（{}/{}），明天再来或提高额度。".format(daily_llm_calls(), settings.DAILY_ASK_LIMIT),
+                "sources": [], "quota_exceeded": True}
     # 对话→大纲自动捕获：项目对话里作者提到大纲内容（梗概/主题/主线/冲突/结局）→ 写入大纲。
     # 在项目（novel_id 非空）请求开头统一执行，保证所有路径（含素材/空库短路）都能捕获。
     if req.novel_id is not None:

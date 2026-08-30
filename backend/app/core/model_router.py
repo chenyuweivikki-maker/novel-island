@@ -98,13 +98,40 @@ def provider_is_open(provider: str) -> bool:
     return True
 
 
+# ===== 额度 / 熔断（P3-2，DAILY_COST_LIMIT>0 才生效）=====
+def _today_start() -> float:
+    import datetime
+    return datetime.datetime.combine(datetime.date.today(), datetime.time.min).timestamp()
+
+
+def _daily_cost() -> float:
+    """今日(0点起)累计 LLM 成本（元）"""
+    today = _today_start()
+    return round(sum(c["cost"] for c in _load_calls() if c.get("timestamp", 0) >= today), 6)
+
+
+def daily_llm_calls() -> int:
+    """今日 LLM 调用次数（近似对话额度）"""
+    today = _today_start()
+    return sum(1 for c in _load_calls() if c.get("timestamp", 0) >= today)
+
+
+def cost_breaker_triggered() -> bool:
+    """成本熔断判定：单日成本超限 → 强制降级到低成本模型"""
+    limit = getattr(settings, "DAILY_COST_LIMIT", 0)
+    return limit > 0 and _daily_cost() > limit
+
+
 def get_model_for_task(task: str) -> str:
     """按任务返回模型名（路由核心）
 
     优雅回退：目标模型的 Provider 没配 key 或处于熔断 → 回退 DeepSeek 主力模型，
     保证任何情况下主流程都能跑（成本记录/降级链路上游）。
+    P3-2：单日成本超限（DAILY_COST_LIMIT）→ 强制降级到低成本主力模型（成本熔断）。
     """
     level = TASK_LEVELS.get(task, "main")
+    if cost_breaker_triggered():  # 成本熔断：无论何级都降级到便宜的 deepseek-chat
+        return "deepseek-chat"
     model = MODEL_ROUTES[level]
     if not _provider_available(model) or provider_is_open(_provider_of(model)):
         return "deepseek-chat"
