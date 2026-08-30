@@ -63,6 +63,7 @@ from .services.outline import (
     parse_outline_sections as _parse_outline_sections,
     build_outline_context as _build_outline_context,
     parse_outline_json as _parse_outline_json,
+    outline_consistency_check,
 )
 from .services.reporting import parse_report_json as _parse_report_json
 
@@ -695,6 +696,12 @@ def generate_novel_outline(novel_id: int):
         return {"success": False, "error": "大纲生成结果解析失败"}
     novel_store.update_novel_outline(novel_id, json.dumps(sections, ensure_ascii=False))
     return {"success": True, "outline": sections}
+
+
+@app.post("/api/novel/{novel_id}/outline/check")
+def check_outline_consistency(novel_id: int):
+    """大纲一致性校验（P3-6 OutlineConsistencyNode）：LLM 核对大纲与项目设定/事件是否一致"""
+    return {"novel_id": novel_id, **outline_consistency_check(novel_id)}
 
 
 @app.post("/api/novels/reorder")

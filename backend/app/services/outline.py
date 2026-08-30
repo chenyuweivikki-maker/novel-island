@@ -7,6 +7,7 @@ import json
 
 from ..core.graph_store import get_graph_for
 from ..core.novel_store import novel_store
+from ..core.llm_client import chat
 
 
 OUTLINE_GEN_PROMPT = """你是「小说岛」的大纲助手。根据作者目前积累的创作资料，为这本书生成一个结构化的全文大纲。
@@ -81,3 +82,49 @@ def parse_outline_json(text: str) -> dict:
     except Exception:
         pass
     return {}
+
+
+# ===== 大纲一致性校验（P3-6 OutlineConsistencyNode）=====
+OUTLINE_CONSISTENCY_PROMPT = """你是「小说岛」的大纲一致性检查员。核对"全文大纲"与"项目已积累的设定/事件"是否一致。
+
+全文大纲：
+{outline}
+
+项目设定（人物/事件/关系/章纲）：
+{context}
+
+请检查：
+1. 大纲里提到的人物/关键设定，是否在项目设定里有依据（有没有"凭空出现"的人或事）
+2. 大纲的主线/冲突/结局，是否与已有事件、人物关系矛盾
+3. 大纲方向是否与项目已积累的设定明显偏离
+
+输出严格的 JSON 数组：
+[{{"level": "high|medium|low", "issue": "问题描述", "suggestion": "建议"}}]
+没有发现问题就输出 []。只输出 JSON，不要其他文字。"""
+
+
+def outline_consistency_check(novel_id: int) -> dict:
+    """校验全文大纲与项目记忆（人物/事件/关系）的一致性，返回问题列表。"""
+    raw_outline = novel_store.get_novel_outline(novel_id)
+    if not raw_outline:
+        return {"checked": False, "issues": [], "note": "还没有大纲，先保存或生成大纲。"}
+    outline = parse_outline_sections(raw_outline)
+    outline_text = "；".join(f"{k}:{v}" for k, v in outline.items() if v) or raw_outline
+    context = build_outline_context(novel_id) or "（项目还没有积累设定）"
+    prompt = OUTLINE_CONSISTENCY_PROMPT.format(outline=outline_text[:1500], context=context[:2500])
+    try:
+        raw = chat(prompt, "请检查大纲一致性。", temperature=0.0, max_tokens=500, task="logic")
+    except Exception as e:
+        return {"checked": False, "issues": [], "note": f"一致性检查失败：{e}"}
+    t = (raw or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if t.startswith("json"):
+            t = t[4:]
+    try:
+        issues = json.loads(t)
+        if isinstance(issues, list):
+            return {"checked": True, "issues": issues, "note": ""}
+    except Exception as e:
+        print(f"[outline] 一致性解析失败: {e}")
+    return {"checked": True, "issues": [], "note": "一致性检查未发现问题。"}

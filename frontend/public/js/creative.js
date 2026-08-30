@@ -942,6 +942,25 @@ document.getElementById('btnGenOutline').addEventListener('click', async () => {
     else { if (st) st.textContent = (data.error || '生成失败'); }
   } catch (e) { if (st) st.textContent = '生成失败: ' + e.message; }
 });
+document.getElementById('btnCheckOutline').addEventListener('click', async () => {
+  // P3-6：大纲一致性校验
+  const resEl = document.getElementById('outlineCheckResult');
+  if (!currentNovelId) { alert('请先选择一本小说'); return; }
+  resEl.style.display = 'block';
+  resEl.innerHTML = '<div class="pacing-card"><div class="pacing-summary">正在检查大纲一致性…（约几秒）</div></div>';
+  try {
+    const data = await apiCall(`/api/novel/${currentNovelId}/outline/check`, {});
+    const issues = data.issues || [];
+    if (!issues.length) {
+      resEl.innerHTML = `<div class="pacing-card"><div class="pacing-head">✅ 大纲一致性</div><div class="pacing-summary">${esc(data.note || '未发现问题。')}</div></div>`;
+      return;
+    }
+    resEl.innerHTML = `<div class="pacing-card"><div class="pacing-head">⚠️ 大纲一致性（${issues.length} 处）</div>` +
+      issues.map(i => `<div class="pacing-summary"><b>[${esc(i.level || '')}]</b> ${esc(i.issue || '')} — 建议：${esc(i.suggestion || '')}</div>`).join('') + '</div>';
+  } catch (e) {
+    resEl.innerHTML = `<div class="pacing-card"><div class="pacing-summary">检查失败: ${esc(e.message)}</div></div>`;
+  }
+});
 document.getElementById('btnAddBackground').addEventListener('click', () => {
   if (!currentNovelId) { alert('请先选择一本小说'); return; }
   document.getElementById('bgModal').classList.add('show');
