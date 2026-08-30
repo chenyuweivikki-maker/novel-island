@@ -24,6 +24,7 @@ import time
 from typing import List, Dict
 
 from ..core.llm_client import chat
+from .tracking import tracking
 
 # 超过这个轮数就触发摘要压缩（PRD：对话历史摘要控制token）
 MAX_HISTORY_TURNS = 6
@@ -169,6 +170,7 @@ class ConversationMemory:
             for m in early
         )
         summary = chat(SUMMARY_SYSTEM_PROMPT, early_text, temperature=0.0, max_tokens=128)
+        tracking.record("memory_operation", op="compress", session_id=getattr(self, "session_id", ""))  # PRD 埋点：记忆摘要压缩
 
         # 返回：摘要（作为 system 消息）+ 最近轮次
         return [

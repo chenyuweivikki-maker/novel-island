@@ -907,6 +907,7 @@ async function saveOutlineSections() {
 document.getElementById('btnGenOutline').addEventListener('click', async () => {
   const st = document.getElementById('outlineStatus');
   if (!currentNovelId) { if (st) st.textContent = '请先选择一本小说'; return; }
+  trackEvent('click_generate_outline', { novel_id: currentNovelId }); // PRD 埋点
   if (st) st.textContent = '正在生成大纲…（约 10-30 秒）';
   try {
     const data = await apiCall(`/api/novel/${currentNovelId}/outline/generate`, {});
