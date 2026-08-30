@@ -58,6 +58,13 @@ from .services.guidance import (
     is_new_book_intent as _is_new_book_intent,
     empty_kb_stream_or_dict as _empty_kb_stream_or_dict,
 )
+from .services.outline import (
+    OUTLINE_GEN_PROMPT,
+    parse_outline_sections as _parse_outline_sections,
+    build_outline_context as _build_outline_context,
+    parse_outline_json as _parse_outline_json,
+)
+from .services.reporting import parse_report_json as _parse_report_json
 
 app = FastAPI(title="小说岛 API", version="0.1.0")
 
@@ -660,19 +667,6 @@ class OutlineSaveRequest(BaseModel):
     sections: dict = {}  # 分块大纲：{logline,theme,plot,conflict,ending}; 向后兼容旧 outline 字符串
 
 
-def _parse_outline_sections(raw: str) -> dict:
-    """把存储的大纲解析成分块 dict。新数据为 JSON；旧纯文本兜底到 plot 分块，避免丢内容。"""
-    if not raw:
-        return {}
-    try:
-        d = json.loads(raw)
-        if isinstance(d, dict):
-            return d
-    except Exception:
-        pass
-    return {"plot": raw}  # 旧版单文本块 → 归入「主线」
-
-
 @app.get("/api/novel/{novel_id}/outline")
 def get_novel_outline(novel_id: int):
     """读取作品全文大纲（P9）：返回分块 dict"""
@@ -684,67 +678,6 @@ def save_novel_outline(novel_id: int, req: OutlineSaveRequest):
     """保存作品全文大纲（P9）：存储为 JSON 字符串（novels.outline 列复用，不加列）"""
     novel_store.update_novel_outline(novel_id, json.dumps(req.sections, ensure_ascii=False))
     return {"success": True, "novel_id": novel_id}
-
-
-OUTLINE_GEN_PROMPT = """你是「小说岛」的大纲助手。根据作者目前积累的创作资料，为这本书生成一个结构化的全文大纲。
-
-创作资料：
-{context}
-
-只输出 JSON，包含 5 个字段（每字段 1-3 句话；资料不足时给合理的方向性描述，不要编造资料里没有的具体人名/事件）：
-{{"logline":"一句话梗概（故事核）","theme":"主题立意","plot":"主线脉络·分卷结构","conflict":"核心冲突与转折","ending":"结局设定"}}
-
-只输出 JSON。"""
-
-
-def _build_outline_context(novel_id: int) -> str:
-    """从项目知识（人物/事件/章纲/背景）拼一段紧凑文本，供 LLM 生成大纲"""
-    parts = []
-    try:
-        g = get_graph_for(novel_id)
-        entities = g.all_entities()
-        if entities:
-            lines = ["【人物设定】"]
-            for name in entities:
-                node = g.get_entity(name)
-                persona = (node or {}).get("persona", {})
-                attrs = (node or {}).get("attributes", {})
-                info = "；".join(f"{k}:{v}" for k, v in list(persona.items()) + list(attrs.items()) if v)
-                lines.append(f"- {name}：{info[:200]}")
-            parts.append("\n".join(lines))
-        evts = g.get_timeline()
-        if evts:
-            parts.append("【事件时间线】\n" + "\n".join(f"- {e.get('summary', '')[:80]}" for e in evts[-12:]))
-    except Exception as e:
-        print(f"[outline] 图谱上下文失败: {e}")
-    try:
-        chs = novel_store.list_chapters(novel_id)
-        ol = [c for c in chs if c.get("outline")]
-        if ol:
-            parts.append("【章纲】\n" + "\n".join(f"- {c.get('title', '')}：{(c.get('outline') or '')[:120]}" for c in ol[-8:]))
-        bgs = novel_store.list_backgrounds(novel_id)
-        if bgs:
-            parts.append("【背景资料】\n" + "\n".join(f"- {b.get('title', '')}：{(b.get('content') or '')[:120]}" for b in bgs[:8]))
-    except Exception as e:
-        print(f"[outline] 章节/背景上下文失败: {e}")
-    return "\n\n".join(parts).strip() or "（还没有积累创作资料）"
-
-
-def _parse_outline_json(text: str) -> dict:
-    """解析 LLM 输出为 5 字段 dict，容错"""
-    t = (text or "").strip()
-    if t.startswith("```"):
-        t = t.strip("`")
-        if t.startswith("json"):
-            t = t[4:]
-    try:
-        d = json.loads(t)
-        if isinstance(d, dict):
-            keys = ["logline", "theme", "plot", "conflict", "ending"]
-            return {k: (d.get(k) or "").strip() for k in keys}
-    except Exception:
-        pass
-    return {}
 
 
 @app.post("/api/novel/{novel_id}/outline/generate")
@@ -1119,20 +1052,6 @@ DATA_ANALYST_SYSTEM = (
 )
 
 
-def _parse_report_json(text: str) -> dict:
-    """容错解析 LLM 输出的 JSON（剥离 ```json 包裹 / 截取首尾括号）"""
-    t = text.strip()
-    t = t.replace("```json", "").replace("```", "").strip()
-    start, end = t.find("{"), t.rfind("}")
-    if start >= 0 and end > start:
-        t = t[start:end + 1]
-    try:
-        data = json.loads(t)
-        if isinstance(data, dict):
-            return data
-    except Exception as e:
-        print(f"[data_analyst] JSON 解析失败，回退文本: {e}")
-    return {"summary": t[:300]}
 
 
 @app.post("/api/analysis/report")
