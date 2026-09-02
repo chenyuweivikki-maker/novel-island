@@ -75,6 +75,15 @@ input, textarea { font-family: inherit; }
 .view { display: none; height: 100%; }
 .view.active { display: block; }
 
+/* ── 可拖拽分栏手柄（左右调整宽度）── */
+.resizer {
+  width: 6px; flex-shrink: 0; cursor: col-resize; position: relative; z-index: 30;
+  background: transparent; transition: background .12s;
+}
+.resizer:hover, body.resizing .resizer { background: var(--surface-2); }
+.resizer::after { content: ''; position: absolute; inset: 0 1px; }
+body.resizing { user-select: none; cursor: col-resize; }
+
 /* ── 首页 ── */
 .home { height: 100%; display: flex; flex-direction: column; position: relative; }
 .view.active.home { display: flex; }
