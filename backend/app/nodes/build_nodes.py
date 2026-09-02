@@ -44,10 +44,11 @@ RELATION_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅
 规则：
 1. 只抽取原文**明确体现**的人物关系，不要编造。
 2. 关系双方的名字必须都**逐字出现**在输入文本里；严禁为输入中未出现/脑补的人物建立关系，严禁由题材联想出情侣/家人等关系。
-3. 关系类型用简单词：朋友、恋人、房东租客、同事、家人、前任、邻居等。
-4. 输出严格的 JSON 数组，格式：
+3. **关系类型必须是明确的关系词**（如 朋友/恋人/家人/母女/父子/同事/房东租客/邻居/前任/师生/师徒/搭档/仇人/对手/亲人…）。
+4. **禁止"未知/相关/认识/无/不明/普通/有点"这类模糊词**；若原文**没有明确**说明两人是什么关系，就**不要输出这条关系**（宁缺毋滥，绝不用"未知"凑数）。
+5. 输出严格的 JSON 数组，格式：
 [{"source": "人物A", "relation": "关系", "target": "人物B", "weight": 1到10的整数}]
-5. 只输出 JSON，不要其他文字。"""
+6. 只输出 JSON，不要其他文字。"""
 
 
 EVENT_EXTRACT_PROMPT = """你是「小说岛」的文本分析专家。请阅读下面的小说片段，抽取关键事件。
@@ -269,13 +270,16 @@ class RelationExtractNode:
         text_pool = "".join(c["text"] for c in chunks)[:6000]
         llm_output = chat(RELATION_EXTRACT_PROMPT, text_pool, temperature=0.0, max_tokens=1024)
         relations = _extract_json_array(llm_output)
-        # 硬过滤：关系双方名字都必须逐字出现在原文 + 非通用词，杜绝为脑补角色建边
+        _FUZZY_RELATIONS = {"未知", "相关", "认识", "无", "不明", "普通", "有点", "没关系", "其他"}
+        # 硬过滤 1：关系双方名字都逐字出现 + 非通用词
         relations = [
             r for r in relations
             if isinstance(r, dict)
             and _is_entity_name(r.get("source", ""), text_pool)
             and _is_entity_name(r.get("target", ""), text_pool)
         ]
+        # 硬过滤 2：关系类型必须是明确关系词，丢弃"未知/相关"等模糊边（宁缺毋滥）
+        relations = [r for r in relations if str(r.get("relation", "")).strip() not in _FUZZY_RELATIONS]
 
         # 并行分支：只写自己独占的字段
         return {
