@@ -765,13 +765,17 @@ def save_chapter(req: ChapterSaveRequest):
         print(f"冲突检测失败: {e}")
 
     # 里程碑18+P2-3：生成结构化章纲（summary + 伏笔 + 预设），与冲突检测并行，用户无感
+    # 章纲只能忠于正文：正文过短(<40字)不生成，避免 LLM 依据只言片语脑补整章剧情/伏笔
     foreshadowing_list, setup = [], ""
-    try:
-        raw_outline = chat(CHAPTER_OUTLINE_PROMPT, req.content, temperature=0.0, max_tokens=800, task="creative")
-        outline, foreshadowing_list, setup = parse_outline_json(raw_outline)
-    except Exception as e:
-        outline = ""
-        print(f"章纲生成失败: {e}")
+    outline = ""
+    MIN_CHAPTER_CHARS = 40
+    if len((req.content or "").strip()) >= MIN_CHAPTER_CHARS:
+        try:
+            raw_outline = chat(CHAPTER_OUTLINE_PROMPT, req.content, temperature=0.0, max_tokens=800, task="creative")
+            outline, foreshadowing_list, setup = parse_outline_json(raw_outline)
+        except Exception as e:
+            outline = ""
+            print(f"章纲生成失败: {e}")
     import json as _json
     foreshadowing_json = _json.dumps(foreshadowing_list, ensure_ascii=False)
 
