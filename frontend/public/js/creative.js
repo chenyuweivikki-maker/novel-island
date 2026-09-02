@@ -309,8 +309,8 @@ inputWrap.addEventListener('drop', e => {
       showAttachChip(file.name, file.size);
     };
     reader.readAsText(file);
-  } else if (/\.(docx|pdf)$/i.test(file.name)) {
-    // 多模态：发后端解析为文本，再走素材入库
+  } else if (/\.(docx|pdf|png|jpg|jpeg|webp)$/i.test(file.name)) {
+    // 多模态：发后端解析为文本（docx/pdf 提取、图片 OCR），再走素材入库
     const fd = new FormData();
     fd.append('file', file);
     document.getElementById('attachArea').style.display = 'block';
